@@ -666,7 +666,7 @@ async def update_booking(booking_id: str, update_data: BookingUpdate, user: dict
         raise HTTPException(status_code=404, detail="Booking not found")
     
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
-    return BookingResponse(**booking, payment_status=PaymentStatus(booking["payment_status"]))
+    return BookingResponse(**booking)
 
 # ==================== PAYMENT ROUTES ====================
 @api_router.post("/payments", response_model=PaymentResponse)
