@@ -320,8 +320,8 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     try {
       const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
-      if (filters.source) params.append('source', filters.source);
+      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.source && filters.source !== 'all') params.append('source', filters.source);
       if (filters.assigned_to) params.append('assigned_to', filters.assigned_to);
       if (filters.search) params.append('search', filters.search);
 
