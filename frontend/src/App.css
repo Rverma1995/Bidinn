@@ -1,34 +1,178 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Bidinn CRM Custom Styles */
+
+/* Layout transitions */
+.sidebar-transition {
+    transition: width 0.2s ease-in-out;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
+/* Card hover effects */
+.card-hover {
+    @apply transition-all duration-200;
+}
+
+.card-hover:hover {
+    @apply shadow-md -translate-y-0.5;
+}
+
+/* Kanban column */
+.kanban-column {
+    @apply min-h-[500px];
+}
+
+/* Badge animations */
+.badge-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
     }
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+/* Countdown timer */
+.countdown-urgent {
+    @apply animate-pulse bg-red-500 text-white;
 }
 
-.App-link {
-    color: #61dafb;
+/* Table row hover */
+.table-row-interactive {
+    @apply transition-colors cursor-pointer;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
+.table-row-interactive:hover {
+    @apply bg-slate-50 dark:bg-slate-800/50;
+}
+
+/* Chart container */
+.chart-container {
+    @apply w-full h-[300px];
+}
+
+/* Avatar stack */
+.avatar-stack {
+    @apply flex -space-x-2;
+}
+
+.avatar-stack > * {
+    @apply ring-2 ring-white dark:ring-slate-900;
+}
+
+/* Notification dot */
+.notification-dot {
+    @apply absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full;
+}
+
+/* Loading skeleton */
+.skeleton-shimmer {
+    background: linear-gradient(
+        90deg,
+        hsl(var(--muted)) 0%,
+        hsl(var(--muted) / 0.5) 50%,
+        hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
     }
-    to {
-        transform: rotate(360deg);
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Stat card */
+.stat-card {
+    @apply relative overflow-hidden;
+}
+
+.stat-card::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity;
+}
+
+.stat-card:hover::before {
+    @apply opacity-100;
+}
+
+/* Leaderboard rank */
+.rank-1 {
+    @apply bg-gradient-to-r from-amber-400 to-amber-500 text-white;
+}
+
+.rank-2 {
+    @apply bg-gradient-to-r from-slate-300 to-slate-400 text-slate-800;
+}
+
+.rank-3 {
+    @apply bg-gradient-to-r from-amber-600 to-amber-700 text-white;
+}
+
+/* Modal backdrop blur */
+.modal-backdrop {
+    @apply bg-black/50 backdrop-blur-sm;
+}
+
+/* Input focus ring */
+.input-focus-ring:focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2;
+}
+
+/* Button press effect */
+.btn-press:active {
+    @apply scale-[0.98];
+}
+
+/* Pipeline stage colors */
+.pipeline-new { @apply border-l-4 border-l-blue-500; }
+.pipeline-contacted { @apply border-l-4 border-l-cyan-500; }
+.pipeline-qualified { @apply border-l-4 border-l-purple-500; }
+.pipeline-proposal { @apply border-l-4 border-l-amber-500; }
+.pipeline-negotiation { @apply border-l-4 border-l-orange-500; }
+.pipeline-closed_won { @apply border-l-4 border-l-emerald-500; }
+.pipeline-closed_lost { @apply border-l-4 border-l-red-500; }
+
+/* Revenue trend indicator */
+.trend-up {
+    @apply text-emerald-600 dark:text-emerald-400;
+}
+
+.trend-down {
+    @apply text-red-600 dark:text-red-400;
+}
+
+/* Empty state */
+.empty-state {
+    @apply flex flex-col items-center justify-center py-12 text-center;
+}
+
+.empty-state-icon {
+    @apply w-16 h-16 text-slate-300 dark:text-slate-600 mb-4;
+}
+
+/* Toast customization */
+[data-sonner-toast] {
+    @apply !bg-white dark:!bg-slate-800 !border !border-slate-200 dark:!border-slate-700;
+}
+
+/* Date picker customization */
+.rdp {
+    @apply !font-sans;
+}
+
+/* Responsive sidebar */
+@media (max-width: 768px) {
+    .sidebar-mobile-hidden {
+        @apply -translate-x-full;
+    }
+    
+    .sidebar-mobile-visible {
+        @apply translate-x-0;
     }
 }
