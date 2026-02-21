@@ -231,7 +231,7 @@ export default function BookingsPage() {
   const fetchBookings = async () => {
     try {
       const params = new URLSearchParams();
-      if (statusFilter) params.append('payment_status', statusFilter);
+      if (statusFilter && statusFilter !== 'all') params.append('payment_status', statusFilter);
       const response = await api.get(`/bookings?${params.toString()}`);
       setBookings(response.data);
     } catch (error) {
