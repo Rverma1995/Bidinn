@@ -428,7 +428,7 @@ export default function LeadsPage() {
                   <SelectValue placeholder="All reps" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All reps</SelectItem>
+                  <SelectItem value="all">All reps</SelectItem>
                   {salesReps.map((rep) => (
                     <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
                   ))}
