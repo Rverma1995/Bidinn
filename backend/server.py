@@ -387,7 +387,7 @@ async def update_user(user_id: str, update_data: dict, user: dict = Depends(requ
         raise HTTPException(status_code=404, detail="User not found")
     
     found = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
-    return UserResponse(**found, role=UserRole(found["role"]))
+    return UserResponse(**found)
 
 # ==================== LEAD HELPERS ====================
 async def add_activity(lead_id: str, action: str, details: str = None, user_id: str = None, user_name: str = None):
