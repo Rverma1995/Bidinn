@@ -378,21 +378,45 @@ export default function LeadsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {showUncontactedOnly ? 'Uncontacted Leads (>1hr)' : 'Leads'}
+          </h1>
           <p className="text-muted-foreground">
-            Manage and track your sales leads
+            {showUncontactedOnly 
+              ? 'Leads that need immediate attention' 
+              : 'Manage and track your sales leads'}
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} data-testid="create-lead-btn">
-          <Plus className="w-4 h-4 mr-2" />
-          New Lead
-        </Button>
+        <div className="flex items-center gap-2">
+          {showUncontactedOnly && (
+            <Button variant="outline" onClick={() => setShowUncontactedOnly(false)}>
+              Show All Leads
+            </Button>
+          )}
+          <Button onClick={() => setCreateDialogOpen(true)} data-testid="create-lead-btn">
+            <Plus className="w-4 h-4 mr-2" />
+            New Lead
+          </Button>
+        </div>
       </div>
 
+      {/* Uncontacted Alert Banner */}
+      {showUncontactedOnly && (
+        <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+            <p className="text-sm text-red-700 dark:text-red-300">
+              These leads have been waiting for over 1 hour without contact. Please prioritize reaching out to them.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
+      {!showUncontactedOnly && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
