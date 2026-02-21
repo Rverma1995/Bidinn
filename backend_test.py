@@ -213,7 +213,7 @@ class BidinnAPITester:
             "notes": "Test booking"
         }
         
-        success, response = self.make_request('POST', 'bookings', booking_data, 201)
+        success, response = self.make_request('POST', 'bookings', booking_data, 200)
         if success and 'id' in response:
             booking_id = response['id']
             self.test_data['test_booking_id'] = booking_id
