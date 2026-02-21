@@ -648,7 +648,7 @@ async def get_bookings(
         query["payment_status"] = payment_status
     
     bookings = await db.bookings.find(query, {"_id": 0}).skip(skip).limit(limit).sort("created_at", -1).to_list(limit)
-    return [BookingResponse(**b, payment_status=PaymentStatus(b["payment_status"])) for b in bookings]
+    return [BookingResponse(**b) for b in bookings]
 
 @api_router.get("/bookings/{booking_id}", response_model=BookingResponse)
 async def get_booking(booking_id: str, user: dict = Depends(get_current_user)):
