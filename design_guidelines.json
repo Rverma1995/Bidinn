@@ -1,0 +1,147 @@
+{
+  "brand_identity": {
+    "name": "Bidinn",
+    "archetype": "The High-Speed Workbench",
+    "vibe": "Precision, Clarity, Momentum",
+    "description": "A premium B2B SaaS CRM that feels like a high-performance instrument. Minimalist, fast, and data-dense.",
+    "logo_text": "Bidinn",
+    "primary_color_name": "Indigo",
+    "theme_mode": "light"
+  },
+  "typography": {
+    "font_family": {
+      "sans": ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+      "mono": ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"]
+    },
+    "styles": {
+      "h1": "text-3xl font-semibold tracking-tight text-slate-900",
+      "h2": "text-2xl font-semibold tracking-tight text-slate-900",
+      "h3": "text-xl font-medium tracking-tight text-slate-900",
+      "body": "text-sm font-normal text-slate-600 leading-relaxed",
+      "small": "text-xs font-medium text-slate-500",
+      "label": "text-xs font-medium uppercase tracking-wider text-slate-500"
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "DEFAULT": "#4F46E5",
+        "foreground": "#FFFFFF",
+        "hover": "#4338CA",
+        "light": "#E0E7FF"
+      },
+      "secondary": {
+        "DEFAULT": "#F1F5F9",
+        "foreground": "#0F172A"
+      },
+      "accent": {
+        "DEFAULT": "#F8FAFC",
+        "foreground": "#0F172A"
+      },
+      "background": "#FFFFFF",
+      "foreground": "#0F172A",
+      "muted": {
+        "DEFAULT": "#F1F5F9",
+        "foreground": "#64748B"
+      },
+      "border": "#E2E8F0",
+      "input": "#E2E8F0",
+      "ring": "#4F46E5",
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "destructive": "#EF4444"
+    },
+    "usage": {
+      "sidebar_bg": "bg-slate-50 border-r border-slate-200",
+      "header_bg": "bg-white/80 backdrop-blur-md border-b border-slate-200",
+      "card_bg": "bg-white border border-slate-200 shadow-sm",
+      "app_bg": "bg-white"
+    }
+  },
+  "layout": {
+    "spacing": {
+      "page_padding": "p-6 md:p-8",
+      "card_padding": "p-6",
+      "section_gap": "gap-6",
+      "item_gap": "gap-4"
+    },
+    "container": {
+      "max_width": "max-w-7xl mx-auto",
+      "dashboard_grid": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4",
+      "sidebar_width": "w-64"
+    },
+    "radius": {
+      "default": "rounded-lg",
+      "button": "rounded-md",
+      "input": "rounded-md",
+      "card": "rounded-xl"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 shadow-sm",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80 h-9 px-4 py-2 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      "ghost": "hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      "outline": "border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 shadow-sm"
+    },
+    "cards": {
+      "base": "rounded-xl border bg-card text-card-foreground shadow-sm",
+      "header": "flex flex-col space-y-1.5 p-6",
+      "title": "text-lg font-semibold leading-none tracking-tight",
+      "content": "p-6 pt-0"
+    },
+    "inputs": {
+      "base": "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+    },
+    "tables": {
+      "wrapper": "relative w-full overflow-auto rounded-md border",
+      "table": "w-full caption-bottom text-sm",
+      "header_row": "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+      "header_cell": "h-10 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      "body_row": "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+      "body_cell": "p-4 align-middle [&:has([role=checkbox])]:pr-0"
+    },
+    "badges": {
+      "base": "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+      "default": "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+      "secondary": "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      "outline": "text-foreground"
+    }
+  },
+  "assets": {
+    "images": {
+      "login_background": "https://images.unsplash.com/photo-1762951566390-e35eb7dfe9c5?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "avatars": [
+        "https://images.unsplash.com/photo-1576558656222-ba66febe3dec?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "https://images.unsplash.com/photo-1762522926157-bcc04bf0b10a?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "https://images.unsplash.com/photo-1672685667592-0392f458f46f?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "https://images.pexels.com/photos/30004323/pexels-photo-30004323.jpeg"
+      ]
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width-2 w-4 h-4"
+    }
+  },
+  "universal_guidelines": {
+    "principles": [
+      "Density with Breathing Room: Use dense tables for data, but spacious padding for containers.",
+      "No Gradients on Text: Keep text solid and high-contrast.",
+      "Subtle Borders > Heavy Shadows: Use 1px borders to define structure, shadows should be ambient only.",
+      "Interactive Feedback: Every clickable element must have a hover and active state.",
+      "Data-First: Charts and numbers should be the heroes, not the illustrations."
+    ],
+    "anti_patterns": [
+      "Do not use 'Inter' for everything. Use tighter tracking for headings to make them distinct.",
+      "Avoid full-screen gradients. Use white/gray backgrounds for a professional tool feel.",
+      "Don't center-align dashboard widgets. Left-align for scanability.",
+      "Never use generic 'Lorem Ipsum'. Use realistic sales data (e.g., 'Acme Corp', '$12,500', 'Negotiation')."
+    ],
+    "accessibility": {
+      "contrast": "Ensure text is at least 4.5:1 contrast ratio.",
+      "focus": "Visible focus rings on all interactive elements.",
+      "aria": "Use aria-labels for icon-only buttons."
+    }
+  },
+  "instructions_to_main_agent": "Implement the dashboard using the 'Bento' grid layout. Use the provided color palette variables in Tailwind. Ensure the sidebar is collapsible or distinct from the main content area. Use 'Recharts' for all data visualization. Use 'Sonner' for notifications. For the Kanban board, ensure drag-and-drop feels smooth (use a library like dnd-kit or react-beautiful-dnd if needed, or simple state management if simple). Mock all data with realistic B2B sales examples."
+}
