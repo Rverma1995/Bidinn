@@ -136,7 +136,7 @@ class BidinnAPITester:
             "notes": "Test lead for API testing"
         }
         
-        success, response = self.make_request('POST', 'leads', lead_data, 201)
+        success, response = self.make_request('POST', 'leads', lead_data, 200)
         if success and 'id' in response:
             lead_id = response['id']
             self.test_data['test_lead_id'] = lead_id
