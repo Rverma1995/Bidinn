@@ -397,7 +397,7 @@ export default function LeadsPage() {
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All statuses</SelectItem>
+                <SelectItem value="all">All statuses</SelectItem>
                 {LEAD_STATUSES.map((status) => (
                   <SelectItem key={status.value} value={status.value}>
                     {status.label}
