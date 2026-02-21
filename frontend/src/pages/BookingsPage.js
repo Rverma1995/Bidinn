@@ -332,7 +332,7 @@ export default function BookingsPage() {
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All statuses</SelectItem>
+                <SelectItem value="all">All statuses</SelectItem>
                 <SelectItem value="unpaid">Unpaid</SelectItem>
                 <SelectItem value="partial">Partial</SelectItem>
                 <SelectItem value="paid">Paid</SelectItem>
