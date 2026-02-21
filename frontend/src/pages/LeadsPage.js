@@ -492,6 +492,7 @@ export default function LeadsPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Results Count */}
       <div className="flex items-center justify-between">
