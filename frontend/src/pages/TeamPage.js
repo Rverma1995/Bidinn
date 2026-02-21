@@ -280,11 +280,19 @@ export default function TeamPage() {
   return (
     <div className="space-y-6 animate-fade-in" data-testid="team-page">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
-        <p className="text-muted-foreground">
-          Manage your team and track performance
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
+          <p className="text-muted-foreground">
+            Manage your team and track performance
+          </p>
+        </div>
+        {isManager && (
+          <Button onClick={() => setCreateDialogOpen(true)} data-testid="add-team-member-btn">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Team Member
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
