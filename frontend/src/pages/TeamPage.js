@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import {
@@ -12,6 +14,14 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -35,6 +45,10 @@ import {
   Users,
   TrendingUp,
   Target,
+  Plus,
+  UserPlus,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 function LeaderboardCard({ entry, rank }) {
