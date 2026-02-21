@@ -305,6 +305,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('table');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [showUncontactedOnly, setShowUncontactedOnly] = useState(searchParams.get('filter') === 'uncontacted');
   const [filters, setFilters] = useState({
     status: searchParams.get('status') || 'all',
     source: searchParams.get('source') || 'all',
@@ -315,18 +316,31 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
     fetchUsers();
-  }, [filters]);
+  }, [filters, showUncontactedOnly]);
 
   const fetchLeads = async () => {
     try {
-      const params = new URLSearchParams();
-      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
-      if (filters.source && filters.source !== 'all') params.append('source', filters.source);
-      if (filters.assigned_to && filters.assigned_to !== 'all') params.append('assigned_to', filters.assigned_to);
-      if (filters.search) params.append('search', filters.search);
+      // If showing uncontacted leads only, use the special endpoint
+      if (showUncontactedOnly) {
+        try {
+          const response = await api.get('/leads/uncontacted');
+          setLeads(response.data);
+        } catch (error) {
+          // Fallback if user doesn't have access to uncontacted endpoint
+          const response = await api.get('/leads?status=new');
+          const filtered = response.data.filter(l => l.is_overdue || l.attempt_count === 0);
+          setLeads(filtered);
+        }
+      } else {
+        const params = new URLSearchParams();
+        if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+        if (filters.source && filters.source !== 'all') params.append('source', filters.source);
+        if (filters.assigned_to && filters.assigned_to !== 'all') params.append('assigned_to', filters.assigned_to);
+        if (filters.search) params.append('search', filters.search);
 
-      const response = await api.get(`/leads?${params.toString()}`);
-      setLeads(response.data);
+        const response = await api.get(`/leads?${params.toString()}`);
+        setLeads(response.data);
+      }
     } catch (error) {
       toast.error('Failed to fetch leads');
     } finally {
