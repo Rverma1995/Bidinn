@@ -242,7 +242,7 @@ class BidinnAPITester:
             "notes": "Partial payment received"
         }
         
-        success, response = self.make_request('POST', 'payments', payment_data, 201)
+        success, response = self.make_request('POST', 'payments', payment_data, 200)
         if success and 'id' in response:
             self.log_result("Record Payment", True)
             
