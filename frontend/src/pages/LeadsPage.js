@@ -413,7 +413,7 @@ export default function LeadsPage() {
                 <SelectValue placeholder="All sources" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All sources</SelectItem>
+                <SelectItem value="all">All sources</SelectItem>
                 {LEAD_SOURCES.map((source) => (
                   <SelectItem key={source} value={source}>{source}</SelectItem>
                 ))}
