@@ -995,6 +995,12 @@ async def seed_data(user: dict = Depends(require_roles([UserRole.ADMIN]))):
     
     user_ids = []
     for u in users_data:
+        # Check if user already exists
+        existing = await db.users.find_one({"email": u["email"]})
+        if existing:
+            user_ids.append(existing["id"])
+            continue
+        
         user_doc = {
             "id": str(uuid.uuid4()),
             **u,
