@@ -63,7 +63,7 @@ function LeaderboardCard({ entry, rank }) {
     if (rank === 1) return 'bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-900/10 border-amber-200 dark:border-amber-800';
     if (rank === 2) return 'bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800/50 dark:to-slate-800/30 border-slate-200 dark:border-slate-700';
     if (rank === 3) return 'bg-gradient-to-r from-amber-50/50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10 border-amber-200/50 dark:border-amber-800/50';
-    return '';
+  return '';
   };
 
   return (
