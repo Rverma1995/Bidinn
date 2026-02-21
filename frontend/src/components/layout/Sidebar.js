@@ -47,14 +47,21 @@ export function Sidebar({ collapsed, onToggle }) {
       {/* Logo */}
       <div className={cn(
         "h-16 flex items-center border-b border-slate-200 dark:border-slate-800",
-        collapsed ? "justify-center px-2" : "px-6"
+        collapsed ? "justify-center px-2" : "px-4"
       )}>
-        <h1 className={cn(
-          "font-bold text-primary transition-all duration-300",
-          collapsed ? "text-xl" : "text-2xl tracking-tight"
-        )}>
-          {collapsed ? "B" : "Bidinn"}
-        </h1>
+        {collapsed ? (
+          <img 
+            src="https://customer-assets.emergentagent.com/job_lead-forge-6/artifacts/3adtfmps_Bidinn%20logo%20new%20updated%20%20%281%29.png" 
+            alt="Bidinn" 
+            className="h-8 w-auto"
+          />
+        ) : (
+          <img 
+            src="https://customer-assets.emergentagent.com/job_lead-forge-6/artifacts/3adtfmps_Bidinn%20logo%20new%20updated%20%20%281%29.png" 
+            alt="Bidinn" 
+            className="h-10 w-auto"
+          />
+        )}
       </div>
 
       {/* Navigation */}
