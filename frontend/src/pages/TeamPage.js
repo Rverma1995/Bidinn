@@ -432,6 +432,13 @@ export default function TeamPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Create User Dialog */}
+      <CreateUserDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onSuccess={fetchTeamData}
+      />
     </div>
   );
 }
