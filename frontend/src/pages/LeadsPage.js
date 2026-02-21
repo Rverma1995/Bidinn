@@ -306,9 +306,9 @@ export default function LeadsPage() {
   const [viewMode, setViewMode] = useState('table');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
-    status: searchParams.get('status') || '',
-    source: searchParams.get('source') || '',
-    assigned_to: '',
+    status: searchParams.get('status') || 'all',
+    source: searchParams.get('source') || 'all',
+    assigned_to: 'all',
     search: '',
   });
 
