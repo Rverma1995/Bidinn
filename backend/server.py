@@ -367,7 +367,7 @@ async def get_me(user: dict = Depends(get_current_user)):
 @api_router.get("/users", response_model=List[UserResponse])
 async def get_users(user: dict = Depends(get_current_user)):
     users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
-    return [UserResponse(**u, role=UserRole(u["role"])) for u in users]
+    return [UserResponse(**u) for u in users]
 
 @api_router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(user_id: str, user: dict = Depends(get_current_user)):
