@@ -655,7 +655,7 @@ async def get_booking(booking_id: str, user: dict = Depends(get_current_user)):
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    return BookingResponse(**booking, payment_status=PaymentStatus(booking["payment_status"]))
+    return BookingResponse(**booking)
 
 @api_router.put("/bookings/{booking_id}", response_model=BookingResponse)
 async def update_booking(booking_id: str, update_data: BookingUpdate, user: dict = Depends(get_current_user)):
