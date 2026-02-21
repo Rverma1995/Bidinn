@@ -606,7 +606,7 @@ async def get_calls(lead_id: Optional[str] = None, user_id: Optional[str] = None
         query["user_id"] = user_id
     
     calls = await db.calls.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return [CallLogResponse(**c, outcome=CallOutcome(c["outcome"])) for c in calls]
+    return [CallLogResponse(**c) for c in calls]
 
 # ==================== BOOKING ROUTES ====================
 @api_router.post("/bookings", response_model=BookingResponse)
