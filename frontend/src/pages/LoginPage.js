@@ -63,9 +63,12 @@ export default function LoginPage() {
         <div className="w-full max-w-md space-y-8">
           {/* Logo */}
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-primary tracking-tight" data-testid="logo">
-              Bidinn
-            </h1>
+            <img 
+              src="https://customer-assets.emergentagent.com/job_lead-forge-6/artifacts/3adtfmps_Bidinn%20logo%20new%20updated%20%20%281%29.png" 
+              alt="Bidinn" 
+              className="h-14 w-auto mx-auto"
+              data-testid="logo"
+            />
             <p className="mt-2 text-sm text-muted-foreground">
               Sales CRM Platform
             </p>
