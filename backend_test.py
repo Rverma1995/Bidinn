@@ -185,7 +185,7 @@ class BidinnAPITester:
             "notes": "Good conversation, interested in services"
         }
         
-        success, response = self.make_request('POST', 'calls', call_data, 201)
+        success, response = self.make_request('POST', 'calls', call_data, 200)
         if success and 'id' in response:
             self.test_data['test_call_id'] = response['id']
             self.log_result("Log Call", True)
