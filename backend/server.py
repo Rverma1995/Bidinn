@@ -634,7 +634,7 @@ async def create_booking(booking_data: BookingCreate, user: dict = Depends(get_c
     )
     await add_activity(booking_data.lead_id, "Booking created", f"Hotel: {booking_data.hotel_name}", user["id"], user["name"])
     
-    return BookingResponse(**booking_dict, payment_status=PaymentStatus(booking_dict["payment_status"]))
+    return BookingResponse(**booking_dict)
 
 @api_router.get("/bookings", response_model=List[BookingResponse])
 async def get_bookings(
