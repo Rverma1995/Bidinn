@@ -374,7 +374,7 @@ async def get_user(user_id: str, user: dict = Depends(get_current_user)):
     found = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
     if not found:
         raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse(**found, role=UserRole(found["role"]))
+    return UserResponse(**found)
 
 @api_router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(user_id: str, update_data: dict, user: dict = Depends(require_roles([UserRole.ADMIN, UserRole.MANAGER]))):
