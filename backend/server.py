@@ -772,10 +772,10 @@ async def create_booking(booking_data: BookingCreate, user: dict = Depends(get_c
     }
     await db.bookings.insert_one(booking_dict)
     
-    # Update lead to closed_won
+    # Update lead to won
     await db.leads.update_one(
         {"id": booking_data.lead_id},
-        {"$set": {"status": LeadStatus.CLOSED_WON.value, "updated_at": now, "last_activity": now}}
+        {"$set": {"status": LeadStatus.WON.value, "updated_at": now, "last_activity": now}}
     )
     await add_activity(booking_data.lead_id, "Booking created", f"Hotel: {booking_data.hotel_name}", user["id"], user["name"])
     
