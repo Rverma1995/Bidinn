@@ -733,9 +733,9 @@ async def log_call(call_data: CallLogCreate, user: dict = Depends(get_current_us
     if call_data.next_followup:
         update_data["next_followup"] = call_data.next_followup
     
-    # If connected, move to contacted status
+    # If connected and status is NEW, move to INTERESTED
     if call_data.outcome == CallOutcome.CONNECTED and lead["status"] == LeadStatus.NEW.value:
-        update_data["status"] = LeadStatus.CONTACTED.value
+        update_data["status"] = LeadStatus.INTERESTED.value
     
     await db.leads.update_one({"id": call_data.lead_id}, {"$set": update_data})
     await add_activity(call_data.lead_id, "Call logged", f"{call_data.outcome.value} - {call_data.duration_minutes} min", user["id"], user["name"])
