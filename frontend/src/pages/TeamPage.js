@@ -29,6 +29,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 import { toast } from 'sonner';
 import {
   formatCurrency,
@@ -49,6 +66,11 @@ import {
   UserPlus,
   Eye,
   EyeOff,
+  MoreVertical,
+  UserX,
+  UserCheck,
+  KeyRound,
+  Shield,
 } from 'lucide-react';
 
 function LeaderboardCard({ entry, rank }) {
@@ -225,12 +247,95 @@ function CreateUserDialog({ open, onOpenChange, onSuccess }) {
   );
 }
 
+function ResetPasswordDialog({ open, onOpenChange, user, onSuccess }) {
+  const { api } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.post(`/users/${user.id}/reset-password`, { new_password: newPassword });
+      toast.success(`Password reset for ${user.name}`);
+      onSuccess();
+      onOpenChange(false);
+      setNewPassword('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[400px]" data-testid="reset-password-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <KeyRound className="w-5 h-5" />
+            Reset Password
+          </DialogTitle>
+          <DialogDescription>
+            Set a new password for {user?.name}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password *</Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Min 6 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  className="pr-10"
+                  data-testid="new-password-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading} data-testid="reset-password-submit">
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Reset Password
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function TeamPage() {
-  const { api, isManager } = useAuth();
+  const { api, isManager, user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState(null);
+
+  const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
     fetchTeamData();
@@ -262,8 +367,27 @@ export default function TeamPage() {
     }
   };
 
+  const handleToggleStatus = async (user) => {
+    if (!isAdmin) return;
+    try {
+      const response = await api.post(`/users/${user.id}/toggle-status`);
+      toast.success(response.data.message);
+      fetchTeamData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to toggle user status');
+    } finally {
+      setConfirmDeactivate(null);
+    }
+  };
+
+  const openResetPasswordDialog = (user) => {
+    setSelectedUser(user);
+    setResetPasswordDialogOpen(true);
+  };
+
   const teamStats = {
     totalMembers: users.length,
+    activeMembers: users.filter(u => u.is_active).length,
     salesReps: users.filter(u => u.role === 'sales_rep').length,
     totalRevenue: leaderboard.reduce((sum, e) => sum + e.revenue, 0),
     totalCalls: leaderboard.reduce((sum, e) => sum + e.calls_made, 0),
@@ -296,7 +420,7 @@ export default function TeamPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
@@ -305,6 +429,17 @@ export default function TeamPage() {
             <div>
               <p className="text-sm text-muted-foreground">Total Members</p>
               <p className="text-2xl font-bold">{teamStats.totalMembers}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-3 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+              <UserCheck className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Active</p>
+              <p className="text-2xl font-bold">{teamStats.activeMembers}</p>
             </div>
           </CardContent>
         </Card>
@@ -321,8 +456,8 @@ export default function TeamPage() {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-              <TrendingUp className="w-5 h-5 text-emerald-600" />
+            <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+              <TrendingUp className="w-5 h-5 text-green-600" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Team Revenue</p>
@@ -380,12 +515,12 @@ export default function TeamPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
-                {isManager && <TableHead>Actions</TableHead>}
+                {isManager && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.map((user) => (
-                <TableRow key={user.id} data-testid={`team-member-${user.id}`}>
+                <TableRow key={user.id} data-testid={`team-member-${user.id}`} className={!user.is_active ? 'opacity-60' : ''}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="w-9 h-9">
@@ -399,17 +534,7 @@ export default function TeamPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{user.email}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={getRoleBadgeColor(user.role)}>
-                      {getRoleLabel(user.role)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={user.is_active ? 'default' : 'outline'} className={user.is_active ? 'bg-emerald-500' : ''}>
-                      {user.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </TableCell>
-                  {isManager && (
-                    <TableCell>
+                    {isManager ? (
                       <Select
                         value={user.role}
                         onValueChange={(value) => handleRoleChange(user.id, value)}
@@ -424,6 +549,51 @@ export default function TeamPage() {
                           <SelectItem value="sales_rep">Sales Rep</SelectItem>
                         </SelectContent>
                       </Select>
+                    ) : (
+                      <Badge variant="secondary" className={getRoleBadgeColor(user.role)}>
+                        {getRoleLabel(user.role)}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={user.is_active ? 'default' : 'destructive'} className={user.is_active ? 'bg-emerald-500' : ''}>
+                      {user.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </TableCell>
+                  {isManager && (
+                    <TableCell className="text-right">
+                      {isAdmin && user.id !== currentUser?.id && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" data-testid={`user-actions-${user.id}`}>
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openResetPasswordDialog(user)}>
+                              <KeyRound className="w-4 h-4 mr-2" />
+                              Reset Password
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setConfirmDeactivate(user)}
+                              className={user.is_active ? 'text-red-600' : 'text-emerald-600'}
+                            >
+                              {user.is_active ? (
+                                <>
+                                  <UserX className="w-4 h-4 mr-2" />
+                                  Deactivate User
+                                </>
+                              ) : (
+                                <>
+                                  <UserCheck className="w-4 h-4 mr-2" />
+                                  Activate User
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   )}
                 </TableRow>
@@ -439,6 +609,39 @@ export default function TeamPage() {
         onOpenChange={setCreateDialogOpen}
         onSuccess={fetchTeamData}
       />
+
+      {/* Reset Password Dialog */}
+      <ResetPasswordDialog
+        open={resetPasswordDialogOpen}
+        onOpenChange={setResetPasswordDialogOpen}
+        user={selectedUser}
+        onSuccess={fetchTeamData}
+      />
+
+      {/* Confirm Deactivate Dialog */}
+      <AlertDialog open={!!confirmDeactivate} onOpenChange={() => setConfirmDeactivate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDeactivate?.is_active ? 'Deactivate User?' : 'Activate User?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDeactivate?.is_active
+                ? `This will prevent ${confirmDeactivate?.name} from logging in. They will not be able to access the CRM until reactivated.`
+                : `This will allow ${confirmDeactivate?.name} to log in and access the CRM again.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleToggleStatus(confirmDeactivate)}
+              className={confirmDeactivate?.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}
+            >
+              {confirmDeactivate?.is_active ? 'Deactivate' : 'Activate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
