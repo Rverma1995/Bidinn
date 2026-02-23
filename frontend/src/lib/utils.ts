@@ -41,11 +41,11 @@ export function formatDateTime(dateString) {
   });
 }
 
-export function formatRelativeTime(dateString) {
+export function formatRelativeTime(dateString: string | null | undefined): string {
   if (!dateString) return '-';
   const date = new Date(dateString);
   const now = new Date();
-  const diffMs = now - date;
+  const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
@@ -57,12 +57,12 @@ export function formatRelativeTime(dateString) {
   return formatDate(dateString);
 }
 
-export function getCountdownTime(createdAt) {
+export function getCountdownTime(createdAt: string | null | undefined): { expired: boolean; text: string; mins?: number; secs?: number } | null {
   if (!createdAt) return null;
   const created = new Date(createdAt);
   const deadline = new Date(created.getTime() + 60 * 60 * 1000); // 1 hour
   const now = new Date();
-  const remaining = deadline - now;
+  const remaining = deadline.getTime() - now.getTime();
   
   if (remaining <= 0) return { expired: true, text: 'Overdue' };
   
