@@ -644,6 +644,10 @@ export default function LeadsPage() {
               Show All Leads
             </Button>
           )}
+          <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-leads-btn">
+            <Upload className="w-4 h-4 mr-2" />
+            Import
+          </Button>
           <Button onClick={() => setCreateDialogOpen(true)} data-testid="create-lead-btn">
             <Plus className="w-4 h-4 mr-2" />
             New Lead
