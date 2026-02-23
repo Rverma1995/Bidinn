@@ -70,7 +70,10 @@ import {
   CheckCircle2,
   XCircle,
   Download,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
+import { Checkbox } from '../components/ui/checkbox';
 
 function CountdownBadge({ createdAt, attemptCount, status }) {
   const [countdown, setCountdown] = useState(null);
