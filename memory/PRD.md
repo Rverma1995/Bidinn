@@ -231,6 +231,13 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ## 6. Recent Changes
 
+### February 23, 2026 - All Pending Tasks Completed
+- **COMPLETED:** Date Range Filter for Agent Reports (Last 7 Days, 30 Days, This Month, Quarter, Custom)
+- **COMPLETED:** 30-Day Auto-Reset Scheduled Job (runs daily at midnight)
+- **COMPLETED:** Bulk Lead Export to CSV
+- **COMPLETED:** User Deactivation/Reactivation (Admin only)
+- **COMPLETED:** Password Reset for Users (Admin only)
+
 ### February 23, 2026 - Agent Performance Reports
 - **COMPLETED:** Added Agent Performance Report to Reports page
 - **COMPLETED:** New API endpoint `/api/dashboard/agent-performance`
@@ -250,15 +257,10 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ## 7. Pending Tasks
 
-### P1 (Medium Priority)
-- [ ] Set up scheduled daily job for 30-day auto-reset rule
-- [ ] Bulk lead export to CSV
-- [ ] User deactivation/reactivation for admins
-
 ### P2 (Lower Priority)
-- [ ] Google Sheets integration
+- [ ] Google Sheets integration for import/export
 - [ ] Booking reasons dropdown
-- [ ] Bulk status updates
+- [ ] Bulk status updates for multiple leads
 
 ---
 
