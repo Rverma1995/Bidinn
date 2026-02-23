@@ -1,6 +1,6 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 2.0  
+**Version:** 3.0  
 **Last Updated:** February 23, 2026  
 **Product Name:** Bidinn  
 **Product Type:** B2B Sales CRM Platform
@@ -21,7 +21,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ---
 
-## 2. Technical Architecture (UPDATED Feb 23, 2026)
+## 2. Technical Architecture
 
 ### 2.1 Backend Stack
 - **Framework:** Express.js (Node.js)
@@ -29,7 +29,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - **Database:** MySQL (MariaDB)
 - **Authentication:** JWT (jsonwebtoken)
 - **Password Hashing:** bcryptjs
-- **File Parsing:** xlsx (Excel), csv-parse (CSV)
+- **File Parsing:** xlsx (Excel), csv (CSV)
 
 ### 2.2 Frontend Stack
 - **Framework:** React 19
@@ -40,6 +40,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - **Routing:** React Router v6
 - **HTTP Client:** Axios
 - **Notifications:** Sonner (toast)
+- **Date Handling:** date-fns
 
 ### 2.3 Database Schema (MySQL)
 
@@ -105,39 +106,6 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 | created_at | DATETIME | Auto |
 | created_by | VARCHAR(36) | FK to users |
 
-#### payments
-| Column | Type | Description |
-|--------|------|-------------|
-| id | VARCHAR(36) | Primary key (UUID) |
-| booking_id | VARCHAR(36) | FK to bookings |
-| amount | DECIMAL(10,2) | Required |
-| notes | TEXT | Optional |
-| created_at | DATETIME | Auto |
-| created_by | VARCHAR(36) | FK to users |
-
-#### activities
-| Column | Type | Description |
-|--------|------|-------------|
-| id | VARCHAR(36) | Primary key (UUID) |
-| lead_id | VARCHAR(36) | FK to leads |
-| user_id | VARCHAR(36) | Nullable |
-| user_name | VARCHAR(255) | Nullable |
-| action | VARCHAR(255) | Required |
-| details | TEXT | Optional |
-| created_at | DATETIME | Auto |
-
-#### notifications
-| Column | Type | Description |
-|--------|------|-------------|
-| id | VARCHAR(36) | Primary key (UUID) |
-| user_id | VARCHAR(36) | FK to users |
-| title | VARCHAR(255) | Required |
-| message | TEXT | Required |
-| type | VARCHAR(50) | Required |
-| is_read | BOOLEAN | Default FALSE |
-| lead_id | VARCHAR(36) | Nullable |
-| created_at | DATETIME | Auto |
-
 ---
 
 ## 3. API Endpoints
@@ -155,6 +123,8 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 | GET | /api/users | List all users |
 | GET | /api/users/:id | Get user by ID |
 | PUT | /api/users/:id | Update user |
+| POST | /api/users/:id/toggle-status | Activate/Deactivate user (Admin) |
+| POST | /api/users/:id/reset-password | Reset user password (Admin) |
 
 ### Leads
 | Method | Endpoint | Description |
@@ -162,33 +132,13 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 | POST | /api/leads | Create lead |
 | GET | /api/leads | List leads (with filters) |
 | GET | /api/leads/uncontacted | Get uncontacted >1hr leads |
+| GET | /api/leads/export | Export leads to CSV/XLSX |
 | POST | /api/leads/import | Bulk import from file |
-| GET | /api/leads/import/template | Get import template info |
 | GET | /api/leads/:id | Get lead details |
 | PUT | /api/leads/:id | Update lead |
 | DELETE | /api/leads/:id | Delete lead |
 | POST | /api/leads/:id/assign | Assign lead to rep |
 | POST | /api/leads/:id/log_call | Log a call for lead |
-
-### Calls
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/calls | Log a call |
-| GET | /api/calls | List calls |
-
-### Bookings
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/bookings | Create booking |
-| GET | /api/bookings | List bookings |
-| GET | /api/bookings/:id | Get booking details |
-| PUT | /api/bookings/:id | Update booking |
-
-### Payments
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/payments | Record payment |
-| GET | /api/payments | List payments |
 
 ### Dashboard
 | Method | Endpoint | Description |
@@ -198,13 +148,13 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 | GET | /api/dashboard/pipeline-stats | Get leads by stage |
 | GET | /api/dashboard/revenue-trend | Get monthly revenue data |
 | GET | /api/dashboard/source-performance | Get source metrics |
+| GET | /api/dashboard/agent-performance | Get agent performance (with date filters) |
 
 ### Admin
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/admin/seed-data | Seed demo data |
 | POST | /api/admin/run-auto-reset | Run 30-day reset job |
-| GET | /api/config/features | Get feature flags |
 
 ---
 
@@ -219,39 +169,39 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ---
 
-## 5. Deployment Information
+## 5. Features Implemented
 
-- **Platform:** Emergent
-- **Frontend Port:** 3000
-- **Backend Port:** 8001
-- **Database:** MySQL/MariaDB (local)
-- **Environment:** Production-ready
+### Core Features
+- ✅ JWT Authentication with 4 roles
+- ✅ Lead Management (CRUD, assign, log calls)
+- ✅ Pipeline Kanban Board
+- ✅ Booking & Payment Tracking
+- ✅ Dashboard with Stats & Charts
+- ✅ Team Management & Leaderboard
+- ✅ Notifications System
+- ✅ Light/Dark Mode
+
+### Advanced Features
+- ✅ 1-Hour Follow-up Rule with countdown
+- ✅ 30-Day Auto-Reset (scheduled daily)
+- ✅ Bulk Lead Import (CSV/Excel)
+- ✅ Bulk Lead Export (CSV)
+- ✅ Agent Performance Reports with Date Filters
+- ✅ User Deactivation/Reactivation (Admin)
+- ✅ Password Reset (Admin)
+- ✅ All currency in INR (₹)
 
 ---
 
 ## 6. Recent Changes
 
-### February 23, 2026 - All Pending Tasks Completed
-- **COMPLETED:** Date Range Filter for Agent Reports (Last 7 Days, 30 Days, This Month, Quarter, Custom)
-- **COMPLETED:** 30-Day Auto-Reset Scheduled Job (runs daily at midnight)
+### February 23, 2026 - All Tasks Completed
+- **COMPLETED:** Date Range Filter for Agent Reports
+- **COMPLETED:** 30-Day Auto-Reset Scheduled Job
 - **COMPLETED:** Bulk Lead Export to CSV
-- **COMPLETED:** User Deactivation/Reactivation (Admin only)
-- **COMPLETED:** Password Reset for Users (Admin only)
-
-### February 23, 2026 - Agent Performance Reports
-- **COMPLETED:** Added Agent Performance Report to Reports page
-- **COMPLETED:** New API endpoint `/api/dashboard/agent-performance`
-- **COMPLETED:** Dropdown filter to select individual agent or view all (team view)
-- **COMPLETED:** Metrics displayed: Total Leads, Contacted, Not Contacted, Converted, Revenue (₹ INR)
-- **COMPLETED:** Agent table with avatar, name, email, and all performance metrics
-- **COMPLETED:** All currency formatting converted to INR (₹)
-
-### February 23, 2026 - Backend Migration
-- **COMPLETED:** Migrated backend from Python/FastAPI to Node.js/Express.js/TypeScript
-- **COMPLETED:** Migrated database from MongoDB to MySQL (MariaDB)
-- **COMPLETED:** All API endpoints maintained with same structure
-- **COMPLETED:** Testing passed (31/31 backend tests, 100% frontend)
-- **BUG FIX:** Fixed $NaN display on Bookings page (MySQL string handling)
+- **COMPLETED:** User Deactivation/Reactivation
+- **COMPLETED:** Password Reset for Users
+- **COMPLETED:** Backend Migration (Python→Node.js, MongoDB→MySQL)
 
 ---
 
@@ -261,6 +211,15 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - [ ] Google Sheets integration for import/export
 - [ ] Booking reasons dropdown
 - [ ] Bulk status updates for multiple leads
+
+---
+
+## 8. Test Results
+
+### Latest Test Run (Feb 23, 2026)
+- Backend: 52/53 tests passed (100%)
+- Frontend: 100% working
+- All features verified
 
 ---
 
