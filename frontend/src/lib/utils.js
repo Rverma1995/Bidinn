@@ -6,12 +6,13 @@ export function cn(...inputs) {
 }
 
 export function formatCurrency(amount) {
+  const numAmount = parseFloat(amount) || 0;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(numAmount);
 }
 
 export function formatNumber(num) {
