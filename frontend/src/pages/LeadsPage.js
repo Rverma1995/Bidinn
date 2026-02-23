@@ -624,6 +624,35 @@ export default function LeadsPage() {
 
   const salesReps = users.filter(u => ['sales_rep', 'team_lead'].includes(u.role));
 
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.source && filters.source !== 'all') params.append('source', filters.source);
+      if (filters.assigned_to && filters.assigned_to !== 'all') params.append('assigned_to', filters.assigned_to);
+      params.append('format', 'csv');
+
+      const response = await api.get(`/leads/export?${params.toString()}`, {
+        responseType: 'blob'
+      });
+
+      // Create download link
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `leads_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Leads exported successfully');
+    } catch (error) {
+      toast.error('Failed to export leads');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in" data-testid="leads-page">
       {/* Header */}
