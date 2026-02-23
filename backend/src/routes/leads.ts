@@ -467,7 +467,7 @@ router.post('/:leadId/log_call', authMiddleware, async (req: Request, res: Respo
 
     await pool.execute(updateQuery, updateParams);
 
-    await addActivity(leadId, 'Call logged', `${outcome} - ${duration_minutes} min`, user.id, user.name);
+    await addActivity(leadId as string, 'Call logged', `${outcome} - ${duration_minutes} min`, user.id, user.name);
 
     res.status(201).json({
       id: callId,
