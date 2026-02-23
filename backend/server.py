@@ -500,6 +500,149 @@ async def get_uncontacted_leads(user: dict = Depends(require_roles([UserRole.ADM
     
     return [LeadResponse(**calculate_lead_metrics(l)) for l in leads]
 
+@api_router.post("/leads/import")
+async def import_leads(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Import leads from CSV or Excel file"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+    
+    # Check file extension
+    filename = file.filename.lower()
+    if not (filename.endswith('.csv') or filename.endswith('.xlsx') or filename.endswith('.xls')):
+        raise HTTPException(status_code=400, detail="Only CSV and Excel files are supported")
+    
+    try:
+        content = await file.read()
+        leads_data = []
+        
+        if filename.endswith('.csv'):
+            # Parse CSV
+            decoded = content.decode('utf-8')
+            reader = csv.DictReader(io.StringIO(decoded))
+            for row in reader:
+                leads_data.append(row)
+        else:
+            # Parse Excel
+            workbook = openpyxl.load_workbook(io.BytesIO(content))
+            sheet = workbook.active
+            headers = [cell.value.lower().strip() if cell.value else '' for cell in sheet[1]]
+            
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                if any(row):  # Skip empty rows
+                    row_dict = {}
+                    for i, value in enumerate(row):
+                        if i < len(headers) and headers[i]:
+                            row_dict[headers[i]] = value
+                    if row_dict:
+                        leads_data.append(row_dict)
+        
+        # Column mapping (handle various column name formats)
+        column_map = {
+            'name': ['name', 'lead name', 'full name', 'customer name', 'client name', 'company', 'company name'],
+            'phone': ['phone', 'phone number', 'mobile', 'mobile number', 'contact', 'telephone', 'tel'],
+            'email': ['email', 'email address', 'e-mail', 'mail'],
+            'source': ['source', 'lead source', 'channel', 'origin'],
+            'campaign': ['campaign', 'campaign name', 'marketing campaign'],
+            'city': ['city', 'location', 'area', 'region'],
+            'notes': ['notes', 'note', 'comments', 'comment', 'description', 'remarks']
+        }
+        
+        def find_column_value(row, field_names):
+            for field in field_names:
+                for key in row:
+                    if key and key.lower().strip() == field:
+                        return row[key]
+            return None
+        
+        # Process leads
+        now = datetime.now(timezone.utc).isoformat()
+        imported_count = 0
+        skipped_count = 0
+        errors = []
+        
+        valid_sources = ['Website', 'Referral', 'Google Ads', 'Facebook', 'LinkedIn', 'Cold Call', 'Trade Show', 'Partner', 'Import']
+        
+        for i, row in enumerate(leads_data):
+            try:
+                name = find_column_value(row, column_map['name'])
+                phone = find_column_value(row, column_map['phone'])
+                
+                if not name or not phone:
+                    skipped_count += 1
+                    errors.append(f"Row {i+2}: Missing name or phone")
+                    continue
+                
+                # Clean phone number
+                phone = str(phone).strip()
+                
+                # Check for duplicate phone
+                existing = await db.leads.find_one({"phone": phone})
+                if existing:
+                    skipped_count += 1
+                    errors.append(f"Row {i+2}: Duplicate phone {phone}")
+                    continue
+                
+                source = find_column_value(row, column_map['source']) or 'Import'
+                if source not in valid_sources:
+                    source = 'Import'
+                
+                lead_dict = {
+                    "id": str(uuid.uuid4()),
+                    "name": str(name).strip(),
+                    "phone": phone,
+                    "email": find_column_value(row, column_map['email']) or None,
+                    "source": source,
+                    "campaign": find_column_value(row, column_map['campaign']) or None,
+                    "city": find_column_value(row, column_map['city']) or None,
+                    "notes": find_column_value(row, column_map['notes']) or None,
+                    "status": LeadStatus.NEW.value,
+                    "assigned_to": None,
+                    "assigned_name": None,
+                    "attempt_count": 0,
+                    "last_activity": None,
+                    "next_followup": None,
+                    "created_at": now,
+                    "updated_at": now
+                }
+                
+                await db.leads.insert_one(lead_dict)
+                await add_activity(lead_dict["id"], "Lead imported", f"Imported from {file.filename}", user["id"], user["name"])
+                imported_count += 1
+                
+            except Exception as e:
+                skipped_count += 1
+                errors.append(f"Row {i+2}: {str(e)}")
+        
+        return {
+            "message": f"Import completed",
+            "imported": imported_count,
+            "skipped": skipped_count,
+            "total_rows": len(leads_data),
+            "errors": errors[:10]  # Return first 10 errors only
+        }
+        
+    except Exception as e:
+        logger.error(f"Import error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to parse file: {str(e)}")
+
+@api_router.get("/leads/import/template")
+async def get_import_template(user: dict = Depends(get_current_user)):
+    """Get the expected column format for import"""
+    return {
+        "required_columns": ["name", "phone"],
+        "optional_columns": ["email", "source", "campaign", "city", "notes"],
+        "valid_sources": ["Website", "Referral", "Google Ads", "Facebook", "LinkedIn", "Cold Call", "Trade Show", "Partner"],
+        "example": {
+            "name": "Acme Corporation",
+            "phone": "+1-555-123-4567",
+            "email": "contact@acme.com",
+            "source": "Google Ads",
+            "campaign": "Summer Sale",
+            "city": "New York",
+            "notes": "Interested in premium package"
+        }
+    }
+
 @api_router.get("/leads/{lead_id}", response_model=LeadResponse)
 async def get_lead(lead_id: str, user: dict = Depends(get_current_user)):
     lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
