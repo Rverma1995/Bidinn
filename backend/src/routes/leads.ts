@@ -342,7 +342,7 @@ router.put('/:leadId', authMiddleware, async (req: Request, res: Response): Prom
       values
     );
 
-    await addActivity(leadId, 'Lead updated', JSON.stringify(updateData), user.id, user.name);
+    await addActivity(leadId as string, 'Lead updated', JSON.stringify(updateData), user.id, user.name);
 
     const [rows] = await pool.execute<RowDataPacket[]>(
       'SELECT * FROM leads WHERE id = ?',
@@ -406,8 +406,8 @@ router.post('/:leadId/assign', authMiddleware, requireRoles([UserRole.ADMIN, Use
       [assignee_id, assignee[0].name, now, leadId]
     );
 
-    await addActivity(leadId, 'Lead assigned', `Assigned to ${assignee[0].name}`, user.id, user.name);
-    await createNotification(assignee_id, 'New Lead Assigned', 'You have been assigned a new lead', 'assignment', leadId);
+    await addActivity(leadId as string, 'Lead assigned', `Assigned to ${assignee[0].name}`, user.id, user.name);
+    await createNotification(assignee_id, 'New Lead Assigned', 'You have been assigned a new lead', 'assignment', leadId as string);
 
     res.json({ message: 'Lead assigned successfully' });
   } catch (error) {
