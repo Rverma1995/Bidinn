@@ -740,7 +740,7 @@ async def log_call(call_data: CallLogCreate, user: dict = Depends(get_current_us
     await db.leads.update_one({"id": call_data.lead_id}, {"$set": update_data})
     await add_activity(call_data.lead_id, "Call logged", f"{call_data.outcome.value} - {call_data.duration_minutes} min", user["id"], user["name"])
     
-    return CallLogResponse(**call_dict)
+    return CallLogResponse(**call_dict, outcome=CallOutcome(call_dict["outcome"]))
 
 @api_router.get("/calls", response_model=List[CallLogResponse])
 async def get_calls(lead_id: Optional[str] = None, user_id: Optional[str] = None, user: dict = Depends(get_current_user)):
