@@ -1208,7 +1208,7 @@ async def seed_data(user: dict = Depends(require_roles([UserRole.ADMIN]))):
             "assigned_name": assigned_name,
             "attempt_count": 0 if status == LeadStatus.NEW else (i % 5) + 1,
             "last_activity": created_at if status != LeadStatus.NEW else None,
-            "next_followup": (datetime.now(timezone.utc) + timedelta(days=(i % 7))).isoformat() if status not in [LeadStatus.NEW, LeadStatus.CLOSED_WON, LeadStatus.CLOSED_LOST] else None,
+            "next_followup": (datetime.now(timezone.utc) + timedelta(days=(i % 7))).isoformat() if status not in [LeadStatus.NEW, LeadStatus.WON, LeadStatus.LOST] else None,
             "notes": f"Interested in premium package. Budget: ${(i + 1) * 5000}",
             "created_at": created_at,
             "updated_at": created_at
@@ -1219,8 +1219,8 @@ async def seed_data(user: dict = Depends(require_roles([UserRole.ADMIN]))):
         # Add activity
         await add_activity(lead["id"], "Lead created", f"New lead from {lead['source']}", user_ids[0], "System")
     
-    # Create bookings for closed_won leads
-    closed_leads = [l for l in leads_created if l["status"] == LeadStatus.CLOSED_WON.value]
+    # Create bookings for won leads
+    closed_leads = [l for l in leads_created if l["status"] == LeadStatus.WON.value]
     hotels = ["Grand Hotel", "The Ritz", "Marriott", "Hilton", "Hyatt", "Four Seasons", "W Hotel", "Sheraton"]
     
     for i, lead in enumerate(closed_leads):
