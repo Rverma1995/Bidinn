@@ -626,6 +626,45 @@ export default function LeadsPage() {
     }
   };
 
+  const toggleLeadSelection = (leadId) => {
+    setSelectedLeads(prev => 
+      prev.includes(leadId) 
+        ? prev.filter(id => id !== leadId)
+        : [...prev, leadId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedLeads.length === leads.length) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(leads.map(l => l.id));
+    }
+  };
+
+  const handleBulkStatusUpdate = async () => {
+    if (!bulkStatus || selectedLeads.length === 0) return;
+    setBulkLoading(true);
+    try {
+      await api.post('/leads/bulk-update-status', {
+        lead_ids: selectedLeads,
+        status: bulkStatus
+      });
+      toast.success(`Updated ${selectedLeads.length} lead(s) to ${getStatusLabel(bulkStatus)}`);
+      setSelectedLeads([]);
+      setBulkStatusDialogOpen(false);
+      setBulkStatus('');
+      fetchLeads();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update leads');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+      toast.error('Failed to assign lead');
+    }
+  };
+
   const salesReps = users.filter(u => ['sales_rep', 'team_lead'].includes(u.role));
 
   const handleExport = async () => {
