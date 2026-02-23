@@ -134,7 +134,7 @@ router.put('/:bookingId', authMiddleware, async (req: Request, res: Response): P
     const { bookingId } = req.params;
     const updateData = req.body;
 
-    const allowedFields = ['hotel_name', 'check_in', 'check_out', 'final_price', 'bid_price', 'notes'];
+    const allowedFields = ['hotel_name', 'check_in', 'check_out', 'final_price', 'bid_price', 'notes', 'booking_reason'];
     const updates: string[] = [];
     const values: any[] = [];
 
@@ -170,6 +170,27 @@ router.put('/:bookingId', authMiddleware, async (req: Request, res: Response): P
   } catch (error) {
     console.error('Update booking error:', error);
     res.status(500).json({ detail: 'Failed to update booking' });
+  }
+});
+
+// Get booking analytics by reason
+router.get('/analytics/by-reason', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT 
+         COALESCE(booking_reason, 'Not Specified') as reason,
+         COUNT(*) as count,
+         SUM(final_price) as total_value,
+         SUM(payment_amount) as collected_amount
+       FROM bookings
+       GROUP BY booking_reason
+       ORDER BY count DESC`
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error('Get booking analytics error:', error);
+    res.status(500).json({ detail: 'Failed to fetch booking analytics' });
   }
 });
 
