@@ -664,9 +664,6 @@ export default function LeadsPage() {
       setBulkLoading(false);
     }
   };
-      toast.error('Failed to assign lead');
-    }
-  };
 
   const salesReps = users.filter(u => ['sales_rep', 'team_lead'].includes(u.role));
 
