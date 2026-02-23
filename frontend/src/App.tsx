@@ -62,7 +62,7 @@ function PublicRoute({ children }: PublicRouteProps) {
     return <Navigate to="/" replace />;
   }
 
-  return children;
+  return <>{children}</>;
 }
 
 function AppRoutes() {
