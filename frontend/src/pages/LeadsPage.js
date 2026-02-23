@@ -906,6 +906,13 @@ export default function LeadsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={selectedLeads.length === leads.length && leads.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                    data-testid="select-all-checkbox"
+                  />
+                </TableHead>
                 <TableHead>Lead</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Source</TableHead>
@@ -919,11 +926,17 @@ export default function LeadsPage() {
               {leads.map((lead) => (
                 <TableRow
                   key={lead.id}
-                  className={`table-row-interactive ${lead.is_overdue ? 'bg-red-50 dark:bg-red-900/10' : ''}`}
-                  onClick={() => handleLeadClick(lead)}
+                  className={`table-row-interactive ${lead.is_overdue ? 'bg-red-50 dark:bg-red-900/10' : ''} ${selectedLeads.includes(lead.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
                   data-testid={`lead-row-${lead.id}`}
                 >
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedLeads.includes(lead.id)}
+                      onCheckedChange={() => toggleLeadSelection(lead.id)}
+                      data-testid={`lead-checkbox-${lead.id}`}
+                    />
+                  </TableCell>
+                  <TableCell onClick={() => handleLeadClick(lead)}>
                     <div className="flex items-center gap-3">
                       {lead.is_overdue && (
                         <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
