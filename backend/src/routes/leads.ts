@@ -567,4 +567,99 @@ router.post('/:leadId/log_call', authMiddleware, async (req: Request, res: Respo
   }
 });
 
+// Bulk update lead status
+router.post('/bulk-update-status', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { lead_ids, status } = req.body;
+    const user = req.user!;
+
+    if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
+      res.status(400).json({ detail: 'lead_ids must be a non-empty array' });
+      return;
+    }
+
+    const validStatuses = ['new', 'interested', 'not_interested', 'followup', 'won', 'lost'];
+    if (!validStatuses.includes(status)) {
+      res.status(400).json({ detail: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+      return;
+    }
+
+    const now = formatDateForMySQL(new Date());
+    const placeholders = lead_ids.map(() => '?').join(',');
+
+    // Update all leads
+    const [result]: any = await pool.execute(
+      `UPDATE leads SET status = ?, updated_at = ?, last_activity = ? WHERE id IN (${placeholders})`,
+      [status, now, now, ...lead_ids]
+    );
+
+    // Log activity for each lead
+    for (const leadId of lead_ids) {
+      await addActivity(leadId, 'Bulk status update', `Status changed to ${status}`, user.id, user.name);
+    }
+
+    res.json({
+      message: `Successfully updated ${result.affectedRows} lead(s) to ${status}`,
+      updated_count: result.affectedRows
+    });
+  } catch (error) {
+    console.error('Bulk update status error:', error);
+    res.status(500).json({ detail: 'Failed to update leads' });
+  }
+});
+
+// Bulk assign leads
+router.post('/bulk-assign', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { lead_ids, assignee_id } = req.body;
+    const user = req.user!;
+
+    if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
+      res.status(400).json({ detail: 'lead_ids must be a non-empty array' });
+      return;
+    }
+
+    // Get assignee name
+    const [assignee] = await pool.execute<RowDataPacket[]>(
+      'SELECT id, name FROM users WHERE id = ?',
+      [assignee_id]
+    );
+
+    if (assignee.length === 0) {
+      res.status(404).json({ detail: 'Assignee not found' });
+      return;
+    }
+
+    const now = formatDateForMySQL(new Date());
+    const placeholders = lead_ids.map(() => '?').join(',');
+
+    // Update all leads
+    const [result]: any = await pool.execute(
+      `UPDATE leads SET assigned_to = ?, assigned_name = ?, updated_at = ? WHERE id IN (${placeholders})`,
+      [assignee_id, assignee[0].name, now, ...lead_ids]
+    );
+
+    // Log activity and notify
+    for (const leadId of lead_ids) {
+      await addActivity(leadId, 'Bulk assignment', `Assigned to ${assignee[0].name}`, user.id, user.name);
+    }
+
+    // Send one notification
+    await createNotification(
+      assignee_id,
+      'Leads Assigned',
+      `You have been assigned ${result.affectedRows} new lead(s)`,
+      'bulk_assignment'
+    );
+
+    res.json({
+      message: `Successfully assigned ${result.affectedRows} lead(s) to ${assignee[0].name}`,
+      updated_count: result.affectedRows
+    });
+  } catch (error) {
+    console.error('Bulk assign error:', error);
+    res.status(500).json({ detail: 'Failed to assign leads' });
+  }
+});
+
 export default router;
