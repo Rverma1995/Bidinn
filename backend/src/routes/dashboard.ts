@@ -1,0 +1,248 @@
+import { Router, Request, Response } from 'express';
+import { RowDataPacket } from 'mysql2';
+import pool from '../config/database';
+import { authMiddleware, requireRoles } from '../middleware/auth';
+import { UserRole, LeadStatus } from '../types';
+import { formatDateForMySQL } from '../utils/helpers';
+
+const router = Router();
+
+// Get dashboard stats
+router.get('/stats', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.user!;
+    const role = user.role;
+
+    let leadQuery = '1=1';
+    let bookingQuery = '1=1';
+    const leadParams: any[] = [];
+    const bookingParams: any[] = [];
+
+    if (role === UserRole.SALES_REP) {
+      leadQuery = 'assigned_to = ?';
+      leadParams.push(user.id);
+      bookingQuery = 'created_by = ?';
+      bookingParams.push(user.id);
+    }
+
+    // Count leads by status
+    const [totalLeads] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as count FROM leads WHERE ${leadQuery}`,
+      leadParams
+    );
+    const [newLeads] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as count FROM leads WHERE status = 'new' AND ${leadQuery}`,
+      leadParams
+    );
+    const [contactedLeads] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as count FROM leads WHERE status = 'interested' AND ${leadQuery}`,
+      leadParams
+    );
+    const [qualifiedLeads] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as count FROM leads WHERE status = 'followup' AND ${leadQuery}`,
+      leadParams
+    );
+    const [closedWon] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as count FROM leads WHERE status = 'won' AND ${leadQuery}`,
+      leadParams
+    );
+    const [closedLost] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as count FROM leads WHERE status = 'lost' AND ${leadQuery}`,
+      leadParams
+    );
+
+    // Overdue follow-ups
+    const now = formatDateForMySQL(new Date());
+    const [overdueFollowups] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as count FROM leads WHERE next_followup < ? AND next_followup IS NOT NULL AND status NOT IN ('won', 'lost') AND ${leadQuery}`,
+      [now, ...leadParams]
+    );
+
+    // Uncontacted over 1 hour
+    const oneHourAgo = formatDateForMySQL(new Date(Date.now() - 60 * 60 * 1000));
+    const [uncontactedOver1hr] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as count FROM leads WHERE status = 'new' AND attempt_count = 0 AND created_at < ?`,
+      [oneHourAgo]
+    );
+
+    // Revenue calculations
+    const [revenueResult] = await pool.execute<RowDataPacket[]>(
+      `SELECT COALESCE(SUM(payment_amount), 0) as total FROM bookings WHERE ${bookingQuery}`,
+      bookingParams
+    );
+
+    // Monthly revenue
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const [monthlyRevenueResult] = await pool.execute<RowDataPacket[]>(
+      `SELECT COALESCE(SUM(payment_amount), 0) as total FROM bookings WHERE created_at >= ? AND ${bookingQuery}`,
+      [formatDateForMySQL(monthStart), ...bookingParams]
+    );
+
+    const total = (totalLeads[0] as any).count;
+    const won = (closedWon[0] as any).count;
+    const totalRevenue = parseFloat((revenueResult[0] as any).total) || 0;
+    const conversionRate = total > 0 ? (won / total) * 100 : 0;
+    const avgDealSize = won > 0 ? totalRevenue / won : 0;
+
+    res.json({
+      total_leads: total,
+      new_leads: (newLeads[0] as any).count,
+      contacted_leads: (contactedLeads[0] as any).count,
+      qualified_leads: (qualifiedLeads[0] as any).count,
+      closed_won: won,
+      closed_lost: (closedLost[0] as any).count,
+      overdue_followups: (overdueFollowups[0] as any).count,
+      uncontacted_over_1hr: (uncontactedOver1hr[0] as any).count,
+      total_revenue: Math.round(totalRevenue * 100) / 100,
+      monthly_revenue: Math.round((parseFloat((monthlyRevenueResult[0] as any).total) || 0) * 100) / 100,
+      conversion_rate: Math.round(conversionRate * 100) / 100,
+      avg_deal_size: Math.round(avgDealSize * 100) / 100
+    });
+  } catch (error) {
+    console.error('Get dashboard stats error:', error);
+    res.status(500).json({ detail: 'Failed to fetch dashboard stats' });
+  }
+});
+
+// Get leaderboard
+router.get('/leaderboard', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const [users] = await pool.execute<RowDataPacket[]>(
+      `SELECT id, name, avatar FROM users WHERE role IN ('sales_rep', 'team_lead')`
+    );
+
+    const leaderboard = [];
+
+    for (const u of users) {
+      // Get closed leads
+      const [closedResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND status = 'won'`,
+        [u.id]
+      );
+
+      // Get total leads
+      const [totalResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ?`,
+        [u.id]
+      );
+
+      // Get revenue
+      const [revenueResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COALESCE(SUM(payment_amount), 0) as total FROM bookings WHERE created_by = ?`,
+        [u.id]
+      );
+
+      // Get calls made
+      const [callsResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) as count FROM calls WHERE user_id = ?`,
+        [u.id]
+      );
+
+      const leadsClosed = (closedResult[0] as any).count;
+      const totalLeads = (totalResult[0] as any).count;
+      const revenue = parseFloat((revenueResult[0] as any).total) || 0;
+      const callsMade = (callsResult[0] as any).count;
+      const conversionRate = totalLeads > 0 ? (leadsClosed / totalLeads) * 100 : 0;
+
+      leaderboard.push({
+        user_id: u.id,
+        user_name: u.name,
+        avatar: u.avatar,
+        leads_closed: leadsClosed,
+        revenue: Math.round(revenue * 100) / 100,
+        conversion_rate: Math.round(conversionRate * 100) / 100,
+        calls_made: callsMade
+      });
+    }
+
+    // Sort by revenue descending
+    leaderboard.sort((a, b) => b.revenue - a.revenue);
+
+    res.json(leaderboard);
+  } catch (error) {
+    console.error('Get leaderboard error:', error);
+    res.status(500).json({ detail: 'Failed to fetch leaderboard' });
+  }
+});
+
+// Get pipeline stats
+router.get('/pipeline-stats', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT status, COUNT(*) as count FROM leads GROUP BY status`
+    );
+
+    const result: { [key: string]: number } = {};
+    for (const row of rows) {
+      result[row.status] = row.count;
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Get pipeline stats error:', error);
+    res.status(500).json({ detail: 'Failed to fetch pipeline stats' });
+  }
+});
+
+// Get revenue trend
+router.get('/revenue-trend', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { months = '6' } = req.query;
+    const monthCount = parseInt(months as string);
+    const trends = [];
+    const now = new Date();
+
+    for (let i = monthCount - 1; i >= 0; i--) {
+      const monthDate = new Date(now);
+      monthDate.setMonth(monthDate.getMonth() - i);
+      const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
+
+      const [result] = await pool.execute<RowDataPacket[]>(
+        `SELECT COALESCE(SUM(payment_amount), 0) as total FROM bookings WHERE created_at >= ? AND created_at < ?`,
+        [formatDateForMySQL(monthStart), formatDateForMySQL(monthEnd)]
+      );
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      trends.push({
+        month: `${monthNames[monthStart.getMonth()]} ${monthStart.getFullYear()}`,
+        revenue: Math.round((parseFloat((result[0] as any).total) || 0) * 100) / 100
+      });
+    }
+
+    res.json(trends);
+  } catch (error) {
+    console.error('Get revenue trend error:', error);
+    res.status(500).json({ detail: 'Failed to fetch revenue trend' });
+  }
+});
+
+// Get source performance
+router.get('/source-performance', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT 
+         source,
+         COUNT(*) as total,
+         SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as closed_won
+       FROM leads
+       GROUP BY source`
+    );
+
+    const result = rows.map((row: any) => ({
+      source: row.source,
+      total_leads: row.total,
+      closed_won: row.closed_won,
+      conversion_rate: row.total > 0 ? Math.round((row.closed_won / row.total) * 10000) / 100 : 0
+    }));
+
+    res.json(result);
+  } catch (error) {
+    console.error('Get source performance error:', error);
+    res.status(500).json({ detail: 'Failed to fetch source performance' });
+  }
+});
+
+export default router;
