@@ -47,6 +47,7 @@ import {
 function CreateBookingDialog({ open, onOpenChange, leads, onSuccess }) {
   const { api } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [bookingReasons, setBookingReasons] = useState([]);
   const [formData, setFormData] = useState({
     lead_id: '',
     hotel_name: '',
@@ -55,7 +56,21 @@ function CreateBookingDialog({ open, onOpenChange, leads, onSuccess }) {
     final_price: '',
     bid_price: '',
     notes: '',
+    booking_reason: '',
   });
+
+  useEffect(() => {
+    fetchBookingReasons();
+  }, []);
+
+  const fetchBookingReasons = async () => {
+    try {
+      const response = await api.get('/bookings/reasons');
+      setBookingReasons(response.data);
+    } catch (error) {
+      console.error('Failed to fetch booking reasons:', error);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -77,6 +92,7 @@ function CreateBookingDialog({ open, onOpenChange, leads, onSuccess }) {
         final_price: '',
         bid_price: '',
         notes: '',
+        booking_reason: '',
       });
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create booking');
