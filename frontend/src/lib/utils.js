@@ -78,12 +78,11 @@ export function getCountdownTime(createdAt) {
 export function getStatusColor(status) {
   const colors = {
     new: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-    contacted: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
-    qualified: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-    proposal: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-    negotiation: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-    closed_won: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
-    closed_lost: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    interested: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
+    not_interested: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
+    followup: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+    won: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    lost: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
   };
   return colors[status] || colors.new;
 }
@@ -91,12 +90,11 @@ export function getStatusColor(status) {
 export function getStatusLabel(status) {
   const labels = {
     new: 'New',
-    contacted: 'Contacted',
-    qualified: 'Qualified',
-    proposal: 'Proposal',
-    negotiation: 'Negotiation',
-    closed_won: 'Closed Won',
-    closed_lost: 'Closed Lost',
+    interested: 'Interested',
+    not_interested: 'Not Interested',
+    followup: 'Follow-up',
+    won: 'Won',
+    lost: 'Lost',
   };
   return labels[status] || status;
 }
