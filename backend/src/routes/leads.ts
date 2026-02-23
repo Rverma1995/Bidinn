@@ -119,6 +119,87 @@ router.get('/uncontacted', authMiddleware, requireRoles([UserRole.ADMIN, UserRol
   }
 });
 
+// Export leads to CSV
+router.get('/export', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.user!;
+    const { status, assigned_to, source, format = 'csv' } = req.query;
+
+    let query = 'SELECT * FROM leads WHERE 1=1';
+    const params: any[] = [];
+
+    if (status) {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+    if (assigned_to) {
+      query += ' AND assigned_to = ?';
+      params.push(assigned_to);
+    }
+    if (source) {
+      query += ' AND source = ?';
+      params.push(source);
+    }
+
+    // Sales reps can only export their assigned leads
+    if (user.role === UserRole.SALES_REP) {
+      query += ' AND (assigned_to = ? OR assigned_to IS NULL)';
+      params.push(user.id);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
+
+    // Transform data for export
+    const exportData = rows.map((lead: any) => ({
+      'Name': lead.name,
+      'Phone': lead.phone,
+      'Email': lead.email || '',
+      'Source': lead.source,
+      'Campaign': lead.campaign || '',
+      'City': lead.city || '',
+      'Status': lead.status,
+      'Assigned To': lead.assigned_name || 'Unassigned',
+      'Attempt Count': lead.attempt_count,
+      'Last Activity': lead.last_activity || '',
+      'Next Follow-up': lead.next_followup || '',
+      'Notes': lead.notes || '',
+      'Created At': lead.created_at
+    }));
+
+    if (format === 'xlsx') {
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=leads_export_${Date.now()}.xlsx`);
+      res.send(buffer);
+    } else {
+      // CSV format
+      const headers = Object.keys(exportData[0] || {}).join(',');
+      const csvRows = exportData.map((row: any) => 
+        Object.values(row).map((val: any) => {
+          const strVal = String(val).replace(/"/g, '""');
+          return strVal.includes(',') || strVal.includes('"') || strVal.includes('\n') 
+            ? `"${strVal}"` 
+            : strVal;
+        }).join(',')
+      );
+      const csv = [headers, ...csvRows].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=leads_export_${Date.now()}.csv`);
+      res.send(csv);
+    }
+  } catch (error) {
+    console.error('Export leads error:', error);
+    res.status(500).json({ detail: 'Failed to export leads' });
+  }
+});
+
 // Import leads from file
 router.post('/import', authMiddleware, upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
