@@ -114,7 +114,7 @@ router.post('/seed-data', authMiddleware, requireRoles([UserRole.ADMIN]), async 
       await pool.execute(
         `INSERT INTO leads (id, name, phone, email, source, campaign, city, status, assigned_to, assigned_name, attempt_count, last_activity, next_followup, notes, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [lead.id, lead.name, lead.phone, lead.email, lead.source, lead.campaign, lead.city, lead.status, lead.assigned_to, lead.assigned_name, lead.attempt_count, lead.last_activity, lead.next_followup, lead.notes, lead.created_at, lead.updated_at]
+        [lead.id, lead.name, lead.phone, lead.email, lead.source, lead.campaign || null, lead.city, lead.status, lead.assigned_to || null, lead.assigned_name || null, lead.attempt_count, lead.last_activity || null, lead.next_followup || null, lead.notes, lead.created_at, lead.updated_at]
       );
 
       leadsCreated.push(lead);
