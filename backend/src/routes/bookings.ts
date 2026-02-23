@@ -6,10 +6,29 @@ import { generateUUID, formatDateForMySQL, addActivity } from '../utils/helpers'
 
 const router = Router();
 
+// Valid booking reasons
+const BOOKING_REASONS = [
+  'Corporate Event',
+  'Wedding',
+  'Vacation',
+  'Business Trip',
+  'Conference',
+  'Family Reunion',
+  'Anniversary',
+  'Honeymoon',
+  'Group Tour',
+  'Other'
+];
+
+// Get booking reasons
+router.get('/reasons', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  res.json(BOOKING_REASONS);
+});
+
 // Create booking
 router.post('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { lead_id, hotel_name, check_in, check_out, final_price, bid_price, notes } = req.body;
+    const { lead_id, hotel_name, check_in, check_out, final_price, bid_price, notes, booking_reason } = req.body;
     const user = req.user!;
 
     // Check lead exists
@@ -28,9 +47,9 @@ router.post('/', authMiddleware, async (req: Request, res: Response): Promise<vo
     const id = generateUUID();
 
     await pool.execute(
-      `INSERT INTO bookings (id, lead_id, lead_name, hotel_name, check_in, check_out, final_price, bid_price, payment_status, payment_amount, notes, created_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 0, ?, ?, ?)`,
-      [id, lead_id, lead.name, hotel_name, check_in, check_out, final_price, bid_price || 0, notes || null, now, user.id]
+      `INSERT INTO bookings (id, lead_id, lead_name, hotel_name, check_in, check_out, final_price, bid_price, payment_status, payment_amount, notes, booking_reason, created_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 0, ?, ?, ?, ?)`,
+      [id, lead_id, lead.name, hotel_name, check_in, check_out, final_price, bid_price || 0, notes || null, booking_reason || null, now, user.id]
     );
 
     // Update lead to won
@@ -39,7 +58,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response): Promise<vo
       ['won', now, now, lead_id]
     );
 
-    await addActivity(lead_id, 'Booking created', `Hotel: ${hotel_name}`, user.id, user.name);
+    await addActivity(lead_id, 'Booking created', `Hotel: ${hotel_name}${booking_reason ? ` (${booking_reason})` : ''}`, user.id, user.name);
 
     res.status(201).json({
       id,
@@ -53,6 +72,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response): Promise<vo
       payment_status: 'unpaid',
       payment_amount: 0,
       notes,
+      booking_reason,
       created_at: now,
       created_by: user.id
     });
