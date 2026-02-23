@@ -57,7 +57,7 @@ export function formatRelativeTime(dateString: string | null | undefined): strin
   return formatDate(dateString);
 }
 
-export function getCountdownTime(createdAt: string | null | undefined): { expired: boolean; text: string; mins?: number; secs?: number } | null {
+export function getCountdownTime(createdAt: string | null | undefined): { expired: boolean; text: string; mins?: number; secs?: number; urgent?: boolean } | null {
   if (!createdAt) return null;
   const created = new Date(createdAt);
   const deadline = new Date(created.getTime() + 60 * 60 * 1000); // 1 hour
