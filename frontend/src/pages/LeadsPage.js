@@ -301,6 +301,251 @@ function CreateLeadDialog({ open, onOpenChange, onSuccess }) {
   );
 }
 
+function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
+  const { api } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [file, setFile] = useState(null);
+  const [result, setResult] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      validateAndSetFile(selectedFile);
+    }
+  };
+
+  const validateAndSetFile = (selectedFile) => {
+    const validTypes = ['.csv', '.xlsx', '.xls'];
+    const fileName = selectedFile.name.toLowerCase();
+    if (!validTypes.some(type => fileName.endsWith(type))) {
+      toast.error('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
+      return;
+    }
+    setFile(selectedFile);
+    setResult(null);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      validateAndSetFile(droppedFile);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setDragOver(false);
+  };
+
+  const handleImport = async () => {
+    if (!file) return;
+    
+    setLoading(true);
+    setResult(null);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await api.post('/leads/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      setResult(response.data);
+      
+      if (response.data.imported > 0) {
+        toast.success(`Successfully imported ${response.data.imported} leads!`);
+        onSuccess();
+      } else {
+        toast.warning('No leads were imported. Check the errors below.');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to import leads');
+      setResult({ error: error.response?.data?.detail || 'Import failed' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setFile(null);
+    setResult(null);
+    onOpenChange(false);
+  };
+
+  const downloadTemplate = () => {
+    const csvContent = "name,phone,email,source,campaign,city,notes\nAcme Corporation,+1-555-123-4567,contact@acme.com,Google Ads,Summer Sale,New York,Interested in premium package\nTech Startup Inc,+1-555-987-6543,hello@techstartup.com,LinkedIn,Q4 Campaign,San Francisco,Budget: $10000";
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'leads_import_template.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[550px]" data-testid="import-leads-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="w-5 h-5" />
+            Import Leads
+          </DialogTitle>
+          <DialogDescription>
+            Upload a CSV or Excel file to bulk import leads
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          {/* File Drop Zone */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              dragOver 
+                ? 'border-primary bg-primary/5' 
+                : file 
+                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10' 
+                  : 'border-slate-200 dark:border-slate-700 hover:border-primary'
+            }`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            {file ? (
+              <div className="flex items-center justify-center gap-3">
+                <FileSpreadsheet className="w-8 h-8 text-emerald-600" />
+                <div className="text-left">
+                  <p className="font-medium">{file.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {(file.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setFile(null); setResult(null); }}
+                >
+                  <XCircle className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-2">
+                  Drag and drop your file here, or
+                </p>
+                <label>
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <span className="cursor-pointer">Browse Files</span>
+                  </Button>
+                </label>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Supports CSV, Excel (.xlsx, .xls)
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Template Download */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+            <div>
+              <p className="text-sm font-medium">Need a template?</p>
+              <p className="text-xs text-muted-foreground">Download our CSV template with example data</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={downloadTemplate}>
+              <Download className="w-4 h-4 mr-2" />
+              Template
+            </Button>
+          </div>
+
+          {/* Required Columns Info */}
+          <div className="text-sm">
+            <p className="font-medium mb-2">Column Requirements:</p>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="default">name *</Badge>
+              <Badge variant="default">phone *</Badge>
+              <Badge variant="secondary">email</Badge>
+              <Badge variant="secondary">source</Badge>
+              <Badge variant="secondary">campaign</Badge>
+              <Badge variant="secondary">city</Badge>
+              <Badge variant="secondary">notes</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">* Required columns</p>
+          </div>
+
+          {/* Import Result */}
+          {result && (
+            <div className={`p-4 rounded-lg ${
+              result.error 
+                ? 'bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800' 
+                : result.imported > 0 
+                  ? 'bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800'
+                  : 'bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800'
+            }`}>
+              {result.error ? (
+                <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
+                  <XCircle className="w-5 h-5" />
+                  <span>{result.error}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span className="font-medium">{result.imported} imported</span>
+                    </div>
+                    {result.skipped > 0 && (
+                      <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                        <AlertTriangle className="w-4 h-4" />
+                        <span>{result.skipped} skipped</span>
+                      </div>
+                    )}
+                  </div>
+                  {result.errors && result.errors.length > 0 && (
+                    <div className="mt-2 text-sm">
+                      <p className="text-muted-foreground mb-1">Issues:</p>
+                      <ul className="text-xs text-muted-foreground space-y-1 max-h-24 overflow-y-auto">
+                        {result.errors.map((err, i) => (
+                          <li key={i}>• {err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={handleClose}>
+            {result?.imported > 0 ? 'Done' : 'Cancel'}
+          </Button>
+          {!result?.imported && (
+            <Button onClick={handleImport} disabled={!file || loading} data-testid="import-leads-submit">
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Import Leads
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function LeadsPage() {
   const { api, user, isTeamLead } = useAuth();
   const navigate = useNavigate();
