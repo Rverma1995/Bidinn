@@ -131,12 +131,11 @@
 
 /* Pipeline stage colors */
 .pipeline-new { @apply border-l-4 border-l-blue-500; }
-.pipeline-contacted { @apply border-l-4 border-l-cyan-500; }
-.pipeline-qualified { @apply border-l-4 border-l-purple-500; }
-.pipeline-proposal { @apply border-l-4 border-l-amber-500; }
-.pipeline-negotiation { @apply border-l-4 border-l-orange-500; }
-.pipeline-closed_won { @apply border-l-4 border-l-emerald-500; }
-.pipeline-closed_lost { @apply border-l-4 border-l-red-500; }
+.pipeline-interested { @apply border-l-4 border-l-emerald-500; }
+.pipeline-not_interested { @apply border-l-4 border-l-slate-500; }
+.pipeline-followup { @apply border-l-4 border-l-amber-500; }
+.pipeline-won { @apply border-l-4 border-l-green-500; }
+.pipeline-lost { @apply border-l-4 border-l-red-500; }
 
 /* Revenue trend indicator */
 .trend-up {
