@@ -648,6 +648,10 @@ export default function LeadsPage() {
             <Upload className="w-4 h-4 mr-2" />
             Import
           </Button>
+          <Button variant="outline" onClick={handleExport} data-testid="export-leads-btn">
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
           <Button onClick={() => setCreateDialogOpen(true)} data-testid="create-lead-btn">
             <Plus className="w-4 h-4 mr-2" />
             New Lead
