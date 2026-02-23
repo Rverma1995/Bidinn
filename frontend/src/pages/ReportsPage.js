@@ -5,6 +5,11 @@ import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Calendar } from '../components/ui/calendar';
 import {
   formatCurrency,
   formatNumber,
@@ -29,7 +34,6 @@ import {
 } from 'recharts';
 import {
   TrendingUp,
-  DollarSign,
   Users,
   Target,
   BarChart3,
@@ -37,7 +41,10 @@ import {
   UserCheck,
   UserX,
   IndianRupee,
+  CalendarIcon,
+  X,
 } from 'lucide-react';
+import { format } from 'date-fns';
 
 const COLORS = ['#4F46E5', '#06B6D4', '#8B5CF6', '#F59E0B', '#F97316', '#10B981', '#EF4444'];
 
@@ -52,6 +59,16 @@ const formatINR = (value) => {
   }).format(num);
 };
 
+// Date range presets
+const DATE_PRESETS = [
+  { label: 'All Time', value: 'all' },
+  { label: 'Last 7 Days', value: '7d' },
+  { label: 'Last 30 Days', value: '30d' },
+  { label: 'This Month', value: 'month' },
+  { label: 'Last Quarter', value: 'quarter' },
+  { label: 'Custom', value: 'custom' },
+];
+
 export default function ReportsPage() {
   const { api } = useAuth();
   const [stats, setStats] = useState(null);
@@ -60,6 +77,9 @@ export default function ReportsPage() {
   const [sourceData, setSourceData] = useState([]);
   const [agentPerformance, setAgentPerformance] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState('all');
+  const [datePreset, setDatePreset] = useState('all');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [agentLoading, setAgentLoading] = useState(false);
 
@@ -69,7 +89,35 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchAgentPerformance();
-  }, [selectedAgent]);
+  }, [selectedAgent, startDate, endDate]);
+
+  useEffect(() => {
+    // Apply date preset
+    const now = new Date();
+    switch (datePreset) {
+      case '7d':
+        setStartDate(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
+        setEndDate(now);
+        break;
+      case '30d':
+        setStartDate(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000));
+        setEndDate(now);
+        break;
+      case 'month':
+        setStartDate(new Date(now.getFullYear(), now.getMonth(), 1));
+        setEndDate(now);
+        break;
+      case 'quarter':
+        setStartDate(new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000));
+        setEndDate(now);
+        break;
+      case 'all':
+        setStartDate(null);
+        setEndDate(null);
+        break;
+      // 'custom' - don't change dates
+    }
+  }, [datePreset]);
 
   const fetchReportData = async () => {
     try {
@@ -94,12 +142,14 @@ export default function ReportsPage() {
   };
 
   const fetchAgentPerformance = async () => {
-    if (!selectedAgent) return;
     setAgentLoading(true);
     try {
-      const url = selectedAgent === 'all' 
-        ? '/dashboard/agent-performance'
-        : `/dashboard/agent-performance?agent_id=${selectedAgent}`;
+      const params = new URLSearchParams();
+      if (selectedAgent !== 'all') params.append('agent_id', selectedAgent);
+      if (startDate) params.append('start_date', format(startDate, 'yyyy-MM-dd'));
+      if (endDate) params.append('end_date', format(endDate, 'yyyy-MM-dd'));
+      
+      const url = `/dashboard/agent-performance${params.toString() ? '?' + params.toString() : ''}`;
       const res = await api.get(url);
       setAgentPerformance(res.data);
     } catch (error) {
@@ -107,6 +157,12 @@ export default function ReportsPage() {
     } finally {
       setAgentLoading(false);
     }
+  };
+
+  const clearDateFilter = () => {
+    setDatePreset('all');
+    setStartDate(null);
+    setEndDate(null);
   };
 
   const funnelData = [
@@ -157,27 +213,93 @@ export default function ReportsPage() {
       {/* Agent Performance Section */}
       <Card className="border-2 border-primary/20">
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-primary" />
-                Agent Performance Report
-              </CardTitle>
-              <CardDescription>Performance metrics by sales representative</CardDescription>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  Agent Performance Report
+                </CardTitle>
+                <CardDescription>Performance metrics by sales representative</CardDescription>
+              </div>
+              <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                <SelectTrigger className="w-[240px]" data-testid="agent-filter-dropdown">
+                  <SelectValue placeholder="Select Agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Agents (Team View)</SelectItem>
+                  {agentPerformance?.all_agents?.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-              <SelectTrigger className="w-[240px]" data-testid="agent-filter-dropdown">
-                <SelectValue placeholder="Select Agent" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Agents (Team View)</SelectItem>
-                {agentPerformance?.all_agents?.map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            
+            {/* Date Range Filter */}
+            <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+              <Label className="text-sm font-medium">Date Range:</Label>
+              <Select value={datePreset} onValueChange={setDatePreset}>
+                <SelectTrigger className="w-[140px]" data-testid="date-preset-dropdown">
+                  <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DATE_PRESETS.map((preset) => (
+                    <SelectItem key={preset.value} value={preset.value}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {(datePreset === 'custom' || startDate || endDate) && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="w-[130px]" data-testid="start-date-picker">
+                          <CalendarIcon className="w-4 h-4 mr-2" />
+                          {startDate ? format(startDate, 'MMM dd, yyyy') : 'Start'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={startDate}
+                          onSelect={(date) => {
+                            setStartDate(date);
+                            setDatePreset('custom');
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <span className="text-muted-foreground">to</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="w-[130px]" data-testid="end-date-picker">
+                          <CalendarIcon className="w-4 h-4 mr-2" />
+                          {endDate ? format(endDate, 'MMM dd, yyyy') : 'End'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={endDate}
+                          onSelect={(date) => {
+                            setEndDate(date);
+                            setDatePreset('custom');
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
