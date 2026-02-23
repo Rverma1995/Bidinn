@@ -968,7 +968,7 @@ async def get_leaderboard(user: dict = Depends(get_current_user)):
         # Get closed leads
         leads_closed = await db.leads.count_documents({
             "assigned_to": u["id"],
-            "status": LeadStatus.CLOSED_WON.value
+            "status": LeadStatus.WON.value
         })
         
         # Get total leads for conversion
