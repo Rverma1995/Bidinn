@@ -555,6 +555,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('table');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [showUncontactedOnly, setShowUncontactedOnly] = useState(searchParams.get('filter') === 'uncontacted');
   const [filters, setFilters] = useState({
     status: searchParams.get('status') || 'all',
