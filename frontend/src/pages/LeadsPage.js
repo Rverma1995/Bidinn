@@ -872,6 +872,13 @@ export default function LeadsPage() {
         onOpenChange={setCreateDialogOpen}
         onSuccess={fetchLeads}
       />
+
+      {/* Import Leads Dialog */}
+      <ImportLeadsDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onSuccess={fetchLeads}
+      />
     </div>
   );
 }
