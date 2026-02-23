@@ -145,12 +145,18 @@ export function generateInitials(name) {
 
 export const LEAD_STATUSES = [
   { value: 'new', label: 'New' },
-  { value: 'contacted', label: 'Contacted' },
-  { value: 'qualified', label: 'Qualified' },
-  { value: 'proposal', label: 'Proposal' },
-  { value: 'negotiation', label: 'Negotiation' },
-  { value: 'closed_won', label: 'Closed Won' },
-  { value: 'closed_lost', label: 'Closed Lost' },
+  { value: 'interested', label: 'Interested' },
+  { value: 'not_interested', label: 'Not Interested' },
+  { value: 'followup', label: 'Follow-up' },
+  { value: 'won', label: 'Won' },
+  { value: 'lost', label: 'Lost' },
+];
+
+export const ACTIVE_PIPELINE_STATUSES = [
+  { value: 'new', label: 'New', color: 'blue', icon: 'inbox' },
+  { value: 'interested', label: 'Interested', color: 'emerald', icon: 'thumbs-up' },
+  { value: 'not_interested', label: 'Not Interested', color: 'slate', icon: 'thumbs-down' },
+  { value: 'followup', label: 'Follow-up', color: 'amber', icon: 'clock' },
 ];
 
 export const CALL_OUTCOMES = [
