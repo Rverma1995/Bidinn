@@ -906,17 +906,17 @@ async def get_dashboard_stats(user: dict = Depends(get_current_user)):
     # Count leads by status
     total_leads = await db.leads.count_documents(lead_query)
     new_leads = await db.leads.count_documents({**lead_query, "status": LeadStatus.NEW.value})
-    contacted_leads = await db.leads.count_documents({**lead_query, "status": LeadStatus.CONTACTED.value})
-    qualified_leads = await db.leads.count_documents({**lead_query, "status": LeadStatus.QUALIFIED.value})
-    closed_won = await db.leads.count_documents({**lead_query, "status": LeadStatus.CLOSED_WON.value})
-    closed_lost = await db.leads.count_documents({**lead_query, "status": LeadStatus.CLOSED_LOST.value})
+    contacted_leads = await db.leads.count_documents({**lead_query, "status": LeadStatus.INTERESTED.value})
+    qualified_leads = await db.leads.count_documents({**lead_query, "status": LeadStatus.FOLLOWUP.value})
+    closed_won = await db.leads.count_documents({**lead_query, "status": LeadStatus.WON.value})
+    closed_lost = await db.leads.count_documents({**lead_query, "status": LeadStatus.LOST.value})
     
     # Overdue follow-ups
     now = datetime.now(timezone.utc).isoformat()
     overdue_followups = await db.leads.count_documents({
         **lead_query,
         "next_followup": {"$lt": now, "$ne": None},
-        "status": {"$nin": [LeadStatus.CLOSED_WON.value, LeadStatus.CLOSED_LOST.value]}
+        "status": {"$nin": [LeadStatus.WON.value, LeadStatus.LOST.value]}
     })
     
     # Uncontacted over 1 hour
