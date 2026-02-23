@@ -1,17 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 import {
   getStatusColor,
   getStatusLabel,
   formatRelativeTime,
+  formatCurrency,
   getCountdownTime,
-  LEAD_STATUSES,
+  generateInitials,
+  ACTIVE_PIPELINE_STATUSES,
+  CALL_OUTCOMES,
 } from '../lib/utils';
 import {
   Loader2,
@@ -19,24 +42,278 @@ import {
   Phone,
   MapPin,
   User,
-  GripVertical,
+  ThumbsUp,
+  ThumbsDown,
+  CalendarClock,
+  Trophy,
+  XCircle,
+  PhoneCall,
+  PhoneOff,
+  PhoneMissed,
+  Voicemail,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight,
+  MoreHorizontal,
+  Search,
+  Filter,
 } from 'lucide-react';
 
-const PIPELINE_STAGES = LEAD_STATUSES.filter(s => 
-  !['closed_won', 'closed_lost'].includes(s.value)
-);
+// Quick Action Panel for updating lead after call
+function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
+  const [loading, setLoading] = useState(false);
+  const [callOutcome, setCallOutcome] = useState('');
+  const [notes, setNotes] = useState('');
+  const [nextFollowup, setNextFollowup] = useState('');
+  const [newStatus, setNewStatus] = useState(lead?.status || '');
+  const [duration, setDuration] = useState(5);
 
-function LeadCard({ lead, onClick, onDragStart, onDragEnd }) {
+  useEffect(() => {
+    if (lead) {
+      setNewStatus(lead.status);
+      setCallOutcome('');
+      setNotes('');
+      setNextFollowup('');
+      setDuration(5);
+    }
+  }, [lead]);
+
+  const handleQuickAction = async (outcome, status) => {
+    setLoading(true);
+    try {
+      // Log the call
+      await api.post('/calls', {
+        lead_id: lead.id,
+        outcome: outcome,
+        duration_minutes: duration,
+        notes: notes || `Quick action: ${outcome}`,
+        next_followup: nextFollowup || null,
+      });
+
+      // Update lead status if changed
+      if (status !== lead.status) {
+        await api.put(`/leads/${lead.id}`, { status });
+      }
+
+      toast.success('Lead updated successfully!');
+      onSuccess();
+      onClose();
+    } catch (error) {
+      toast.error('Failed to update lead');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDetailedSubmit = async () => {
+    if (!callOutcome) {
+      toast.error('Please select a call outcome');
+      return;
+    }
+    await handleQuickAction(callOutcome, newStatus);
+  };
+
+  if (!lead) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px]" data-testid="quick-action-panel">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {generateInitials(lead.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <span>{lead.name}</span>
+              <p className="text-sm font-normal text-muted-foreground">{lead.phone}</p>
+            </div>
+          </DialogTitle>
+          <DialogDescription>
+            Update call outcome and lead status after your conversation
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs defaultValue="quick" className="mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="quick">Quick Actions</TabsTrigger>
+            <TabsTrigger value="detailed">Detailed Log</TabsTrigger>
+          </TabsList>
+
+          {/* Quick Actions Tab */}
+          <TabsContent value="quick" className="space-y-4 mt-4">
+            <p className="text-sm text-muted-foreground">Select the outcome of your call:</p>
+            
+            <div className="grid grid-cols-2 gap-3">
+              {/* Connected - Interested */}
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-500 dark:hover:bg-emerald-900/20"
+                onClick={() => handleQuickAction('connected', 'interested')}
+                disabled={loading}
+              >
+                <ThumbsUp className="w-6 h-6 text-emerald-600" />
+                <span className="font-medium">Interested</span>
+                <span className="text-xs text-muted-foreground">Customer showed interest</span>
+              </Button>
+
+              {/* Connected - Not Interested */}
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center gap-2 hover:bg-slate-100 hover:border-slate-500 dark:hover:bg-slate-800"
+                onClick={() => handleQuickAction('connected', 'not_interested')}
+                disabled={loading}
+              >
+                <ThumbsDown className="w-6 h-6 text-slate-600" />
+                <span className="font-medium">Not Interested</span>
+                <span className="text-xs text-muted-foreground">Customer declined</span>
+              </Button>
+
+              {/* Need Follow-up */}
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center gap-2 hover:bg-amber-50 hover:border-amber-500 dark:hover:bg-amber-900/20"
+                onClick={() => handleQuickAction('callback_requested', 'followup')}
+                disabled={loading}
+              >
+                <CalendarClock className="w-6 h-6 text-amber-600" />
+                <span className="font-medium">Schedule Follow-up</span>
+                <span className="text-xs text-muted-foreground">Call back later</span>
+              </Button>
+
+              {/* No Answer */}
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center gap-2 hover:bg-orange-50 hover:border-orange-500 dark:hover:bg-orange-900/20"
+                onClick={() => handleQuickAction('no_answer', lead.status)}
+                disabled={loading}
+              >
+                <PhoneMissed className="w-6 h-6 text-orange-600" />
+                <span className="font-medium">No Answer</span>
+                <span className="text-xs text-muted-foreground">Couldn't reach</span>
+              </Button>
+
+              {/* Won */}
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center gap-2 hover:bg-green-50 hover:border-green-500 dark:hover:bg-green-900/20"
+                onClick={() => handleQuickAction('connected', 'won')}
+                disabled={loading}
+              >
+                <Trophy className="w-6 h-6 text-green-600" />
+                <span className="font-medium">Won / Converted</span>
+                <span className="text-xs text-muted-foreground">Deal closed!</span>
+              </Button>
+
+              {/* Lost */}
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center gap-2 hover:bg-red-50 hover:border-red-500 dark:hover:bg-red-900/20"
+                onClick={() => handleQuickAction('connected', 'lost')}
+                disabled={loading}
+              >
+                <XCircle className="w-6 h-6 text-red-600" />
+                <span className="font-medium">Lost</span>
+                <span className="text-xs text-muted-foreground">Deal lost</span>
+              </Button>
+            </div>
+
+            {loading && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Detailed Log Tab */}
+          <TabsContent value="detailed" className="space-y-4 mt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Call Outcome *</Label>
+                <Select value={callOutcome} onValueChange={setCallOutcome}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select outcome" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CALL_OUTCOMES.map((outcome) => (
+                      <SelectItem key={outcome.value} value={outcome.value}>
+                        {outcome.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>New Status</Label>
+                <Select value={newStatus} onValueChange={setNewStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="interested">Interested</SelectItem>
+                    <SelectItem value="not_interested">Not Interested</SelectItem>
+                    <SelectItem value="followup">Follow-up</SelectItem>
+                    <SelectItem value="won">Won</SelectItem>
+                    <SelectItem value="lost">Lost</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Duration (minutes)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={duration}
+                  onChange={(e) => setDuration(parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Next Follow-up</Label>
+                <Input
+                  type="datetime-local"
+                  value={nextFollowup}
+                  onChange={(e) => setNextFollowup(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                placeholder="Call summary, next steps, etc..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={handleDetailedSubmit} disabled={loading || !callOutcome}>
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save & Update
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Lead Card Component
+function LeadCard({ lead, onCallClick, onCardClick }) {
   const [countdown, setCountdown] = useState(null);
   const showCountdown = lead.status === 'new' && lead.attempt_count === 0;
 
   useEffect(() => {
     if (!showCountdown) return;
-
-    const updateCountdown = () => {
-      setCountdown(getCountdownTime(lead.created_at));
-    };
-
+    const updateCountdown = () => setCountdown(getCountdownTime(lead.created_at));
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
@@ -44,128 +321,147 @@ function LeadCard({ lead, onClick, onDragStart, onDragEnd }) {
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, lead)}
-      onDragEnd={onDragEnd}
-      className={`p-3 rounded-lg border bg-white dark:bg-slate-900 cursor-move hover:shadow-md transition-all ${
-        lead.is_overdue ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10' : 'border-slate-200 dark:border-slate-700'
+      className={`group p-4 rounded-xl border bg-white dark:bg-slate-900 transition-all hover:shadow-lg cursor-pointer ${
+        lead.is_overdue ? 'border-red-300 dark:border-red-700 ring-1 ring-red-200 dark:ring-red-800' : 'border-slate-200 dark:border-slate-700 hover:border-primary/50'
       }`}
-      onClick={() => onClick(lead)}
-      data-testid={`pipeline-card-${lead.id}`}
+      onClick={() => onCardClick(lead)}
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm truncate">{lead.name}</p>
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <Phone className="w-3 h-3" />
-            {lead.phone}
-          </p>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10">
+            <AvatarFallback className="bg-primary/10 text-primary text-sm">
+              {generateInitials(lead.name)}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h3 className="font-semibold text-sm">{lead.name}</h3>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Phone className="w-3 h-3" />
+              {lead.phone}
+            </p>
+          </div>
         </div>
-        <GripVertical className="w-4 h-4 text-slate-400 cursor-grab flex-shrink-0" />
+        {showCountdown && countdown && (
+          <Badge className={`text-xs ${
+            countdown.expired 
+              ? 'bg-red-500 text-white animate-pulse' 
+              : countdown.urgent 
+                ? 'bg-amber-500 text-white' 
+                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+          }`}>
+            <Clock className="w-3 h-3 mr-1" />
+            {countdown.text}
+          </Badge>
+        )}
       </div>
 
-      {showCountdown && countdown && (
-        <Badge className={`mb-2 text-xs ${
-          countdown.expired 
-            ? 'bg-red-500 text-white' 
-            : countdown.urgent 
-              ? 'bg-amber-500 text-white badge-pulse' 
-              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-        }`}>
-          <Clock className="w-3 h-3 mr-1" />
-          {countdown.text}
-        </Badge>
-      )}
+      {/* Info Row */}
+      <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+        {lead.city && (
+          <span className="flex items-center gap-1">
+            <MapPin className="w-3 h-3" />
+            {lead.city}
+          </span>
+        )}
+        <span>•</span>
+        <span>{lead.source}</span>
+        {lead.attempt_count > 0 && (
+          <>
+            <span>•</span>
+            <span>{lead.attempt_count} calls</span>
+          </>
+        )}
+      </div>
 
-      {lead.city && (
-        <p className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
-          <MapPin className="w-3 h-3" />
-          {lead.city}
-        </p>
-      )}
-
-      <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-slate-100 dark:border-slate-800">
-        <span className="flex items-center gap-1">
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+        <div className="text-xs text-muted-foreground">
           {lead.assigned_name ? (
-            <>
+            <span className="flex items-center gap-1">
               <User className="w-3 h-3" />
               {lead.assigned_name.split(' ')[0]}
-            </>
+            </span>
           ) : (
             <span className="text-amber-600">Unassigned</span>
           )}
-        </span>
-        <span>{formatRelativeTime(lead.last_activity || lead.created_at)}</span>
+        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCallClick(lead);
+          }}
+        >
+          <PhoneCall className="w-4 h-4 mr-1" />
+          Log Call
+        </Button>
       </div>
     </div>
   );
 }
 
-function PipelineColumn({ stage, leads, onLeadClick, onDrop, onDragStart, onDragEnd }) {
+// Pipeline Column Component
+function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, onCardClick, onDrop, status }) {
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    onDrop(e, stage.value);
-  };
-
-  const stageColor = {
-    new: 'bg-blue-500',
-    contacted: 'bg-cyan-500',
-    qualified: 'bg-purple-500',
-    proposal: 'bg-amber-500',
-    negotiation: 'bg-orange-500',
+  const colorClasses = {
+    blue: 'bg-blue-500',
+    emerald: 'bg-emerald-500',
+    slate: 'bg-slate-500',
+    amber: 'bg-amber-500',
+    green: 'bg-green-500',
+    red: 'bg-red-500',
   };
 
   return (
     <div
-      className={`flex flex-col min-w-[280px] max-w-[320px] rounded-xl bg-slate-50 dark:bg-slate-800/50 transition-all ${
-        isDragOver ? 'ring-2 ring-primary ring-offset-2' : ''
+      className={`flex-1 min-w-[300px] max-w-[380px] rounded-2xl bg-slate-50/50 dark:bg-slate-800/30 border ${
+        isDragOver ? 'border-primary border-dashed bg-primary/5' : 'border-transparent'
       }`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      data-testid={`pipeline-column-${stage.value}`}
+      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={(e) => { e.preventDefault(); setIsDragOver(false); onDrop(e, status); }}
     >
       {/* Column Header */}
-      <div className="p-3 border-b border-slate-200 dark:border-slate-700">
+      <div className="p-4 border-b border-slate-200/50 dark:border-slate-700/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${stageColor[stage.value] || 'bg-slate-500'}`} />
-            <h3 className="font-medium text-sm">{stage.label}</h3>
+            <div className={`w-3 h-3 rounded-full ${colorClasses[color]}`} />
+            <h3 className="font-semibold">{title}</h3>
           </div>
-          <Badge variant="secondary" className="text-xs">
-            {leads.length}
+          <Badge variant="secondary" className="rounded-full">
+            {count}
           </Badge>
         </div>
       </div>
 
       {/* Cards */}
-      <ScrollArea className="flex-1 p-2">
-        <div className="space-y-2 min-h-[400px]">
-          {leads.map((lead) => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              onClick={onLeadClick}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-            />
-          ))}
-          {leads.length === 0 && (
+      <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
+        <div className="p-3 space-y-3">
+          {leads.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
               No leads in this stage
             </div>
+          ) : (
+            leads.map((lead) => (
+              <div
+                key={lead.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('leadId', lead.id);
+                  e.dataTransfer.setData('fromStatus', lead.status);
+                }}
+              >
+                <LeadCard
+                  lead={lead}
+                  onCallClick={onCallClick}
+                  onCardClick={onCardClick}
+                />
+              </div>
+            ))
           )}
         </div>
       </ScrollArea>
@@ -173,15 +469,20 @@ function PipelineColumn({ stage, leads, onLeadClick, onDrop, onDragStart, onDrag
   );
 }
 
+// Main Pipeline Page
 export default function PipelinePage() {
   const { api } = useAuth();
   const navigate = useNavigate();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [draggedLead, setDraggedLead] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [quickActionOpen, setQuickActionOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [stats, setStats] = useState({ won: 0, lost: 0, revenue: 0 });
 
   useEffect(() => {
     fetchLeads();
+    fetchStats();
   }, []);
 
   const fetchLeads = async () => {
@@ -195,48 +496,63 @@ export default function PipelinePage() {
     }
   };
 
-  const handleDragStart = (e, lead) => {
-    setDraggedLead(lead);
-    e.dataTransfer.effectAllowed = 'move';
-    // Add a slight delay for visual feedback
-    setTimeout(() => {
-      e.target.classList.add('opacity-50');
-    }, 0);
-  };
-
-  const handleDragEnd = (e) => {
-    e.target.classList.remove('opacity-50');
-    setDraggedLead(null);
+  const fetchStats = async () => {
+    try {
+      const response = await api.get('/dashboard/stats');
+      setStats({
+        won: response.data.closed_won || 0,
+        lost: response.data.closed_lost || 0,
+        revenue: response.data.total_revenue || 0,
+      });
+    } catch (error) {
+      console.error('Failed to fetch stats');
+    }
   };
 
   const handleDrop = async (e, newStatus) => {
-    e.preventDefault();
+    const leadId = e.dataTransfer.getData('leadId');
+    const fromStatus = e.dataTransfer.getData('fromStatus');
     
-    if (!draggedLead || draggedLead.status === newStatus) return;
+    if (!leadId || fromStatus === newStatus) return;
 
     // Optimistic update
     setLeads(prev => prev.map(l => 
-      l.id === draggedLead.id ? { ...l, status: newStatus } : l
+      l.id === leadId ? { ...l, status: newStatus } : l
     ));
 
     try {
-      await api.put(`/leads/${draggedLead.id}`, { status: newStatus });
+      await api.put(`/leads/${leadId}`, { status: newStatus });
       toast.success(`Lead moved to ${getStatusLabel(newStatus)}`);
     } catch (error) {
-      // Revert on error
       setLeads(prev => prev.map(l => 
-        l.id === draggedLead.id ? { ...l, status: draggedLead.status } : l
+        l.id === leadId ? { ...l, status: fromStatus } : l
       ));
       toast.error('Failed to update lead');
     }
   };
 
-  const handleLeadClick = (lead) => {
+  const handleCallClick = (lead) => {
+    setSelectedLead(lead);
+    setQuickActionOpen(true);
+  };
+
+  const handleCardClick = (lead) => {
     navigate(`/leads/${lead.id}`);
   };
 
-  const getLeadsByStage = (stage) => {
-    return leads.filter(l => l.status === stage);
+  const handleQuickActionSuccess = () => {
+    fetchLeads();
+    fetchStats();
+  };
+
+  const getLeadsByStatus = (status) => {
+    return leads.filter(l => {
+      const matchesStatus = l.status === status;
+      const matchesSearch = !searchQuery || 
+        l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        l.phone.includes(searchQuery);
+      return matchesStatus && matchesSearch;
+    });
   };
 
   if (loading) {
@@ -247,74 +563,195 @@ export default function PipelinePage() {
     );
   }
 
+  const wonLeads = getLeadsByStatus('won');
+  const lostLeads = getLeadsByStatus('lost');
+
   return (
     <div className="space-y-6 animate-fade-in" data-testid="pipeline-page">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
-        <p className="text-muted-foreground">
-          Drag and drop leads between stages
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
+          <p className="text-muted-foreground">
+            Track and manage your leads through the sales process
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search leads..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-64"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {PIPELINE_STAGES.map((stage) => {
-          const count = getLeadsByStage(stage.value).length;
-          return (
-            <Card key={stage.value}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <span className="text-sm font-medium">{stage.label}</span>
-                <Badge variant="secondary">{count}</Badge>
-              </CardContent>
-            </Card>
-          );
-        })}
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Active Leads</p>
+                <p className="text-2xl font-bold">
+                  {leads.filter(l => !['won', 'lost'].includes(l.status)).length}
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                <User className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Won</p>
+                <p className="text-2xl font-bold text-green-600">{wonLeads.length}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
+                <Trophy className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Lost</p>
+                <p className="text-2xl font-bold text-red-600">{lostLeads.length}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
+                <XCircle className="w-5 h-5 text-red-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Revenue</p>
+                <p className="text-2xl font-bold text-emerald-600">{formatCurrency(stats.revenue)}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Kanban Board */}
+      {/* Pipeline Kanban */}
       <div className="overflow-x-auto pb-4">
         <div className="flex gap-4 min-w-max">
-          {PIPELINE_STAGES.map((stage) => (
+          {ACTIVE_PIPELINE_STATUSES.map((stage) => (
             <PipelineColumn
               key={stage.value}
-              stage={stage}
-              leads={getLeadsByStage(stage.value)}
-              onLeadClick={handleLeadClick}
+              title={stage.label}
+              color={stage.color}
+              status={stage.value}
+              leads={getLeadsByStatus(stage.value)}
+              count={getLeadsByStatus(stage.value).length}
+              onCallClick={handleCallClick}
+              onCardClick={handleCardClick}
               onDrop={handleDrop}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
             />
           ))}
         </div>
       </div>
 
       {/* Closed Deals Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Closed Deals</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Closed Won</span>
-                <Badge className="bg-emerald-500 text-white">
-                  {leads.filter(l => l.status === 'closed_won').length}
-                </Badge>
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-red-700 dark:text-red-300">Closed Lost</span>
-                <Badge className="bg-red-500 text-white">
-                  {leads.filter(l => l.status === 'closed_lost').length}
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Won Deals */}
+        <Card className="border-green-200 dark:border-green-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2 text-green-700 dark:text-green-400">
+              <Trophy className="w-5 h-5" />
+              Won ({wonLeads.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[200px]">
+              {wonLeads.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">No won deals yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {wonLeads.slice(0, 10).map((lead) => (
+                    <div
+                      key={lead.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/10 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/20"
+                      onClick={() => handleCardClick(lead)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        <div>
+                          <p className="font-medium text-sm">{lead.name}</p>
+                          <p className="text-xs text-muted-foreground">{lead.source}</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Lost Deals */}
+        <Card className="border-red-200 dark:border-red-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2 text-red-700 dark:text-red-400">
+              <XCircle className="w-5 h-5" />
+              Lost ({lostLeads.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[200px]">
+              {lostLeads.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">No lost deals</p>
+              ) : (
+                <div className="space-y-2">
+                  {lostLeads.slice(0, 10).map((lead) => (
+                    <div
+                      key={lead.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/10 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/20"
+                      onClick={() => handleCardClick(lead)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <XCircle className="w-4 h-4 text-red-600" />
+                        <div>
+                          <p className="font-medium text-sm">{lead.name}</p>
+                          <p className="text-xs text-muted-foreground">{lead.source}</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Action Panel */}
+      <QuickActionPanel
+        lead={selectedLead}
+        open={quickActionOpen}
+        onClose={() => {
+          setQuickActionOpen(false);
+          setSelectedLead(null);
+        }}
+        onSuccess={handleQuickActionSuccess}
+        api={api}
+      />
     </div>
   );
 }
