@@ -57,12 +57,11 @@ class UserRole(str, Enum):
 
 class LeadStatus(str, Enum):
     NEW = "new"
-    CONTACTED = "contacted"
-    QUALIFIED = "qualified"
-    PROPOSAL = "proposal"
-    NEGOTIATION = "negotiation"
-    CLOSED_WON = "closed_won"
-    CLOSED_LOST = "closed_lost"
+    INTERESTED = "interested"
+    NOT_INTERESTED = "not_interested"
+    FOLLOWUP = "followup"
+    WON = "won"
+    LOST = "lost"
 
 class PaymentStatus(str, Enum):
     UNPAID = "unpaid"
