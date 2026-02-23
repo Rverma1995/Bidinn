@@ -255,8 +255,8 @@ export default function BookingsPage() {
     b.hotel_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalRevenue = bookings.reduce((sum, b) => sum + (b.payment_amount || 0), 0);
-  const pendingRevenue = bookings.reduce((sum, b) => sum + (b.final_price - (b.payment_amount || 0)), 0);
+  const totalRevenue = bookings.reduce((sum, b) => sum + (parseFloat(b.payment_amount) || 0), 0);
+  const pendingRevenue = bookings.reduce((sum, b) => sum + ((parseFloat(b.final_price) || 0) - (parseFloat(b.payment_amount) || 0)), 0);
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="bookings-page">
