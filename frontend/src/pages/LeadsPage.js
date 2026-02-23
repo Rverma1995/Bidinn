@@ -716,6 +716,11 @@ export default function LeadsPage() {
               Show All Leads
             </Button>
           )}
+          {selectedLeads.length > 0 && (
+            <Button variant="secondary" onClick={() => setBulkStatusDialogOpen(true)} data-testid="bulk-update-btn">
+              Update {selectedLeads.length} Lead(s)
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-leads-btn">
             <Upload className="w-4 h-4 mr-2" />
             Import
@@ -730,6 +735,42 @@ export default function LeadsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Bulk Status Update Dialog */}
+      <Dialog open={bulkStatusDialogOpen} onOpenChange={setBulkStatusDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]" data-testid="bulk-status-dialog">
+          <DialogHeader>
+            <DialogTitle>Bulk Status Update</DialogTitle>
+            <DialogDescription>
+              Update status for {selectedLeads.length} selected lead(s)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="bulkStatus">New Status</Label>
+            <Select value={bulkStatus} onValueChange={setBulkStatus}>
+              <SelectTrigger data-testid="bulk-status-select">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                {LEAD_STATUSES.map((status) => (
+                  <SelectItem key={status.value} value={status.value}>
+                    {status.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkStatusDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkStatusUpdate} disabled={!bulkStatus || bulkLoading} data-testid="bulk-status-submit">
+              {bulkLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Update Leads
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Uncontacted Alert Banner */}
       {showUncontactedOnly && (
