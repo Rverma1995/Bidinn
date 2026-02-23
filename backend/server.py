@@ -1070,7 +1070,7 @@ async def run_auto_reset(user: dict = Depends(require_roles([UserRole.ADMIN]))):
     
     # Find leads that should be reset
     leads_to_reset = await db.leads.find({
-        "status": {"$nin": [LeadStatus.NEW.value, LeadStatus.CLOSED_WON.value, LeadStatus.CLOSED_LOST.value]},
+        "status": {"$nin": [LeadStatus.NEW.value, LeadStatus.WON.value, LeadStatus.LOST.value]},
         "last_activity": {"$lt": thirty_days_ago}
     }, {"_id": 0}).to_list(1000)
     
