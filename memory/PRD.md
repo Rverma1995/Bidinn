@@ -231,6 +231,14 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ## 6. Recent Changes
 
+### February 23, 2026 - Agent Performance Reports
+- **COMPLETED:** Added Agent Performance Report to Reports page
+- **COMPLETED:** New API endpoint `/api/dashboard/agent-performance`
+- **COMPLETED:** Dropdown filter to select individual agent or view all (team view)
+- **COMPLETED:** Metrics displayed: Total Leads, Contacted, Not Contacted, Converted, Revenue (₹ INR)
+- **COMPLETED:** Agent table with avatar, name, email, and all performance metrics
+- **COMPLETED:** All currency formatting converted to INR (₹)
+
 ### February 23, 2026 - Backend Migration
 - **COMPLETED:** Migrated backend from Python/FastAPI to Node.js/Express.js/TypeScript
 - **COMPLETED:** Migrated database from MongoDB to MySQL (MariaDB)
@@ -241,11 +249,6 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 ---
 
 ## 7. Pending Tasks
-
-### P0 (High Priority)
-- [ ] Implement Agent-Based Performance Reports on Reports page
-  - Add dropdown to filter by agent
-  - Display metrics: Total Leads, Contacted, Not Contacted, Converted, Revenue (₹)
 
 ### P1 (Medium Priority)
 - [ ] Set up scheduled daily job for 30-day auto-reset rule
