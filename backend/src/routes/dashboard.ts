@@ -245,4 +245,124 @@ router.get('/source-performance', authMiddleware, async (req: Request, res: Resp
   }
 });
 
+// Get agent performance reports
+router.get('/agent-performance', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { agent_id } = req.query;
+
+    // Get all sales reps and team leads
+    const [users] = await pool.execute<RowDataPacket[]>(
+      `SELECT id, name, email, avatar, role FROM users WHERE role IN ('sales_rep', 'team_lead') ORDER BY name`
+    );
+
+    // If specific agent requested, filter
+    const agentsToProcess = agent_id 
+      ? users.filter((u: any) => u.id === agent_id)
+      : users;
+
+    const agentReports = [];
+    let teamTotals = {
+      total_leads: 0,
+      contacted: 0,
+      not_contacted: 0,
+      converted: 0,
+      total_revenue: 0,
+      calls_made: 0
+    };
+
+    for (const agent of agentsToProcess) {
+      // Total leads assigned
+      const [totalLeadsResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ?`,
+        [agent.id]
+      );
+
+      // Contacted leads (attempt_count > 0)
+      const [contactedResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND attempt_count > 0`,
+        [agent.id]
+      );
+
+      // Not contacted leads (attempt_count = 0)
+      const [notContactedResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND attempt_count = 0`,
+        [agent.id]
+      );
+
+      // Converted leads (status = 'won')
+      const [convertedResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND status = 'won'`,
+        [agent.id]
+      );
+
+      // Total revenue from bookings created by this agent
+      const [revenueResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COALESCE(SUM(payment_amount), 0) as total FROM bookings WHERE created_by = ?`,
+        [agent.id]
+      );
+
+      // Calls made by this agent
+      const [callsResult] = await pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) as count FROM calls WHERE user_id = ?`,
+        [agent.id]
+      );
+
+      const totalLeads = (totalLeadsResult[0] as any).count;
+      const contacted = (contactedResult[0] as any).count;
+      const notContacted = (notContactedResult[0] as any).count;
+      const converted = (convertedResult[0] as any).count;
+      const revenue = parseFloat((revenueResult[0] as any).total) || 0;
+      const callsMade = (callsResult[0] as any).count;
+      const conversionRate = totalLeads > 0 ? (converted / totalLeads) * 100 : 0;
+
+      agentReports.push({
+        agent_id: agent.id,
+        agent_name: agent.name,
+        agent_email: agent.email,
+        agent_avatar: agent.avatar,
+        agent_role: agent.role,
+        total_leads: totalLeads,
+        contacted: contacted,
+        not_contacted: notContacted,
+        converted: converted,
+        conversion_rate: Math.round(conversionRate * 100) / 100,
+        total_revenue: Math.round(revenue * 100) / 100,
+        calls_made: callsMade
+      });
+
+      // Add to team totals
+      teamTotals.total_leads += totalLeads;
+      teamTotals.contacted += contacted;
+      teamTotals.not_contacted += notContacted;
+      teamTotals.converted += converted;
+      teamTotals.total_revenue += revenue;
+      teamTotals.calls_made += callsMade;
+    }
+
+    // Calculate team conversion rate
+    const teamConversionRate = teamTotals.total_leads > 0 
+      ? (teamTotals.converted / teamTotals.total_leads) * 100 
+      : 0;
+
+    res.json({
+      agents: agentReports,
+      team_summary: {
+        ...teamTotals,
+        total_revenue: Math.round(teamTotals.total_revenue * 100) / 100,
+        conversion_rate: Math.round(teamConversionRate * 100) / 100,
+        agent_count: agentsToProcess.length
+      },
+      all_agents: users.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        avatar: u.avatar
+      }))
+    });
+  } catch (error) {
+    console.error('Get agent performance error:', error);
+    res.status(500).json({ detail: 'Failed to fetch agent performance' });
+  }
+});
+
 export default router;
