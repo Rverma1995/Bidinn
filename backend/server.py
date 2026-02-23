@@ -1045,7 +1045,7 @@ async def get_source_performance(user: dict = Depends(get_current_user)):
             "_id": "$source",
             "total": {"$sum": 1},
             "closed_won": {
-                "$sum": {"$cond": [{"$eq": ["$status", LeadStatus.CLOSED_WON.value]}, 1, 0]}
+                "$sum": {"$cond": [{"$eq": ["$status", LeadStatus.WON.value]}, 1, 0]}
             }
         }}
     ]).to_list(100)
