@@ -557,6 +557,10 @@ export default function LeadsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [showUncontactedOnly, setShowUncontactedOnly] = useState(searchParams.get('filter') === 'uncontacted');
+  const [selectedLeads, setSelectedLeads] = useState([]);
+  const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [filters, setFilters] = useState({
     status: searchParams.get('status') || 'all',
     source: searchParams.get('source') || 'all',
