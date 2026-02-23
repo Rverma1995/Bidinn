@@ -91,4 +91,80 @@ router.put('/:userId', authMiddleware, requireRoles([UserRole.ADMIN, UserRole.MA
   }
 });
 
+// Toggle user active status
+router.post('/:userId/toggle-status', authMiddleware, requireRoles([UserRole.ADMIN]), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const currentUser = req.user!;
+
+    // Prevent self-deactivation
+    if (userId === currentUser.id) {
+      res.status(400).json({ detail: 'Cannot deactivate your own account' });
+      return;
+    }
+
+    // Get current status
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT id, is_active FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ detail: 'User not found' });
+      return;
+    }
+
+    const newStatus = !(rows[0] as any).is_active;
+
+    await pool.execute(
+      'UPDATE users SET is_active = ? WHERE id = ?',
+      [newStatus, userId]
+    );
+
+    const [updatedRows] = await pool.execute<RowDataPacket[]>(
+      'SELECT id, email, name, role, avatar, is_active, created_at FROM users WHERE id = ?',
+      [userId]
+    );
+
+    res.json({
+      ...updatedRows[0],
+      message: newStatus ? 'User activated successfully' : 'User deactivated successfully'
+    });
+  } catch (error) {
+    console.error('Toggle user status error:', error);
+    res.status(500).json({ detail: 'Failed to toggle user status' });
+  }
+});
+
+// Reset user password (Admin only)
+router.post('/:userId/reset-password', authMiddleware, requireRoles([UserRole.ADMIN]), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const { new_password } = req.body;
+
+    if (!new_password || new_password.length < 6) {
+      res.status(400).json({ detail: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    const { hashPassword } = await import('../utils/helpers');
+    const passwordHash = hashPassword(new_password);
+
+    const [result]: any = await pool.execute(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [passwordHash, userId]
+    );
+
+    if (result.affectedRows === 0) {
+      res.status(404).json({ detail: 'User not found' });
+      return;
+    }
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ detail: 'Failed to reset password' });
+  }
+});
+
 export default router;
