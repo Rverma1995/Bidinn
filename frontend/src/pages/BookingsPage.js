@@ -214,6 +214,24 @@ function CreateBookingDialog({ open, onOpenChange, leads, onSuccess }) {
                 placeholder="Additional booking details..."
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="booking_reason">Booking Reason</Label>
+              <Select
+                value={formData.booking_reason}
+                onValueChange={(value) => setFormData({ ...formData, booking_reason: value })}
+              >
+                <SelectTrigger data-testid="booking-reason-select">
+                  <SelectValue placeholder="Select reason (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bookingReasons.map((reason) => (
+                    <SelectItem key={reason} value={reason}>
+                      {reason}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
