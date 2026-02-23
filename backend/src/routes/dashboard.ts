@@ -248,7 +248,7 @@ router.get('/source-performance', authMiddleware, async (req: Request, res: Resp
 // Get agent performance reports
 router.get('/agent-performance', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { agent_id } = req.query;
+    const { agent_id, start_date, end_date } = req.query;
 
     // Get all sales reps and team leads
     const [users] = await pool.execute<RowDataPacket[]>(
@@ -270,41 +270,67 @@ router.get('/agent-performance', authMiddleware, async (req: Request, res: Respo
       calls_made: 0
     };
 
+    // Build date filter
+    let dateFilter = '';
+    const dateParams: any[] = [];
+    if (start_date) {
+      dateFilter = ' AND created_at >= ?';
+      dateParams.push(start_date);
+    }
+    if (end_date) {
+      dateFilter += ' AND created_at <= ?';
+      dateParams.push(end_date + ' 23:59:59');
+    }
+
     for (const agent of agentsToProcess) {
       // Total leads assigned
       const [totalLeadsResult] = await pool.execute<RowDataPacket[]>(
-        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ?`,
-        [agent.id]
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ?${dateFilter}`,
+        [agent.id, ...dateParams]
       );
 
       // Contacted leads (attempt_count > 0)
       const [contactedResult] = await pool.execute<RowDataPacket[]>(
-        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND attempt_count > 0`,
-        [agent.id]
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND attempt_count > 0${dateFilter}`,
+        [agent.id, ...dateParams]
       );
 
       // Not contacted leads (attempt_count = 0)
       const [notContactedResult] = await pool.execute<RowDataPacket[]>(
-        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND attempt_count = 0`,
-        [agent.id]
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND attempt_count = 0${dateFilter}`,
+        [agent.id, ...dateParams]
       );
 
       // Converted leads (status = 'won')
       const [convertedResult] = await pool.execute<RowDataPacket[]>(
-        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND status = 'won'`,
-        [agent.id]
+        `SELECT COUNT(*) as count FROM leads WHERE assigned_to = ? AND status = 'won'${dateFilter}`,
+        [agent.id, ...dateParams]
       );
 
       // Total revenue from bookings created by this agent
+      let bookingDateFilter = '';
+      if (start_date) {
+        bookingDateFilter = ' AND created_at >= ?';
+      }
+      if (end_date) {
+        bookingDateFilter += ' AND created_at <= ?';
+      }
       const [revenueResult] = await pool.execute<RowDataPacket[]>(
-        `SELECT COALESCE(SUM(payment_amount), 0) as total FROM bookings WHERE created_by = ?`,
-        [agent.id]
+        `SELECT COALESCE(SUM(payment_amount), 0) as total FROM bookings WHERE created_by = ?${bookingDateFilter}`,
+        [agent.id, ...dateParams]
       );
 
       // Calls made by this agent
+      let callDateFilter = '';
+      if (start_date) {
+        callDateFilter = ' AND created_at >= ?';
+      }
+      if (end_date) {
+        callDateFilter += ' AND created_at <= ?';
+      }
       const [callsResult] = await pool.execute<RowDataPacket[]>(
-        `SELECT COUNT(*) as count FROM calls WHERE user_id = ?`,
-        [agent.id]
+        `SELECT COUNT(*) as count FROM calls WHERE user_id = ?${callDateFilter}`,
+        [agent.id, ...dateParams]
       );
 
       const totalLeads = (totalLeadsResult[0] as any).count;
