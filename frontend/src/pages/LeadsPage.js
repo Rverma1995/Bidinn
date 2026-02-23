@@ -65,6 +65,11 @@ import {
   List,
   ChevronRight,
   AlertTriangle,
+  Upload,
+  FileSpreadsheet,
+  CheckCircle2,
+  XCircle,
+  Download,
 } from 'lucide-react';
 
 function CountdownBadge({ createdAt, attemptCount, status }) {
