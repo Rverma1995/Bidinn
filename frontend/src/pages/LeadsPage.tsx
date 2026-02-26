@@ -699,14 +699,35 @@ export default function LeadsPage() {
     }
   };
 
+  const handleBulkAssign = async () => {
+    if (!bulkAssignee || selectedLeads.length === 0) return;
+    setBulkLoading(true);
+    try {
+      await api.post('/leads/bulk-assign', {
+        lead_ids: selectedLeads,
+        assignee_id: bulkAssignee
+      });
+      const assigneeName = users.find(u => u.id === bulkAssignee)?.name || 'selected rep';
+      toast.success(`Assigned ${selectedLeads.length} lead(s) to ${assigneeName}`);
+      setSelectedLeads([]);
+      setBulkAssignDialogOpen(false);
+      setBulkAssignee('');
+      fetchLeads();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to assign leads');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const salesReps = users.filter(u => ['sales_rep', 'team_lead'].includes(u.role));
 
   const handleExport = async () => {
     try {
       const params = new URLSearchParams();
-      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
-      if (filters.source && filters.source !== 'all') params.append('source', filters.source);
-      if (filters.assigned_to && filters.assigned_to !== 'all') params.append('assigned_to', filters.assigned_to);
+      if (exportFilters.status && exportFilters.status !== 'all') params.append('status', exportFilters.status);
+      if (exportFilters.source && exportFilters.source !== 'all') params.append('source', exportFilters.source);
+      if (exportFilters.assigned_to && exportFilters.assigned_to !== 'all') params.append('assigned_to', exportFilters.assigned_to);
       params.append('format', 'csv');
 
       const response = await api.get(`/leads/export?${params.toString()}`, {
@@ -725,6 +746,7 @@ export default function LeadsPage() {
       window.URL.revokeObjectURL(url);
       
       toast.success('Leads exported successfully');
+      setExportDialogOpen(false);
     } catch (error) {
       toast.error('Failed to export leads');
     }
