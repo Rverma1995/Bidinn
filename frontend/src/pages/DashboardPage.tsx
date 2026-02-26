@@ -505,7 +505,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Uncontacted Leads Alert for Managers */}
-      {isManager && uncontactedLeads.length > 0 && (
+      {uncontactedLeads.length > 0 && (
         <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-red-700 dark:text-red-400">
@@ -525,6 +525,34 @@ export default function DashboardPage() {
             <Button className="mt-4" variant="destructive" asChild>
               <Link to="/leads?filter=uncontacted">
                 View all uncontacted leads
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Overdue Follow-ups Alert */}
+      {overdueLeads.length > 0 && (
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2 text-amber-700 dark:text-amber-400">
+              <Clock className="w-5 h-5" />
+              Overdue Follow-ups
+            </CardTitle>
+            <CardDescription className="text-amber-600/70 dark:text-amber-400/70">
+              These leads have missed their scheduled follow-up time
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {overdueLeads.map((lead) => (
+                <LeadCard key={lead.id} lead={lead} />
+              ))}
+            </div>
+            <Button className="mt-4" variant="outline" asChild>
+              <Link to="/leads?filter=overdue">
+                View all overdue leads
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Link>
             </Button>
