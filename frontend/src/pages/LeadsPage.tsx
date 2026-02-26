@@ -588,8 +588,16 @@ export default function LeadsPage() {
   const [showUncontactedOnly, setShowUncontactedOnly] = useState(searchParams.get('filter') === 'uncontacted');
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
+  const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkAssignee, setBulkAssignee] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [exportFilters, setExportFilters] = useState({
+    status: 'all',
+    source: 'all',
+    assigned_to: 'all',
+  });
   const [filters, setFilters] = useState({
     status: searchParams.get('status') || 'all',
     source: searchParams.get('source') || 'all',
