@@ -106,7 +106,13 @@ function CountdownBadge({ createdAt, attemptCount, status }) {
   );
 }
 
-function LeadCard({ lead, onClick, onLogCall }) {
+interface LeadCardProps {
+  lead: any;
+  onClick: (lead: any) => void;
+  onLogCall?: () => void;
+}
+
+function LeadCard({ lead, onClick, onLogCall }: LeadCardProps) {
   return (
     <Card 
       className={`card-hover cursor-pointer pipeline-${lead.status} ${
