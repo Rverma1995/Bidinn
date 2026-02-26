@@ -75,8 +75,14 @@ import {
 } from 'lucide-react';
 import { Checkbox } from '../components/ui/checkbox';
 
-function CountdownBadge({ createdAt, attemptCount, status }) {
-  const [countdown, setCountdown] = useState(null);
+interface CountdownBadgeProps {
+  createdAt: string;
+  attemptCount: number;
+  status: string;
+}
+
+function CountdownBadge({ createdAt, attemptCount, status }: CountdownBadgeProps) {
+  const [countdown, setCountdown] = useState<string | null>(null);
 
   useEffect(() => {
     if (status !== 'new' || attemptCount > 0) return;
@@ -179,7 +185,13 @@ function LeadCard({ lead, onClick, onLogCall }: LeadCardProps) {
   );
 }
 
-function CreateLeadDialog({ open, onOpenChange, onSuccess }) {
+interface CreateLeadDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}
+
+function CreateLeadDialog({ open, onOpenChange, onSuccess }: CreateLeadDialogProps) {
   const { api } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
