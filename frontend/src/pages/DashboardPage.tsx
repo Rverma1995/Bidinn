@@ -186,6 +186,7 @@ export default function DashboardPage() {
   const [pipelineStats, setPipelineStats] = useState({});
   const [sourceData, setSourceData] = useState([]);
   const [uncontactedLeads, setUncontactedLeads] = useState([]);
+  const [overdueLeads, setOverdueLeads] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -208,14 +209,20 @@ export default function DashboardPage() {
       setPipelineStats(pipelineRes.data);
       setSourceData(sourceRes.data);
 
-      // Fetch uncontacted leads for managers
-      if (isManager) {
-        try {
-          const uncontactedRes = await api.get('/leads/uncontacted');
-          setUncontactedLeads(uncontactedRes.data.slice(0, 5));
-        } catch (e) {
-          console.log('Uncontacted leads fetch skipped');
-        }
+      // Fetch uncontacted leads for all users (API filters by role)
+      try {
+        const uncontactedRes = await api.get('/leads/uncontacted');
+        setUncontactedLeads(uncontactedRes.data.slice(0, 5));
+      } catch (e) {
+        console.log('Uncontacted leads fetch skipped');
+      }
+
+      // Fetch overdue follow-ups
+      try {
+        const overdueRes = await api.get('/dashboard/overdue-followups');
+        setOverdueLeads(overdueRes.data.slice(0, 5));
+      } catch (e) {
+        console.log('Overdue leads fetch skipped');
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
