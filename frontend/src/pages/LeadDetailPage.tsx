@@ -55,8 +55,23 @@ import {
   AlertCircle,
   Building,
 } from 'lucide-react';
+import { Lead, Activity, CallLog, User as UserType } from '../types';
 
-function ActivityItem({ activity }) {
+interface EditLeadData {
+  name?: string;
+  phone?: string;
+  email?: string;
+  city?: string;
+  source?: string;
+  status?: string;
+  notes?: string;
+}
+
+interface ActivityItemProps {
+  activity: Activity;
+}
+
+function ActivityItem({ activity }: ActivityItemProps) {
   const getIcon = () => {
     if (activity.action.includes('Call')) return <PhoneCall className="w-4 h-4 text-blue-500" />;
     if (activity.action.includes('assigned')) return <User className="w-4 h-4 text-purple-500" />;
@@ -95,7 +110,14 @@ function ActivityItem({ activity }) {
   );
 }
 
-function LogCallDialog({ open, onOpenChange, leadId, onSuccess }) {
+interface LogCallDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  leadId: string;
+  onSuccess: () => void;
+}
+
+function LogCallDialog({ open, onOpenChange, leadId, onSuccess }: LogCallDialogProps) {
   const { api } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
