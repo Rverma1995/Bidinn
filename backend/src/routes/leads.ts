@@ -100,16 +100,28 @@ router.get('/', authMiddleware, async (req: Request, res: Response): Promise<voi
 });
 
 // Get uncontacted leads (>1hr)
-router.get('/uncontacted', authMiddleware, requireRoles([UserRole.ADMIN, UserRole.MANAGER, UserRole.TEAM_LEAD]), async (req: Request, res: Response): Promise<void> => {
+router.get('/uncontacted', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
+    const user = req.user!;
     const oneHourAgo = formatDateForMySQL(new Date(Date.now() - 60 * 60 * 1000));
 
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT * FROM leads 
-       WHERE status = 'new' AND attempt_count = 0 AND created_at < ?
-       ORDER BY created_at ASC`,
-      [oneHourAgo]
-    );
+    let query = `
+      SELECT l.*, u.name as assigned_name 
+      FROM leads l
+      LEFT JOIN users u ON l.assigned_to = u.id
+      WHERE l.status = 'new' AND l.attempt_count = 0 AND l.created_at < ?
+    `;
+    const params: any[] = [oneHourAgo];
+
+    // Sales reps only see their own uncontacted leads
+    if (user.role === UserRole.SALES_REP) {
+      query += ' AND l.assigned_to = ?';
+      params.push(user.id);
+    }
+
+    query += ' ORDER BY l.created_at ASC';
+
+    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
 
     const leads = (rows as Lead[]).map(lead => calculateLeadMetrics(lead));
     res.json(leads);
