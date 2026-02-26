@@ -391,4 +391,35 @@ router.get('/agent-performance', authMiddleware, async (req: Request, res: Respo
   }
 });
 
+// Get overdue follow-ups
+router.get('/overdue-followups', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = req.user!;
+    
+    let query = `
+      SELECT l.*, u.name as assigned_name 
+      FROM leads l 
+      LEFT JOIN users u ON l.assigned_to = u.id 
+      WHERE l.next_followup IS NOT NULL 
+        AND l.next_followup < NOW() 
+        AND l.status NOT IN ('won', 'lost', 'not_interested')
+    `;
+    const params: any[] = [];
+
+    // Sales reps only see their own overdue leads
+    if (user.role === UserRole.SALES_REP) {
+      query += ' AND l.assigned_to = ?';
+      params.push(user.id);
+    }
+
+    query += ' ORDER BY l.next_followup ASC LIMIT 20';
+
+    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
+    res.json(rows);
+  } catch (error) {
+    console.error('Get overdue followups error:', error);
+    res.status(500).json({ detail: 'Failed to fetch overdue followups' });
+  }
+});
+
 export default router;
