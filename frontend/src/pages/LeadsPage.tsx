@@ -81,8 +81,16 @@ interface CountdownBadgeProps {
   status: string;
 }
 
+interface CountdownState {
+  expired: boolean;
+  text: string;
+  mins?: number;
+  secs?: number;
+  urgent?: boolean;
+}
+
 function CountdownBadge({ createdAt, attemptCount, status }: CountdownBadgeProps) {
-  const [countdown, setCountdown] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState<CountdownState | null>(null);
 
   useEffect(() => {
     if (status !== 'new' || attemptCount > 0) return;
