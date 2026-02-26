@@ -404,7 +404,19 @@ function LeadCard({ lead, onCallClick, onCardClick }) {
 }
 
 // Pipeline Column Component
-function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, onCardClick, onDrop, status }) {
+interface PipelineColumnProps {
+  title: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  color: string;
+  leads: any[];
+  count: number;
+  onCallClick: (lead: any) => void;
+  onCardClick: (lead: any) => void;
+  onDrop: (e: React.DragEvent, newStatus: string) => void;
+  status: string;
+}
+
+function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, onCardClick, onDrop, status }: PipelineColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const colorClasses = {
