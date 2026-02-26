@@ -1,6 +1,6 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 5.0  
+**Version:** 6.0  
 **Last Updated:** February 26, 2026  
 **Product Name:** Bidinn  
 **Product Type:** B2B Sales CRM Platform
@@ -44,13 +44,15 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - ✅ 1-Hour Follow-up Rule with countdown
 - ✅ 30-Day Auto-Reset (scheduled daily)
 - ✅ Bulk Lead Import (CSV/Excel)
-- ✅ Bulk Lead Export (CSV)
+- ✅ Bulk Lead Export with Filters (CSV)
+- ✅ Bulk Lead Assignment (Team Lead/Manager)
 - ✅ Agent Performance Reports with Date Filters
 - ✅ User Deactivation/Reactivation (Admin)
 - ✅ Password Reset (Admin)
 - ✅ All currency in INR (₹)
 - ✅ Booking Reasons Dropdown (10 options)
-- ✅ Bulk Status Updates (select multiple leads, update status)
+- ✅ Bulk Status Updates
+- ✅ Sales Rep Dashboard with Uncontacted & Overdue Leads Alerts
 
 ---
 
@@ -67,25 +69,30 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ## 5. Recent Changes
 
-### February 26, 2026 - TypeScript Migration Complete ✅
-1. **Frontend TypeScript Migration:** Converted all React components from JavaScript (.js/.jsx) to TypeScript (.tsx)
-2. **Shadcn UI Component Conversion:** Converted key UI components to TypeScript:
-   - dialog.tsx, button.tsx, card.tsx, input.tsx, label.tsx, select.tsx, table.tsx
-   - checkbox.tsx, badge.tsx, avatar.tsx, separator.tsx, skeleton.tsx, textarea.tsx
-   - dropdown-menu.tsx, tabs.tsx, popover.tsx, scroll-area.tsx, switch.tsx
-   - alert-dialog.tsx, calendar.tsx
-3. **Type Definitions:** Added comprehensive type interfaces in `/app/frontend/src/types/index.ts`
-4. **Database:** Installed MariaDB and configured backend to connect to MySQL
-5. **Testing:** All 31 backend API tests passed, all frontend pages working correctly
+### February 26, 2026 - P2 Features Complete ✅
 
-### February 23, 2026 - Backend Migration
-1. **Backend Migration:** Python/FastAPI/MongoDB → Node.js/Express.js/TypeScript/MySQL
-2. **Agent Performance Reports:** Filter by agent + date range
-3. **30-Day Auto-Reset Job:** Scheduled daily at midnight
-4. **Bulk Lead Export:** CSV export with filters
-5. **User Management:** Deactivation/reactivation + password reset
-6. **Booking Reasons:** 10 preset reasons dropdown
-7. **Bulk Status Updates:** Select multiple leads, update together
+**1. Export Leads with Filters**
+- Added export dialog with filter options (Status, Source, Assigned To)
+- Users can select specific filters before exporting to CSV
+- Backend supports filtered export via query parameters
+
+**2. Bulk Lead Assignment**
+- Added "Assign X Lead(s)" button when leads are selected
+- Only visible for Team Lead and Manager roles
+- Opens dialog with dropdown to select sales rep
+- Backend endpoint: `POST /api/leads/bulk-assign`
+
+**3. Sales Rep Dashboard Improvements**
+- Removed manager-only restriction for uncontacted leads section
+- Added overdue follow-ups section (amber alert card)
+- Sales Reps now see their own uncontacted and overdue leads
+- New backend endpoint: `GET /api/dashboard/overdue-followups`
+
+### Earlier Changes (February 26, 2026)
+- TypeScript Migration Complete
+- Backend Migration (Python → Node.js/Express)
+- Agent Performance Reports with Date Filters
+- Bulk Lead Export/Import
 
 ---
 
@@ -132,13 +139,16 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - `GET /api/leads/:id` - Get lead details
 - `PUT /api/leads/:id` - Update lead
 - `POST /api/leads/import` - Bulk import from CSV/Excel
-- `GET /api/leads/export` - Export to CSV
+- `GET /api/leads/export` - Export to CSV (supports status, source, assigned_to filters)
 - `POST /api/leads/bulk-status` - Bulk status update
+- `POST /api/leads/bulk-assign` - Bulk lead assignment
+- `GET /api/leads/uncontacted` - Get uncontacted leads (>1hr)
 
 ### Dashboard
 - `GET /api/dashboard/stats` - Dashboard statistics
 - `GET /api/dashboard/pipeline-stats` - Pipeline distribution
 - `GET /api/dashboard/revenue-trend` - Revenue trend chart data
+- `GET /api/dashboard/overdue-followups` - Get overdue follow-up leads
 - `GET /api/reports/agent-performance` - Agent performance reports
 
 ### Admin
@@ -154,17 +164,19 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - Email notifications for overdue leads
 
 ### P2 - Future Consideration
-- Bulk export filtering by status/source/agent
-- Bulk lead assignment to specific sales rep
 - SMS integration
 - Mobile app
 
 ---
 
-## 9. Known Limitations
+## 9. Testing
 
-1. **ESLint Warnings:** Some useEffect dependency warnings exist but don't affect functionality
-2. **Remaining .jsx Files:** Some less-used Shadcn components are still in .jsx format (e.g., carousel, drawer, form, menubar) - can be converted as needed
+### Test Reports
+- `/app/test_reports/iteration_4.json` - TypeScript migration tests
+- `/app/test_reports/iteration_5.json` - P2 features tests (100% pass rate)
+
+### Test Credentials
+All demo accounts use password: `password123`
 
 ---
 
