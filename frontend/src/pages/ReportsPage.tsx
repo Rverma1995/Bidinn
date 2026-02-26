@@ -69,17 +69,27 @@ const DATE_PRESETS = [
   { label: 'Custom', value: 'custom' },
 ];
 
+interface PipelineStats {
+  new?: number;
+  interested?: number;
+  followup?: number;
+  won?: number;
+  lost?: number;
+  not_interested?: number;
+  [key: string]: number | undefined;
+}
+
 export default function ReportsPage() {
   const { api } = useAuth();
-  const [stats, setStats] = useState(null);
-  const [revenueData, setRevenueData] = useState([]);
-  const [pipelineStats, setPipelineStats] = useState({});
-  const [sourceData, setSourceData] = useState([]);
-  const [agentPerformance, setAgentPerformance] = useState(null);
+  const [stats, setStats] = useState<any>(null);
+  const [revenueData, setRevenueData] = useState<any[]>([]);
+  const [pipelineStats, setPipelineStats] = useState<PipelineStats>({});
+  const [sourceData, setSourceData] = useState<any[]>([]);
+  const [agentPerformance, setAgentPerformance] = useState<any>(null);
   const [selectedAgent, setSelectedAgent] = useState('all');
   const [datePreset, setDatePreset] = useState('all');
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [agentLoading, setAgentLoading] = useState(false);
 
