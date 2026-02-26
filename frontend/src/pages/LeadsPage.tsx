@@ -766,22 +766,30 @@ export default function LeadsPage() {
               : 'Manage and track your sales leads'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {showUncontactedOnly && (
             <Button variant="outline" onClick={() => setShowUncontactedOnly(false)}>
               Show All Leads
             </Button>
           )}
           {selectedLeads.length > 0 && (
-            <Button variant="secondary" onClick={() => setBulkStatusDialogOpen(true)} data-testid="bulk-update-btn">
-              Update {selectedLeads.length} Lead(s)
-            </Button>
+            <>
+              <Button variant="secondary" onClick={() => setBulkStatusDialogOpen(true)} data-testid="bulk-update-btn">
+                Update {selectedLeads.length} Lead(s)
+              </Button>
+              {isTeamLead && (
+                <Button variant="secondary" onClick={() => setBulkAssignDialogOpen(true)} data-testid="bulk-assign-btn">
+                  <User className="w-4 h-4 mr-2" />
+                  Assign {selectedLeads.length} Lead(s)
+                </Button>
+              )}
+            </>
           )}
           <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-leads-btn">
             <Upload className="w-4 h-4 mr-2" />
             Import
           </Button>
-          <Button variant="outline" onClick={handleExport} data-testid="export-leads-btn">
+          <Button variant="outline" onClick={() => setExportDialogOpen(true)} data-testid="export-leads-btn">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -791,6 +799,113 @@ export default function LeadsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Export Dialog */}
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="sm:max-w-[450px]" data-testid="export-dialog">
+          <DialogHeader>
+            <DialogTitle>Export Leads</DialogTitle>
+            <DialogDescription>
+              Choose filters to export specific leads or export all
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={exportFilters.status} onValueChange={(value) => setExportFilters({ ...exportFilters, status: value })}>
+                <SelectTrigger data-testid="export-status-filter">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {LEAD_STATUSES.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Source</Label>
+              <Select value={exportFilters.source} onValueChange={(value) => setExportFilters({ ...exportFilters, source: value })}>
+                <SelectTrigger data-testid="export-source-filter">
+                  <SelectValue placeholder="All sources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All sources</SelectItem>
+                  {LEAD_SOURCES.map((source) => (
+                    <SelectItem key={source} value={source}>
+                      {source}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Assigned To</Label>
+              <Select value={exportFilters.assigned_to} onValueChange={(value) => setExportFilters({ ...exportFilters, assigned_to: value })}>
+                <SelectTrigger data-testid="export-assigned-filter">
+                  <SelectValue placeholder="All agents" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All agents</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleExport} data-testid="export-submit">
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Assign Dialog */}
+      <Dialog open={bulkAssignDialogOpen} onOpenChange={setBulkAssignDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]" data-testid="bulk-assign-dialog">
+          <DialogHeader>
+            <DialogTitle>Bulk Assign Leads</DialogTitle>
+            <DialogDescription>
+              Assign {selectedLeads.length} selected lead(s) to a sales rep
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="bulkAssignee">Assign To</Label>
+            <Select value={bulkAssignee} onValueChange={setBulkAssignee}>
+              <SelectTrigger data-testid="bulk-assign-select">
+                <SelectValue placeholder="Select sales rep" />
+              </SelectTrigger>
+              <SelectContent>
+                {salesReps.map((rep) => (
+                  <SelectItem key={rep.id} value={rep.id}>
+                    {rep.name} ({rep.role === 'team_lead' ? 'Team Lead' : 'Sales Rep'})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkAssignDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkAssign} disabled={!bulkAssignee || bulkLoading} data-testid="bulk-assign-submit">
+              {bulkLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Assign Leads
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Status Update Dialog */}
       <Dialog open={bulkStatusDialogOpen} onOpenChange={setBulkStatusDialogOpen}>
