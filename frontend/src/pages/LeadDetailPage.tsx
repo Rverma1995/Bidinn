@@ -228,15 +228,15 @@ export default function LeadDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { api, user, isTeamLead } = useAuth();
-  const [lead, setLead] = useState(null);
-  const [activities, setActivities] = useState([]);
-  const [calls, setCalls] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [calls, setCalls] = useState<CallLog[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [logCallOpen, setLogCallOpen] = useState(false);
-  const [editData, setEditData] = useState({});
+  const [editData, setEditData] = useState<EditLeadData>({});
 
   useEffect(() => {
     fetchLead();
