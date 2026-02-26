@@ -101,7 +101,11 @@ function StatCard({ title, value, subtitle, icon: Icon, trend, trendValue, class
   );
 }
 
-function LeadCard({ lead }) {
+interface LeadCardProps {
+  lead: any;
+}
+
+function LeadCard({ lead }: LeadCardProps) {
   const countdown = getCountdownTime(lead.created_at);
   const showCountdown = lead.status === 'new' && lead.attempt_count === 0;
 
