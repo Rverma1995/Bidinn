@@ -402,7 +402,7 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-2">
-              {pipelineChartData.slice(0, 6).map((item, index) => (
+              {pipelineChartData.slice(0, 6).map((item: any, index: number) => (
                 <div key={item.status} className="flex items-center gap-2 text-sm">
                   <div 
                     className="w-3 h-3 rounded-full" 
