@@ -48,7 +48,18 @@ import {
 
 const COLORS = ['#4F46E5', '#06B6D4', '#8B5CF6', '#F59E0B', '#F97316', '#10B981', '#EF4444'];
 
-function StatCard({ title, value, subtitle, icon: Icon, trend, trendValue, className, loading }) {
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  trend?: 'up' | 'down';
+  trendValue?: string;
+  className?: string;
+  loading?: boolean;
+}
+
+function StatCard({ title, value, subtitle, icon: Icon, trend, trendValue, className, loading }: StatCardProps) {
   if (loading) {
     return (
       <Card className={className}>
