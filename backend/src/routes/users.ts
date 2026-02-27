@@ -52,7 +52,7 @@ router.put('/:userId', authMiddleware, requireRoles([UserRole.ADMIN, UserRole.MA
     delete updateData.password_hash;
     delete updateData.id;
 
-    const allowedFields = ['name', 'role', 'avatar', 'is_active'];
+    const allowedFields = ['name', 'email', 'role', 'avatar', 'is_active'];
     const updates: string[] = [];
     const values: any[] = [];
 
