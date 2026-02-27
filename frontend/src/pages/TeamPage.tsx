@@ -71,6 +71,7 @@ import {
   UserCheck,
   KeyRound,
   Shield,
+  Edit,
 } from 'lucide-react';
 
 function LeaderboardCard({ entry, rank }) {
