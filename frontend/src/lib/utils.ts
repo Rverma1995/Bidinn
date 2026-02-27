@@ -7,9 +7,9 @@ export function cn(...inputs) {
 
 export function formatCurrency(amount) {
   const numAmount = parseFloat(amount) || 0;
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(numAmount);
