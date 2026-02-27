@@ -481,6 +481,11 @@ export default function TeamPage() {
     setResetPasswordDialogOpen(true);
   };
 
+  const openEditUserDialog = (user) => {
+    setSelectedUser(user);
+    setEditUserDialogOpen(true);
+  };
+
   const teamStats = {
     totalMembers: users.length,
     activeMembers: users.filter(u => u.is_active).length,
