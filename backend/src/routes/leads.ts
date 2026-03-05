@@ -636,6 +636,11 @@ router.post('/bulk-assign', authMiddleware, async (req: Request, res: Response):
       return;
     }
 
+    if (!assignee_id) {
+      res.status(400).json({ detail: 'assignee_id is required' });
+      return;
+    }
+
     // Get assignee name
     const [assignee] = await pool.execute<RowDataPacket[]>(
       'SELECT id, name FROM users WHERE id = ?',
