@@ -302,7 +302,7 @@ export default function LeadDetailPage() {
 
   const handleAssign = async (userId) => {
     try {
-      await api.post(`/leads/${id}/assign?assignee_id=${userId}`);
+      await api.post(`/leads/${id}/assign`, { assignee_id: userId });
       toast.success('Lead assigned successfully');
       fetchLead();
       fetchActivities();
