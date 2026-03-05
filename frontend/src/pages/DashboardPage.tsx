@@ -350,7 +350,7 @@ export default function DashboardPage() {
                   <YAxis 
                     tick={{ fontSize: 12 }}
                     stroke="hsl(var(--muted-foreground))"
-                    tickFormatter={(value) => `$${value / 1000}k`}
+                    tickFormatter={(value) => `₹${value / 1000}k`}
                   />
                   <Tooltip
                     formatter={(value) => [formatCurrency(value), 'Revenue']}
