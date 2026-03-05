@@ -1,7 +1,7 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 6.0  
-**Last Updated:** February 26, 2026  
+**Version:** 7.0  
+**Last Updated:** March 5, 2026  
 **Product Name:** Bidinn  
 **Product Type:** B2B Sales CRM Platform
 
@@ -23,9 +23,10 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ### Frontend
 - **Framework:** React 19
-- **Language:** TypeScript (migrated from JavaScript)
-- **Styling:** Tailwind CSS + shadcn/ui (TypeScript components)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS + shadcn/ui
 - **Charts:** Recharts
+- **Currency:** Indian Rupees (₹)
 
 ---
 
@@ -47,9 +48,8 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - ✅ Bulk Lead Export with Filters (CSV)
 - ✅ Bulk Lead Assignment (Team Lead/Manager)
 - ✅ Agent Performance Reports with Date Filters
-- ✅ User Deactivation/Reactivation (Admin)
-- ✅ Password Reset (Admin)
-- ✅ All currency in INR (₹)
+- ✅ User Management: Create, Edit, Deactivate, Reset Password
+- ✅ All currency in INR (₹) - Indian Rupees
 - ✅ Booking Reasons Dropdown (10 options)
 - ✅ Bulk Status Updates
 - ✅ Sales Rep Dashboard with Uncontacted & Overdue Leads Alerts
@@ -69,30 +69,26 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ## 5. Recent Changes
 
-### February 26, 2026 - P2 Features Complete ✅
+### March 5, 2026 - Currency & User Edit Features ✅
 
-**1. Export Leads with Filters**
-- Added export dialog with filter options (Status, Source, Assigned To)
-- Users can select specific filters before exporting to CSV
-- Backend supports filtered export via query parameters
+**1. Currency Changed to Indian Rupees (₹)**
+- All revenue, prices, and amounts now display in INR with Indian locale formatting
+- Example: ₹3,00,000 (3 Lakh), ₹1.25L on login page
+- Chart Y-axis updated to show ₹ symbol
+- formatCurrency function uses `en-IN` locale with `INR` currency
 
-**2. Bulk Lead Assignment**
-- Added "Assign X Lead(s)" button when leads are selected
-- Only visible for Team Lead and Manager roles
-- Opens dialog with dropdown to select sales rep
-- Backend endpoint: `POST /api/leads/bulk-assign`
+**2. Edit User Details (Admin/Manager)**
+- Added "Edit Details" option in team member dropdown menu
+- Admin and Manager can edit:
+  - Full Name
+  - Email Address
+- Edit dialog pre-populates with current user data
+- Backend PUT /api/users/:id endpoint supports name and email updates
 
-**3. Sales Rep Dashboard Improvements**
-- Removed manager-only restriction for uncontacted leads section
-- Added overdue follow-ups section (amber alert card)
-- Sales Reps now see their own uncontacted and overdue leads
-- New backend endpoint: `GET /api/dashboard/overdue-followups`
-
-### Earlier Changes (February 26, 2026)
-- TypeScript Migration Complete
-- Backend Migration (Python → Node.js/Express)
-- Agent Performance Reports with Date Filters
-- Bulk Lead Export/Import
+### February 26, 2026 - P2 Features
+- Export Leads with Filters (Status, Source, Assigned To)
+- Bulk Lead Assignment (Team Lead/Manager)
+- Sales Rep Dashboard with Uncontacted/Overdue Leads
 
 ---
 
@@ -104,22 +100,17 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 │   ├── src/
 │   │   ├── config/database.ts     # MySQL connection pool
 │   │   ├── middleware/auth.ts     # JWT authentication
-│   │   ├── routes/                # API routes (auth, leads, users, etc.)
-│   │   ├── types/index.ts         # TypeScript type definitions
-│   │   ├── utils/helpers.ts       # Utility functions
-│   │   └── index.ts               # Express server with cron jobs
-│   ├── .env                       # Environment variables
+│   │   ├── routes/                # API routes
+│   │   ├── types/index.ts         # TypeScript types
+│   │   └── index.ts               # Express server
 │   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── components/ui/         # Shadcn TypeScript components
-│   │   ├── contexts/              # AuthContext.tsx, ThemeContext.tsx
-│   │   ├── lib/utils.ts           # Utility functions
-│   │   ├── pages/                 # TypeScript page components
-│   │   ├── types/index.ts         # Frontend type definitions
-│   │   ├── App.tsx
-│   │   └── index.tsx
-│   ├── tsconfig.json
+│   │   ├── components/ui/         # Shadcn components
+│   │   ├── contexts/              # Auth, Theme contexts
+│   │   ├── lib/utils.ts           # formatCurrency (INR)
+│   │   ├── pages/                 # Page components
+│   │   └── types/index.ts         # Frontend types
 │   └── package.json
 └── memory/PRD.md
 ```
@@ -128,55 +119,36 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ## 7. API Endpoints
 
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login and get JWT token
-- `GET /api/auth/me` - Get current user
+### Users
+- `GET /api/users` - List all users
+- `GET /api/users/:id` - Get user by ID
+- `PUT /api/users/:id` - Update user (name, email, role) - Admin/Manager only
+- `POST /api/users/:id/toggle-status` - Activate/Deactivate user - Admin only
+- `POST /api/users/:id/reset-password` - Reset password - Admin only
 
-### Leads
-- `GET /api/leads` - List leads with filters
-- `POST /api/leads` - Create lead
-- `GET /api/leads/:id` - Get lead details
-- `PUT /api/leads/:id` - Update lead
-- `POST /api/leads/import` - Bulk import from CSV/Excel
-- `GET /api/leads/export` - Export to CSV (supports status, source, assigned_to filters)
-- `POST /api/leads/bulk-status` - Bulk status update
-- `POST /api/leads/bulk-assign` - Bulk lead assignment
-- `GET /api/leads/uncontacted` - Get uncontacted leads (>1hr)
-
-### Dashboard
-- `GET /api/dashboard/stats` - Dashboard statistics
-- `GET /api/dashboard/pipeline-stats` - Pipeline distribution
-- `GET /api/dashboard/revenue-trend` - Revenue trend chart data
-- `GET /api/dashboard/overdue-followups` - Get overdue follow-up leads
-- `GET /api/reports/agent-performance` - Agent performance reports
-
-### Admin
-- `POST /api/admin/seed-data` - Seed demo data (requires admin role)
-- `GET /api/admin/features` - Feature flags
+### Other Endpoints
+- Authentication: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
+- Leads: `/api/leads`, `/api/leads/import`, `/api/leads/export`, `/api/leads/bulk-status`, `/api/leads/bulk-assign`
+- Dashboard: `/api/dashboard/stats`, `/api/dashboard/overdue-followups`
+- Admin: `/api/admin/seed-data`
 
 ---
 
-## 8. Future Enhancements (Backlog)
-
-### P1 - Nice to Have
-- Google Sheets integration for lead import/export
-- Email notifications for overdue leads
-
-### P2 - Future Consideration
-- SMS integration
-- Mobile app
-
----
-
-## 9. Testing
+## 8. Testing Status
 
 ### Test Reports
-- `/app/test_reports/iteration_4.json` - TypeScript migration tests
-- `/app/test_reports/iteration_5.json` - P2 features tests (100% pass rate)
+- `/app/test_reports/iteration_5.json` - P2 features (100% pass)
+- `/app/test_reports/iteration_6.json` - Currency & Edit User (100% pass after fixes)
 
-### Test Credentials
-All demo accounts use password: `password123`
+All features tested and working correctly.
+
+---
+
+## 9. Future Enhancements (Backlog)
+
+- Google Sheets integration
+- Email/SMS notifications for overdue leads
+- Mobile app
 
 ---
 
