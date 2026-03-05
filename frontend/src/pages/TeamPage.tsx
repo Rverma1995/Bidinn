@@ -727,6 +727,14 @@ export default function TeamPage() {
         onSuccess={fetchTeamData}
       />
 
+      {/* Edit User Dialog */}
+      <EditUserDialog
+        open={editUserDialogOpen}
+        onOpenChange={setEditUserDialogOpen}
+        user={selectedUser}
+        onSuccess={fetchTeamData}
+      />
+
       {/* Confirm Deactivate Dialog */}
       <AlertDialog open={!!confirmDeactivate} onOpenChange={() => setConfirmDeactivate(null)}>
         <AlertDialogContent>
