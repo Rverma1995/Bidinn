@@ -483,6 +483,11 @@ router.post('/:leadId/assign', authMiddleware, requireRoles([UserRole.ADMIN, Use
     const { assignee_id } = req.body;
     const user = req.user!;
 
+    if (!assignee_id) {
+      res.status(400).json({ detail: 'assignee_id is required' });
+      return;
+    }
+
     const [assignee] = await pool.execute<RowDataPacket[]>(
       'SELECT id, name FROM users WHERE id = ?',
       [assignee_id]
