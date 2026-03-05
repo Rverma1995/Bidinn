@@ -34,9 +34,10 @@ class TestEditUserAPI:
             "password": password
         })
         if response.status_code == 200:
-            token = response.json().get("token")
+            data = response.json()
+            token = data.get("access_token")  # API returns access_token, not token
             self.session.headers.update({"Authorization": f"Bearer {token}"})
-            return response.json()
+            return data
         return None
     
     def test_get_users_list(self):
