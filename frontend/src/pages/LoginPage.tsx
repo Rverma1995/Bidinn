@@ -217,7 +217,7 @@ export default function LoginPage() {
               <div className="text-sm text-white/70">Conversion Rate</div>
             </div>
             <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <div className="text-3xl font-bold">$125K</div>
+              <div className="text-3xl font-bold">₹1.25L</div>
               <div className="text-sm text-white/70">Monthly Revenue</div>
             </div>
           </div>
