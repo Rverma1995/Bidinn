@@ -43,7 +43,7 @@ export const initDatabase = async () => {
         source VARCHAR(100) NOT NULL,
         campaign VARCHAR(255),
         city VARCHAR(100),
-        status ENUM('new', 'interested', 'not_interested', 'followup', 'won', 'lost') NOT NULL DEFAULT 'new',
+        status ENUM('new', 'not_answered', 'interested', 'not_interested', 'followup', 'won', 'lost') NOT NULL DEFAULT 'new',
         assigned_to VARCHAR(36),
         assigned_name VARCHAR(255),
         attempt_count INT DEFAULT 0,
