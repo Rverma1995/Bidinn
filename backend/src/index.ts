@@ -17,6 +17,7 @@ import dashboardRoutes from './routes/dashboard';
 import activityRoutes from './routes/activities';
 import notificationRoutes from './routes/notifications';
 import adminRoutes from './routes/admin';
+import metaRoutes from './routes/meta';
 import { formatDateForMySQL, generateUUID } from './utils/helpers';
 import { RowDataPacket } from 'mysql2';
 
