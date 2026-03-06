@@ -1,6 +1,6 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 9.0  
+**Version:** 10.0  
 **Last Updated:** March 6, 2026  
 **Product Name:** Bidinn  
 **Product Type:** B2B Sales CRM Platform
@@ -56,6 +56,13 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - ✅ Bulk Status Updates
 - ✅ Sales Rep Dashboard with Uncontacted & Overdue Leads Alerts
 - ✅ **Meta Lead Ads Integration** (Facebook/Instagram real-time webhook)
+
+### Bug Fixes (March 6, 2026)
+- ✅ Leads table view shows Name, Phone, Email, Source columns
+- ✅ Booking creation fixed (added booking_reason column)
+- ✅ Booking form simplified: "Amount Received (₹)" replaces bid_price/final_price
+- ✅ Sales Rep visibility scoping: can only see assigned leads (not unassigned)
+- ✅ Dashboard alerts (Uncontacted Leads, Overdue Follow-ups) visible to all roles
 
 ---
 
