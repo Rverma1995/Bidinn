@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Separator } from '../components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { generateInitials, getRoleLabel } from '../lib/utils';
 import {
@@ -22,6 +23,10 @@ import {
   Key,
   Eye,
   EyeOff,
+  Facebook,
+  CheckCircle2,
+  XCircle,
+  ExternalLink,
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -37,6 +42,71 @@ export default function SettingsPage() {
     newPassword: '',
     confirmPassword: '',
   });
+  
+  // Meta Lead Ads state
+  const [metaConfigured, setMetaConfigured] = useState(false);
+  const [metaPageId, setMetaPageId] = useState('');
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaTesting, setMetaTesting] = useState(false);
+  const [showMetaSecrets, setShowMetaSecrets] = useState(false);
+  const [metaForm, setMetaForm] = useState({
+    app_secret: '',
+    verify_token: '',
+    page_access_token: '',
+    page_id: '',
+  });
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchMetaConfig();
+    }
+  }, [isAdmin]);
+
+  const fetchMetaConfig = async () => {
+    try {
+      const response = await api.get('/meta/config');
+      setMetaConfigured(response.data.configured);
+      if (response.data.page_id) {
+        setMetaPageId(response.data.page_id);
+      }
+    } catch (error) {
+      console.error('Failed to fetch Meta config:', error);
+    }
+  };
+
+  const handleSaveMetaConfig = async (e) => {
+    e.preventDefault();
+    
+    if (!metaForm.app_secret || !metaForm.verify_token || !metaForm.page_access_token || !metaForm.page_id) {
+      toast.error('Please fill in all Meta configuration fields');
+      return;
+    }
+
+    setMetaLoading(true);
+    try {
+      await api.post('/meta/config', metaForm);
+      toast.success('Meta Lead Ads configuration saved successfully!');
+      setMetaConfigured(true);
+      setMetaPageId(metaForm.page_id);
+      setMetaForm({ app_secret: '', verify_token: '', page_access_token: '', page_id: '' });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save Meta configuration');
+    } finally {
+      setMetaLoading(false);
+    }
+  };
+
+  const handleTestMetaConnection = async () => {
+    setMetaTesting(true);
+    try {
+      const response = await api.post('/meta/test-connection');
+      toast.success(`Connected to Facebook Page: ${response.data.page_name}`);
+    } catch (error) {
+      toast.error(error.response?.data?.error || error.response?.data?.detail || 'Failed to connect to Meta');
+    } finally {
+      setMetaTesting(false);
+    }
+  };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
