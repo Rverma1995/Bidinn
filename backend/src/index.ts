@@ -164,6 +164,9 @@ const startServer = async () => {
     await initDatabase();
     console.log('Database initialized successfully');
 
+    // Auto-seed if database is empty
+    await autoSeedIfEmpty();
+
     // Schedule the auto-reset job
     scheduleAutoResetJob();
 
@@ -174,6 +177,115 @@ const startServer = async () => {
     console.error('Failed to start server:', error);
     process.exit(1);
   }
+};
+
+// Auto-seed database if empty
+const autoSeedIfEmpty = async () => {
+  try {
+    const [users] = await pool.execute<RowDataPacket[]>('SELECT COUNT(*) as count FROM users');
+    const userCount = users[0].count;
+
+    if (userCount === 0) {
+      console.log('Database is empty, auto-seeding demo data...');
+      await seedDemoData();
+      console.log('Auto-seed completed successfully');
+    } else {
+      console.log(`Database has ${userCount} users, skipping auto-seed`);
+    }
+  } catch (error) {
+    console.error('Auto-seed check error:', error);
+  }
+};
+
+// Seed demo data function
+const seedDemoData = async () => {
+  const { hashPassword } = await import('./utils/helpers');
+  
+  // Demo users with roles
+  const demoUsers = [
+    { email: 'alex@bidinn.com', name: 'Alex Thompson', role: 'admin', password: 'password123' },
+    { email: 'sarah@bidinn.com', name: 'Sarah Wilson', role: 'manager', password: 'password123' },
+    { email: 'michael@bidinn.com', name: 'Michael Chen', role: 'team_lead', password: 'password123' },
+    { email: 'emily@bidinn.com', name: 'Emily Davis', role: 'sales_rep', password: 'password123' },
+    { email: 'james@bidinn.com', name: 'James Miller', role: 'sales_rep', password: 'password123' },
+    { email: 'olivia@bidinn.com', name: 'Olivia Brown', role: 'sales_rep', password: 'password123' },
+    { email: 'william@bidinn.com', name: 'William Taylor', role: 'sales_rep', password: 'password123' },
+    { email: 'sophia@bidinn.com', name: 'Sophia Martinez', role: 'sales_rep', password: 'password123' },
+    { email: 'benjamin@bidinn.com', name: 'Benjamin Garcia', role: 'team_lead', password: 'password123' },
+    { email: 'ava@bidinn.com', name: 'Ava Johnson', role: 'sales_rep', password: 'password123' },
+    { email: 'lucas@bidinn.com', name: 'Lucas Anderson', role: 'sales_rep', password: 'password123' },
+    { email: 'mia@bidinn.com', name: 'Mia Thomas', role: 'sales_rep', password: 'password123' },
+    { email: 'robert@bidinn.com', name: 'Robert Taylor', role: 'manager', password: 'password123' },
+    { email: 'lisa@bidinn.com', name: 'Lisa Anderson', role: 'sales_rep', password: 'password123' },
+    { email: 'david@bidinn.com', name: 'David Wilson', role: 'sales_rep', password: 'password123' },
+  ];
+
+  const userIds: string[] = [];
+  const now = formatDateForMySQL(new Date());
+
+  // Insert users
+  for (const user of demoUsers) {
+    const id = generateUUID();
+    userIds.push(id);
+    const passwordHash = hashPassword(user.password);
+    await pool.execute(
+      'INSERT INTO users (id, email, name, role, password_hash, is_active, created_at) VALUES (?, ?, ?, ?, ?, true, ?)',
+      [id, user.email, user.name, user.role, passwordHash, now]
+    );
+  }
+
+  // Demo leads
+  const leadSources = ['Website', 'Referral', 'LinkedIn', 'Cold Call', 'Meta Lead Ads', 'Trade Show', 'Email Campaign'];
+  const leadStatuses = ['new', 'contacted', 'interested', 'followup', 'negotiation', 'won', 'lost', 'not_interested'];
+  const companies = ['Acme Corporation', 'TechStart Inc', 'Global Solutions', 'Innovate Labs', 'Prime Services', 'NextGen Systems', 'DataFlow Corp', 'CloudNine Ltd', 'Digital Dynamics', 'Smart Solutions'];
+
+  const salesRepIds = userIds.filter((_, i) => ['sales_rep', 'team_lead'].includes(demoUsers[i].role));
+
+  for (let i = 0; i < 50; i++) {
+    const leadId = generateUUID();
+    const status = leadStatuses[Math.floor(Math.random() * leadStatuses.length)];
+    const source = leadSources[Math.floor(Math.random() * leadSources.length)];
+    const assignedTo = salesRepIds[Math.floor(Math.random() * salesRepIds.length)];
+    const assignedUser = demoUsers[userIds.indexOf(assignedTo)];
+    const company = companies[Math.floor(Math.random() * companies.length)];
+    
+    const createdAt = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000);
+    const lastActivity = new Date(createdAt.getTime() + Math.random() * (Date.now() - createdAt.getTime()));
+
+    await pool.execute(
+      `INSERT INTO leads (id, name, phone, email, city, source, status, assigned_to, assigned_name, notes, created_at, updated_at, last_activity, attempt_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        leadId,
+        company,
+        `+91 ${Math.floor(Math.random() * 9000000000 + 1000000000)}`,
+        `contact@${company.toLowerCase().replace(/\s+/g, '')}.com`,
+        ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Hyderabad', 'Pune', 'Kolkata'][Math.floor(Math.random() * 7)],
+        source,
+        status,
+        assignedTo,
+        assignedUser.name,
+        `Interested in enterprise package. Budget: ₹${Math.floor(Math.random() * 500000 + 50000)}`,
+        formatDateForMySQL(createdAt),
+        formatDateForMySQL(lastActivity),
+        formatDateForMySQL(lastActivity),
+        Math.floor(Math.random() * 5)
+      ]
+    );
+
+    // Add booking for won leads
+    if (status === 'won') {
+      const bookingId = generateUUID();
+      const price = Math.floor(Math.random() * 100000 + 20000);
+      await pool.execute(
+        `INSERT INTO bookings (id, lead_id, final_price, status, booking_date, booking_reason, notes, created_at)
+         VALUES (?, ?, ?, 'confirmed', ?, 'Product Demo', 'Deal closed successfully', ?)`,
+        [bookingId, leadId, price, formatDateForMySQL(lastActivity), formatDateForMySQL(lastActivity)]
+      );
+    }
+  }
+
+  console.log('Seeded 15 users, 50 leads, and related data');
 };
 
 startServer();
