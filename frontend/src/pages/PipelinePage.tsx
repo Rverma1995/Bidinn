@@ -252,6 +252,7 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="not_answered">Not Answered</SelectItem>
                     <SelectItem value="interested">Interested</SelectItem>
                     <SelectItem value="not_interested">Not Interested</SelectItem>
                     <SelectItem value="followup">Follow-up</SelectItem>
