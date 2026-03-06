@@ -148,6 +148,29 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Create meta_config table for Facebook Lead Ads integration
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS meta_config (
+        id VARCHAR(36) PRIMARY KEY,
+        app_secret VARCHAR(255) NOT NULL,
+        verify_token VARCHAR(255) NOT NULL,
+        page_access_token TEXT NOT NULL,
+        page_id VARCHAR(100) NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Add meta_leadgen_id column to leads table if not exists
+    try {
+      await connection.execute(`
+        ALTER TABLE leads ADD COLUMN meta_leadgen_id VARCHAR(100) DEFAULT NULL
+      `);
+    } catch (e) {
+      // Column might already exist
+    }
+
     console.log('Database tables created successfully');
   } finally {
     connection.release();
