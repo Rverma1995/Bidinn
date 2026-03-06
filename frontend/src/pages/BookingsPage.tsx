@@ -296,7 +296,7 @@ export default function BookingsPage() {
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-              <DollarSign className="w-5 h-5 text-emerald-600" />
+              <IndianRupee className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Collected Revenue</p>
@@ -307,7 +307,7 @@ export default function BookingsPage() {
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-              <DollarSign className="w-5 h-5 text-amber-600" />
+              <IndianRupee className="w-5 h-5 text-amber-600" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Pending Revenue</p>
