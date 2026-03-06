@@ -1,7 +1,7 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 7.0  
-**Last Updated:** March 5, 2026  
+**Version:** 8.0  
+**Last Updated:** March 6, 2026  
 **Product Name:** Bidinn  
 **Product Type:** B2B Sales CRM Platform
 
@@ -34,6 +34,8 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ### Core Features
 - ✅ JWT Authentication with 4 roles (Admin, Manager, Team Lead, Sales Rep)
+- ✅ Login with Email/Password
+- ✅ Change Password (self-service for all users)
 - ✅ Lead Management (CRUD, assign, log calls)
 - ✅ Pipeline Kanban Board
 - ✅ Booking & Payment Tracking
@@ -56,8 +58,19 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ---
 
-## 4. Demo Credentials
+## 4. Authentication Flow
 
+### How Users Login
+1. **Admin creates user account** via Team page → Sets email, name, role, initial password
+2. **User logs in** at login page → Enters email + password
+3. **User can change own password** via Settings page
+
+### Password Rules
+- Minimum 6 characters
+- User must know current password to change it
+- Admin can reset any user's password (Team page → Actions → Reset Password)
+
+### Demo Accounts
 | Role | Email | Password |
 |------|-------|----------|
 | Admin | alex@bidinn.com | password123 |
@@ -69,82 +82,62 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ## 5. Recent Changes
 
-### March 5, 2026 - Currency & User Edit Features ✅
+### March 6, 2026 - Change Password Feature ✅
+- Added `POST /api/auth/change-password` endpoint
+- Added Change Password section in Settings page
+- Fields: Current Password, New Password, Confirm New Password
+- Validation: Minimum 6 characters, passwords must match
+- All users can change their own password
 
-**1. Currency Changed to Indian Rupees (₹)**
-- All revenue, prices, and amounts now display in INR with Indian locale formatting
-- Example: ₹3,00,000 (3 Lakh), ₹1.25L on login page
-- Chart Y-axis updated to show ₹ symbol
-- formatCurrency function uses `en-IN` locale with `INR` currency
+### March 5, 2026 - Bug Fixes
+- Fixed assign lead endpoint (was sending assignee_id as URL param instead of body)
+- Added validation for undefined parameters
 
-**2. Edit User Details (Admin/Manager)**
-- Added "Edit Details" option in team member dropdown menu
-- Admin and Manager can edit:
-  - Full Name
-  - Email Address
-- Edit dialog pre-populates with current user data
-- Backend PUT /api/users/:id endpoint supports name and email updates
-
-### February 26, 2026 - P2 Features
-- Export Leads with Filters (Status, Source, Assigned To)
-- Bulk Lead Assignment (Team Lead/Manager)
-- Sales Rep Dashboard with Uncontacted/Overdue Leads
+### March 5, 2026 - Currency & User Edit Features
+- Changed all currency to Indian Rupees (₹)
+- Added Edit User Details option for Admin/Manager
 
 ---
 
-## 6. Code Architecture
+## 6. API Endpoints
 
-```
-/app/
-├── backend/
-│   ├── src/
-│   │   ├── config/database.ts     # MySQL connection pool
-│   │   ├── middleware/auth.ts     # JWT authentication
-│   │   ├── routes/                # API routes
-│   │   ├── types/index.ts         # TypeScript types
-│   │   └── index.ts               # Express server
-│   └── package.json
-├── frontend/
-│   ├── src/
-│   │   ├── components/ui/         # Shadcn components
-│   │   ├── contexts/              # Auth, Theme contexts
-│   │   ├── lib/utils.ts           # formatCurrency (INR)
-│   │   ├── pages/                 # Page components
-│   │   └── types/index.ts         # Frontend types
-│   └── package.json
-└── memory/PRD.md
-```
+### Authentication
+- `POST /api/auth/register` - Register new user
+- `POST /api/auth/login` - Login (returns JWT token)
+- `GET /api/auth/me` - Get current user info
+- `POST /api/auth/change-password` - Change own password
 
----
-
-## 7. API Endpoints
-
-### Users
+### Users (Admin/Manager only)
 - `GET /api/users` - List all users
-- `GET /api/users/:id` - Get user by ID
-- `PUT /api/users/:id` - Update user (name, email, role) - Admin/Manager only
-- `POST /api/users/:id/toggle-status` - Activate/Deactivate user - Admin only
-- `POST /api/users/:id/reset-password` - Reset password - Admin only
+- `PUT /api/users/:id` - Update user (name, email, role)
+- `POST /api/users/:id/toggle-status` - Activate/Deactivate
+- `POST /api/users/:id/reset-password` - Reset password (Admin only)
 
-### Other Endpoints
-- Authentication: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
-- Leads: `/api/leads`, `/api/leads/import`, `/api/leads/export`, `/api/leads/bulk-status`, `/api/leads/bulk-assign`
-- Dashboard: `/api/dashboard/stats`, `/api/dashboard/overdue-followups`
-- Admin: `/api/admin/seed-data`
-
----
-
-## 8. Testing Status
-
-### Test Reports
-- `/app/test_reports/iteration_5.json` - P2 features (100% pass)
-- `/app/test_reports/iteration_6.json` - Currency & Edit User (100% pass after fixes)
-
-All features tested and working correctly.
+### Leads
+- `GET /api/leads` - List leads
+- `POST /api/leads` - Create lead
+- `PUT /api/leads/:id` - Update lead
+- `POST /api/leads/:id/assign` - Assign lead to user
+- `POST /api/leads/bulk-assign` - Bulk assign leads
+- `POST /api/leads/bulk-update-status` - Bulk status update
+- `GET /api/leads/export` - Export to CSV
 
 ---
 
-## 9. Future Enhancements (Backlog)
+## 7. Testing Status
+
+All features tested and working:
+- ✅ Login with correct credentials
+- ✅ Login rejection with wrong password
+- ✅ Login rejection with non-existent email
+- ✅ Change password with correct current password
+- ✅ Change password rejection with wrong current password
+- ✅ Change password rejection for too-short password
+- ✅ Get current user endpoint
+
+---
+
+## 8. Future Enhancements (Backlog)
 
 - Google Sheets integration
 - Email/SMS notifications for overdue leads
