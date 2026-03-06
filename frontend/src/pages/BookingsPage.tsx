@@ -40,7 +40,7 @@ import {
   Loader2,
   Calendar,
   Building,
-  DollarSign,
+  IndianRupee,
   Search,
 } from 'lucide-react';
 
@@ -169,39 +169,22 @@ function CreateBookingDialog({ open, onOpenChange, leads, onSuccess }) {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="final_price">Final Price *</Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="final_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.final_price}
-                    onChange={(e) => setFormData({ ...formData, final_price: e.target.value })}
-                    className="pl-9"
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="bid_price">Bid Price</Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="bid_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.bid_price}
-                    onChange={(e) => setFormData({ ...formData, bid_price: e.target.value })}
-                    className="pl-9"
-                    placeholder="0.00"
-                  />
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="amount_received">Amount Received (₹) *</Label>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="amount_received"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.final_price}
+                  onChange={(e) => setFormData({ ...formData, final_price: e.target.value, bid_price: e.target.value })}
+                  className="pl-9"
+                  placeholder="0.00"
+                  required
+                  data-testid="booking-amount-input"
+                />
               </div>
             </div>
             <div className="space-y-2">
@@ -404,8 +387,7 @@ export default function BookingsPage() {
                 <TableHead>Hotel</TableHead>
                 <TableHead>Check-in</TableHead>
                 <TableHead>Check-out</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Collected</TableHead>
+                <TableHead>Amount Received</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -417,7 +399,6 @@ export default function BookingsPage() {
                   <TableCell>{formatDate(booking.check_in)}</TableCell>
                   <TableCell>{formatDate(booking.check_out)}</TableCell>
                   <TableCell>{formatCurrency(booking.final_price)}</TableCell>
-                  <TableCell>{formatCurrency(booking.payment_amount)}</TableCell>
                   <TableCell>
                     <Badge className={getPaymentStatusColor(booking.payment_status)}>
                       {booking.payment_status.charAt(0).toUpperCase() + booking.payment_status.slice(1)}

@@ -291,43 +291,41 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Alert Cards for Managers */}
-      {isManager && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className={`border-l-4 ${(stats?.uncontacted_over_1hr || 0) > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className={`p-3 rounded-full ${(stats?.uncontacted_over_1hr || 0) > 0 ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
-                <AlertTriangle className={`w-5 h-5 ${(stats?.uncontacted_over_1hr || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
-              </div>
-              <div>
-                <p className="font-medium">Uncontacted Leads ({'>'}1hr)</p>
-                <p className="text-2xl font-bold">{stats?.uncontacted_over_1hr || 0}</p>
-              </div>
-              {(stats?.uncontacted_over_1hr || 0) > 0 && (
-                <Button variant="outline" size="sm" className="ml-auto" asChild>
-                  <Link to="/leads?filter=uncontacted">Review</Link>
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-          <Card className={`border-l-4 ${(stats?.overdue_followups || 0) > 0 ? 'border-l-amber-500' : 'border-l-emerald-500'}`}>
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className={`p-3 rounded-full ${(stats?.overdue_followups || 0) > 0 ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
-                <Clock className={`w-5 h-5 ${(stats?.overdue_followups || 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}`} />
-              </div>
-              <div>
-                <p className="font-medium">Overdue Follow-ups</p>
-                <p className="text-2xl font-bold">{stats?.overdue_followups || 0}</p>
-              </div>
-              {(stats?.overdue_followups || 0) > 0 && (
-                <Button variant="outline" size="sm" className="ml-auto" asChild>
-                  <Link to="/leads?filter=overdue">Review</Link>
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Alert Cards for All Users */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className={`border-l-4 ${(stats?.uncontacted_over_1hr || 0) > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className={`p-3 rounded-full ${(stats?.uncontacted_over_1hr || 0) > 0 ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
+              <AlertTriangle className={`w-5 h-5 ${(stats?.uncontacted_over_1hr || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
+            </div>
+            <div>
+              <p className="font-medium">Uncontacted Leads ({'>'}1hr)</p>
+              <p className="text-2xl font-bold">{stats?.uncontacted_over_1hr || 0}</p>
+            </div>
+            {(stats?.uncontacted_over_1hr || 0) > 0 && (
+              <Button variant="outline" size="sm" className="ml-auto" asChild>
+                <Link to="/leads?filter=uncontacted">Review</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+        <Card className={`border-l-4 ${(stats?.overdue_followups || 0) > 0 ? 'border-l-amber-500' : 'border-l-emerald-500'}`}>
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className={`p-3 rounded-full ${(stats?.overdue_followups || 0) > 0 ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
+              <Clock className={`w-5 h-5 ${(stats?.overdue_followups || 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}`} />
+            </div>
+            <div>
+              <p className="font-medium">Overdue Follow-ups</p>
+              <p className="text-2xl font-bold">{stats?.overdue_followups || 0}</p>
+            </div>
+            {(stats?.overdue_followups || 0) > 0 && (
+              <Button variant="outline" size="sm" className="ml-auto" asChild>
+                <Link to="/leads?filter=overdue">Review</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

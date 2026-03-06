@@ -1084,7 +1084,7 @@ export default function LeadsPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Campaign</TableHead>
+                <TableHead>Source</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Assigned To</TableHead>
                 <TableHead>Last Activity</TableHead>
