@@ -58,12 +58,17 @@ router.get('/stats', authMiddleware, async (req: Request, res: Response): Promis
       [now, ...leadParams]
     );
 
-    // Uncontacted over 1 hour
+    // Uncontacted over 1 hour - scoped by role
     const oneHourAgo = formatDateForMySQL(new Date(Date.now() - 60 * 60 * 1000));
-    const [uncontactedOver1hr] = await pool.execute<RowDataPacket[]>(
-      `SELECT COUNT(*) as count FROM leads WHERE status = 'new' AND attempt_count = 0 AND created_at < ?`,
-      [oneHourAgo]
-    );
+    let uncontactedQuery = `SELECT COUNT(*) as count FROM leads WHERE status = 'new' AND attempt_count = 0 AND created_at < ?`;
+    const uncontactedParams: any[] = [oneHourAgo];
+    
+    if (role === UserRole.SALES_REP) {
+      uncontactedQuery += ' AND assigned_to = ?';
+      uncontactedParams.push(user.id);
+    }
+    
+    const [uncontactedOver1hr] = await pool.execute<RowDataPacket[]>(uncontactedQuery, uncontactedParams);
 
     // Revenue calculations
     const [revenueResult] = await pool.execute<RowDataPacket[]>(
