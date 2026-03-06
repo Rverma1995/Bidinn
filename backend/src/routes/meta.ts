@@ -372,15 +372,15 @@ router.post('/test-connection', async (req: Request, res: Response): Promise<voi
     const response = await fetch(`${url}?${params}`);
     
     if (!response.ok) {
-      const error = await response.json();
+      const errorData: any = await response.json();
       res.status(400).json({ 
         detail: 'Meta API error', 
-        error: error.error?.message || 'Unknown error' 
+        error: errorData.error?.message || 'Unknown error' 
       });
       return;
     }
     
-    const pageInfo = await response.json();
+    const pageInfo: any = await response.json();
     res.json({ 
       success: true, 
       message: 'Connection successful',
