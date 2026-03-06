@@ -1,6 +1,6 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 8.0  
+**Version:** 9.0  
 **Last Updated:** March 6, 2026  
 **Product Name:** Bidinn  
 **Product Type:** B2B Sales CRM Platform
@@ -55,20 +55,45 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - ✅ Booking Reasons Dropdown (10 options)
 - ✅ Bulk Status Updates
 - ✅ Sales Rep Dashboard with Uncontacted & Overdue Leads Alerts
+- ✅ **Meta Lead Ads Integration** (Facebook/Instagram real-time webhook)
 
 ---
 
-## 4. Authentication Flow
+## 4. Meta Lead Ads Integration
+
+### How It Works
+1. Admin configures Meta credentials in Settings page
+2. Webhook URL is registered in Meta Business Suite
+3. When someone fills a Facebook/Instagram Lead Form, Meta sends a webhook
+4. Bidinn automatically creates a new lead from the form data
+
+### Setup Requirements
+- Meta App ID and App Secret from [Meta for Developers](https://developers.facebook.com/apps/)
+- Page Access Token with `leads_retrieval` permission
+- Facebook Page ID
+
+### API Endpoints
+- `GET /api/meta/config` - Get Meta configuration status
+- `POST /api/meta/config` - Save Meta credentials (Admin only)
+- `GET /api/meta/webhook` - Webhook verification (Meta challenge)
+- `POST /api/meta/webhook` - Receive lead data from Meta
+- `POST /api/meta/test-connection` - Test Meta API connection
+- `GET /api/meta/leads` - Get leads imported from Meta
+
+### Webhook URL
+After configuring credentials, use this webhook URL in Meta Business Suite:
+```
+https://your-domain.com/api/meta/webhook
+```
+
+---
+
+## 5. Authentication Flow
 
 ### How Users Login
 1. **Admin creates user account** via Team page → Sets email, name, role, initial password
 2. **User logs in** at login page → Enters email + password
 3. **User can change own password** via Settings page
-
-### Password Rules
-- Minimum 6 characters
-- User must know current password to change it
-- Admin can reset any user's password (Team page → Actions → Reset Password)
 
 ### Demo Accounts
 | Role | Email | Password |
@@ -80,60 +105,40 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ---
 
-## 5. Recent Changes
-
-### March 6, 2026 - Change Password Feature ✅
-- Added `POST /api/auth/change-password` endpoint
-- Added Change Password section in Settings page
-- Fields: Current Password, New Password, Confirm New Password
-- Validation: Minimum 6 characters, passwords must match
-- All users can change their own password
-
-### March 5, 2026 - Bug Fixes
-- Fixed assign lead endpoint (was sending assignee_id as URL param instead of body)
-- Added validation for undefined parameters
-
-### March 5, 2026 - Currency & User Edit Features
-- Changed all currency to Indian Rupees (₹)
-- Added Edit User Details option for Admin/Manager
-
----
-
-## 6. API Endpoints
+## 6. API Endpoints Summary
 
 ### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login (returns JWT token)
-- `GET /api/auth/me` - Get current user info
-- `POST /api/auth/change-password` - Change own password
+- `POST /api/auth/login` - Login
+- `POST /api/auth/change-password` - Change password
 
-### Users (Admin/Manager only)
-- `GET /api/users` - List all users
-- `PUT /api/users/:id` - Update user (name, email, role)
-- `POST /api/users/:id/toggle-status` - Activate/Deactivate
-- `POST /api/users/:id/reset-password` - Reset password (Admin only)
+### Users
+- `GET /api/users` - List users
+- `PUT /api/users/:id` - Update user
+- `POST /api/users/:id/reset-password` - Reset password
 
 ### Leads
 - `GET /api/leads` - List leads
 - `POST /api/leads` - Create lead
-- `PUT /api/leads/:id` - Update lead
-- `POST /api/leads/:id/assign` - Assign lead to user
-- `POST /api/leads/bulk-assign` - Bulk assign leads
-- `POST /api/leads/bulk-update-status` - Bulk status update
-- `GET /api/leads/export` - Export to CSV
+- `POST /api/leads/:id/assign` - Assign lead
+- `POST /api/leads/bulk-assign` - Bulk assign
+- `GET /api/leads/export` - Export CSV
+
+### Meta Integration
+- `GET /api/meta/config` - Get config
+- `POST /api/meta/config` - Save config
+- `GET/POST /api/meta/webhook` - Webhook endpoint
 
 ---
 
-## 7. Testing Status
+## 7. Database Tables
 
-All features tested and working:
-- ✅ Login with correct credentials
-- ✅ Login rejection with wrong password
-- ✅ Login rejection with non-existent email
-- ✅ Change password with correct current password
-- ✅ Change password rejection with wrong current password
-- ✅ Change password rejection for too-short password
-- ✅ Get current user endpoint
+- `users` - User accounts
+- `leads` - Lead records (includes `meta_leadgen_id` for Meta leads)
+- `call_logs` - Call history
+- `bookings` - Booking records
+- `activities` - Activity log
+- `notifications` - User notifications
+- `meta_config` - Meta API credentials
 
 ---
 
@@ -142,6 +147,7 @@ All features tested and working:
 - Google Sheets integration
 - Email/SMS notifications for overdue leads
 - Mobile app
+- WhatsApp integration
 
 ---
 
