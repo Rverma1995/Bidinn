@@ -23,7 +23,7 @@ def admin_token():
     """Get admin authentication token"""
     response = requests.post(f"{BASE_URL}/api/auth/login", json=ADMIN_CREDS)
     assert response.status_code == 200, f"Admin login failed: {response.text}"
-    return response.json().get("token")
+    return response.json().get("access_token")
 
 
 @pytest.fixture(scope="module")
@@ -31,7 +31,7 @@ def sales_rep_token():
     """Get sales rep authentication token"""
     response = requests.post(f"{BASE_URL}/api/auth/login", json=SALES_REP_CREDS)
     assert response.status_code == 200, f"Sales rep login failed: {response.text}"
-    return response.json().get("token")
+    return response.json().get("access_token")
 
 
 @pytest.fixture(scope="module")
@@ -39,7 +39,7 @@ def manager_token():
     """Get manager authentication token"""
     response = requests.post(f"{BASE_URL}/api/auth/login", json=MANAGER_CREDS)
     assert response.status_code == 200, f"Manager login failed: {response.text}"
-    return response.json().get("token")
+    return response.json().get("access_token")
 
 
 class TestAPIHealth:
