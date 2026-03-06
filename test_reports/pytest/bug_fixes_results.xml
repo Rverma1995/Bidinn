@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="12" skipped="0" tests="13" time="2.157" timestamp="2026-03-06T10:51:43.230317+00:00" hostname="agent-env-edb7e11b-41d6-4c18-8ecd-d9d888f4683c"><testcase classname="backend.tests.test_bug_fixes.TestAPIHealth" name="test_api_health" time="0.156" /><testcase classname="backend.tests.test_bug_fixes.TestLeadsTableColumns" name="test_leads_list_returns_required_fields" time="0.279"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:62: in test_leads_list_returns_required_fields
+    assert response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestBookingCreation" name="test_get_booking_reasons" time="0.105"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:83: in test_get_booking_reasons
+    assert response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestBookingCreation" name="test_create_booking_with_lead" time="0.101"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:95: in test_create_booking_with_lead
+    assert leads_response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestBookingCreation" name="test_get_bookings_list" time="0.107"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:140: in test_get_bookings_list
+    assert response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestSalesRepLeadFiltering" name="test_sales_rep_sees_only_assigned_leads" time="0.295"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:160: in test_sales_rep_sees_only_assigned_leads
+    assert me_response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestSalesRepLeadFiltering" name="test_admin_sees_all_leads" time="0.131"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:184: in test_admin_sees_all_leads
+    assert leads_response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestDashboardAlerts" name="test_admin_dashboard_stats" time="0.096"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:205: in test_admin_dashboard_stats
+    assert response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestDashboardAlerts" name="test_sales_rep_dashboard_stats" time="0.110"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:219: in test_sales_rep_dashboard_stats
+    assert response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestDashboardAlerts" name="test_manager_dashboard_stats" time="0.284"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:233: in test_manager_dashboard_stats
+    assert response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestDashboardAlerts" name="test_overdue_followups_endpoint" time="0.109"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:247: in test_overdue_followups_endpoint
+    assert response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestBookingAmountReceived" name="test_booking_has_final_price_field" time="0.104"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_bug_fixes.py:261: in test_booking_has_final_price_field
+    assert response.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_bug_fixes.TestBookingAmountReceived" name="test_create_booking_with_amount_received" time="0.094"><failure message="AttributeError: 'str' object has no attribute 'get'">backend/tests/test_bug_fixes.py:280: in test_create_booking_with_amount_received
+    if lead.get('status') not in ['won', 'lost']:
+       ^^^^^^^^
+E   AttributeError: 'str' object has no attribute 'get'</failure></testcase></testsuite></testsuites>
