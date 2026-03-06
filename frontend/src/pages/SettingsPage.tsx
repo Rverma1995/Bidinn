@@ -19,6 +19,9 @@ import {
   Database,
   Loader2,
   RefreshCw,
+  Key,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -26,6 +29,47 @@ export default function SettingsPage() {
   const { theme, toggleTheme, isDark } = useTheme();
   const [seeding, setSeeding] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      toast.error('Please fill in all password fields');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await api.post('/auth/change-password', {
+        current_password: passwordForm.currentPassword,
+        new_password: passwordForm.newPassword,
+      });
+      toast.success('Password changed successfully!');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to change password');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
 
   const handleSeedData = async () => {
     setSeeding(true);
