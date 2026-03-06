@@ -186,7 +186,7 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
               <Button
                 variant="outline"
                 className="h-auto py-4 flex flex-col items-center gap-2 hover:bg-orange-50 hover:border-orange-500 dark:hover:bg-orange-900/20"
-                onClick={() => handleQuickAction('no_answer', lead.status)}
+                onClick={() => handleQuickAction('no_answer', 'not_answered')}
                 disabled={loading}
               >
                 <PhoneMissed className="w-6 h-6 text-orange-600" />
