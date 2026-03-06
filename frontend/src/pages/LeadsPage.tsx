@@ -1084,6 +1084,7 @@ export default function LeadsPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Campaign</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Assigned To</TableHead>
@@ -1118,6 +1119,9 @@ export default function LeadsPage() {
                   </TableCell>
                   <TableCell onClick={() => handleLeadClick(lead)}>
                     <span className="text-sm text-muted-foreground">{lead.email || '-'}</span>
+                  </TableCell>
+                  <TableCell onClick={() => handleLeadClick(lead)}>
+                    <span className="text-sm">{lead.campaign || '-'}</span>
                   </TableCell>
                   <TableCell onClick={() => handleLeadClick(lead)}>
                     <span className="text-sm">{lead.source || '-'}</span>

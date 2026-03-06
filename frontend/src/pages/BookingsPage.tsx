@@ -387,7 +387,8 @@ export default function BookingsPage() {
                 <TableHead>Hotel</TableHead>
                 <TableHead>Check-in</TableHead>
                 <TableHead>Check-out</TableHead>
-                <TableHead>Amount Received</TableHead>
+                <TableHead>Total Amount</TableHead>
+                <TableHead>Payment Received</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -399,6 +400,7 @@ export default function BookingsPage() {
                   <TableCell>{formatDate(booking.check_in)}</TableCell>
                   <TableCell>{formatDate(booking.check_out)}</TableCell>
                   <TableCell>{formatCurrency(booking.final_price)}</TableCell>
+                  <TableCell>{formatCurrency(booking.payment_amount || 0)}</TableCell>
                   <TableCell>
                     <Badge className={getPaymentStatusColor(booking.payment_status)}>
                       {booking.payment_status.charAt(0).toUpperCase() + booking.payment_status.slice(1)}
