@@ -1134,7 +1134,6 @@ export default function LeadsPage() {
                       />
                     </div>
                   </TableCell>
-                  <TableCell>{lead.source}</TableCell>
                   <TableCell>
                     {lead.assigned_name || (
                       <span className="text-amber-600">Unassigned</span>
@@ -1142,9 +1141,6 @@ export default function LeadsPage() {
                   </TableCell>
                   <TableCell>
                     {formatRelativeTime(lead.last_activity || lead.created_at)}
-                  </TableCell>
-                  <TableCell>
-                    {lead.next_followup ? formatDate(lead.next_followup) : '-'}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
