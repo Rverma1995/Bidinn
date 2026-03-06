@@ -146,6 +146,7 @@ export function generateInitials(name) {
 
 export const LEAD_STATUSES = [
   { value: 'new', label: 'New' },
+  { value: 'not_answered', label: 'Not Answered' },
   { value: 'interested', label: 'Interested' },
   { value: 'not_interested', label: 'Not Interested' },
   { value: 'followup', label: 'Follow-up' },
@@ -155,9 +156,9 @@ export const LEAD_STATUSES = [
 
 export const ACTIVE_PIPELINE_STATUSES = [
   { value: 'new', label: 'New', color: 'blue', icon: 'inbox' },
+  { value: 'not_answered', label: 'Not Answered', color: 'amber', icon: 'phone-missed' },
   { value: 'interested', label: 'Interested', color: 'emerald', icon: 'thumbs-up' },
   { value: 'not_interested', label: 'Not Interested', color: 'slate', icon: 'thumbs-down' },
-  { value: 'followup', label: 'Follow-up', color: 'amber', icon: 'clock' },
 ];
 
 export const CALL_OUTCOMES = [
