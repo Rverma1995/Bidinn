@@ -80,9 +80,9 @@ router.get('/', authMiddleware, async (req: Request, res: Response): Promise<voi
       params.push(searchPattern, searchPattern, searchPattern);
     }
 
-    // Sales reps can only see their assigned leads or unassigned leads
+    // Sales reps can only see their assigned leads (NOT unassigned)
     if (user.role === UserRole.SALES_REP) {
-      query += ' AND (assigned_to = ? OR assigned_to IS NULL)';
+      query += ' AND assigned_to = ?';
       params.push(user.id);
     }
 
