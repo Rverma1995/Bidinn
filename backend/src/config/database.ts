@@ -93,6 +93,7 @@ export const initDatabase = async () => {
         payment_status ENUM('unpaid', 'partial', 'paid') DEFAULT 'unpaid',
         payment_amount DECIMAL(10, 2) DEFAULT 0,
         notes TEXT,
+        booking_reason VARCHAR(255),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_by VARCHAR(36) NOT NULL,
         INDEX idx_lead_id (lead_id),
@@ -101,6 +102,15 @@ export const initDatabase = async () => {
         FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+
+    // Add booking_reason column if not exists
+    try {
+      await connection.execute(`
+        ALTER TABLE bookings ADD COLUMN booking_reason VARCHAR(255) DEFAULT NULL
+      `);
+    } catch (e) {
+      // Column might already exist
+    }
 
     // Create payments table
     await connection.execute(`
