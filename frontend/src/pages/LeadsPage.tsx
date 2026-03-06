@@ -1081,12 +1081,13 @@ export default function LeadsPage() {
                     data-testid="select-all-checkbox"
                   />
                 </TableHead>
-                <TableHead>Lead</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Campaign</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Source</TableHead>
                 <TableHead>Assigned To</TableHead>
                 <TableHead>Last Activity</TableHead>
-                <TableHead>Follow-up</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -1105,15 +1106,21 @@ export default function LeadsPage() {
                     />
                   </TableCell>
                   <TableCell onClick={() => handleLeadClick(lead)}>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       {lead.is_overdue && (
                         <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                       )}
-                      <div>
-                        <p className="font-medium">{lead.name}</p>
-                        <p className="text-sm text-muted-foreground">{lead.phone}</p>
-                      </div>
+                      <span className="font-medium">{lead.name}</span>
                     </div>
+                  </TableCell>
+                  <TableCell onClick={() => handleLeadClick(lead)}>
+                    <span className="text-sm">{lead.phone || '-'}</span>
+                  </TableCell>
+                  <TableCell onClick={() => handleLeadClick(lead)}>
+                    <span className="text-sm text-muted-foreground">{lead.email || '-'}</span>
+                  </TableCell>
+                  <TableCell onClick={() => handleLeadClick(lead)}>
+                    <span className="text-sm">{lead.source || '-'}</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
