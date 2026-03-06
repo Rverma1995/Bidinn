@@ -102,4 +102,51 @@ router.get('/me', authMiddleware, async (req: Request, res: Response): Promise<v
   res.json(req.user);
 });
 
+// Change password (for logged-in user)
+router.post('/change-password', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { current_password, new_password } = req.body;
+    const user = req.user!;
+
+    if (!current_password || !new_password) {
+      res.status(400).json({ detail: 'Current password and new password are required' });
+      return;
+    }
+
+    if (new_password.length < 6) {
+      res.status(400).json({ detail: 'New password must be at least 6 characters' });
+      return;
+    }
+
+    // Get user with password hash
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT password_hash FROM users WHERE id = ?',
+      [user.id]
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ detail: 'User not found' });
+      return;
+    }
+
+    // Verify current password
+    if (!verifyPassword(current_password, rows[0].password_hash)) {
+      res.status(401).json({ detail: 'Current password is incorrect' });
+      return;
+    }
+
+    // Update password
+    const newPasswordHash = hashPassword(new_password);
+    await pool.execute(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [newPasswordHash, user.id]
+    );
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ detail: 'Failed to change password' });
+  }
+});
+
 export default router;
