@@ -1,0 +1,91 @@
+{
+  "summary": "Tested all 5 bug fixes/enhancements. All features working correctly: 1) Leads table shows Name, Phone, Email, Source columns, 2) Booking creation works, 3) Booking form shows 'Amount Received (₹)' field, 4) Sales Rep sees only assigned leads (0 for Emily), 5) Dashboard alerts visible for all roles (Admin, Manager, Sales Rep).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bug_fixes.py",
+    "/app/test_reports/pytest/bug_fixes_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Leads table correctly displays Name, Phone, Email, Source columns",
+    "Booking creation API works with booking_reason column",
+    "Amount Received field uses final_price internally with INR display",
+    "Sales rep filtering correctly uses assigned_to = user.id (line 84-87 in leads.ts)",
+    "Dashboard stats API returns uncontacted_over_1hr and overdue_followups for all roles"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bug_fixes.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed, 1 skipped)",
+    "frontend": "100% (all 5 features verified)"
+  },
+  "test_credentials": {
+    "admin": "alex@bidinn.com / password123",
+    "manager": "sarah@bidinn.com / password123",
+    "sales_rep": "emily@bidinn.com / password123"
+  },
+  "seed_data_creation": "Created test bookings during testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 5 bug fixes verified working. Leads table has correct columns, booking creation works, Amount Received shows in INR, Sales Rep sees only assigned leads, Dashboard alerts visible for all roles.",
+  "features_tested": {
+    "1_leads_table_columns": {
+      "name_column": "PASS",
+      "phone_column": "PASS",
+      "email_column": "PASS",
+      "source_column": "PASS",
+      "api_returns_fields": "PASS"
+    },
+    "2_booking_creation": {
+      "create_booking_dialog_opens": "PASS",
+      "lead_selection_works": "PASS",
+      "form_submission_works": "PASS",
+      "booking_appears_in_table": "PASS",
+      "success_toast_shown": "PASS"
+    },
+    "3_amount_received_inr": {
+      "booking_form_label": "PASS - Shows 'Amount Received (₹)'",
+      "booking_form_input_has_rupee_icon": "PASS",
+      "bookings_table_column_header": "PASS - Shows 'Amount Received'",
+      "bookings_table_values_in_inr": "PASS - Shows ₹25,000, ₹45,000",
+      "stats_cards_in_inr": "PASS - Shows ₹95,000 pending"
+    },
+    "4_sales_rep_lead_filtering": {
+      "sales_rep_sees_only_assigned": "PASS - Emily sees 0 leads (none assigned)",
+      "admin_sees_all_leads": "PASS - Admin sees 5 leads",
+      "no_unassigned_leads_for_sales_rep": "PASS"
+    },
+    "5_dashboard_alerts_all_roles": {
+      "admin_uncontacted_leads_card": "PASS",
+      "admin_overdue_followups_card": "PASS",
+      "manager_uncontacted_leads_card": "PASS",
+      "manager_overdue_followups_card": "PASS",
+      "sales_rep_uncontacted_leads_card": "PASS",
+      "sales_rep_overdue_followups_card": "PASS"
+    }
+  },
+  "api_tests_summary": {
+    "test_api_health": "PASS",
+    "test_leads_list_returns_required_fields": "PASS",
+    "test_get_booking_reasons": "PASS",
+    "test_create_booking_with_lead": "PASS",
+    "test_get_bookings_list": "PASS",
+    "test_sales_rep_sees_only_assigned_leads": "PASS",
+    "test_admin_sees_all_leads": "PASS",
+    "test_admin_dashboard_stats": "PASS",
+    "test_sales_rep_dashboard_stats": "PASS",
+    "test_manager_dashboard_stats": "PASS",
+    "test_overdue_followups_endpoint": "PASS",
+    "test_booking_has_final_price_field": "PASS",
+    "test_create_booking_with_amount_received": "SKIPPED (no eligible leads)"
+  }
+}
