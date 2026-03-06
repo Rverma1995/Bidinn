@@ -352,6 +352,160 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Meta Lead Ads Integration - Admin Only */}
+      {isAdmin && (
+        <Card className="border-blue-200 dark:border-blue-800">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-600">
+              <Facebook className="w-5 h-5" />
+              Meta Lead Ads Integration
+              {metaConfigured && (
+                <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-600">
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Connected
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Connect your Facebook/Instagram Lead Ads to automatically import leads
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {metaConfigured ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                  <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="w-5 h-5" />
+                    <span className="font-medium">Meta Lead Ads is connected</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Page ID: {metaPageId}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Leads from your Facebook/Instagram ads will be automatically imported.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleTestMetaConnection} disabled={metaTesting}>
+                    {metaTesting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                    )}
+                    Test Connection
+                  </Button>
+                  <Button variant="outline" onClick={() => setMetaConfigured(false)}>
+                    Update Configuration
+                  </Button>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <Label>Webhook URL (for Meta Business Suite)</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      readOnly 
+                      value={`${window.location.origin}/api/meta/webhook`}
+                      className="font-mono text-sm"
+                    />
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/api/meta/webhook`);
+                        toast.success('Webhook URL copied!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Use this URL in Meta Business Suite → Integrations → Webhooks
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveMetaConfig} className="space-y-4">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm text-blue-700 dark:text-blue-400">
+                    To set up Meta Lead Ads integration, you need:
+                  </p>
+                  <ul className="text-sm text-muted-foreground mt-2 list-disc list-inside space-y-1">
+                    <li>Meta App ID and App Secret from <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">Meta for Developers <ExternalLink className="w-3 h-3" /></a></li>
+                    <li>Page Access Token with leads_retrieval permission</li>
+                    <li>Your Facebook Page ID</li>
+                  </ul>
+                </div>
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="meta_page_id">Facebook Page ID *</Label>
+                    <Input
+                      id="meta_page_id"
+                      placeholder="e.g., 123456789012345"
+                      value={metaForm.page_id}
+                      onChange={(e) => setMetaForm({ ...metaForm, page_id: e.target.value })}
+                      data-testid="meta-page-id-input"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meta_app_secret">App Secret *</Label>
+                    <div className="relative">
+                      <Input
+                        id="meta_app_secret"
+                        type={showMetaSecrets ? 'text' : 'password'}
+                        placeholder="Your Meta App Secret"
+                        value={metaForm.app_secret}
+                        onChange={(e) => setMetaForm({ ...metaForm, app_secret: e.target.value })}
+                        className="pr-10"
+                        data-testid="meta-app-secret-input"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowMetaSecrets(!showMetaSecrets)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showMetaSecrets ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meta_verify_token">Verify Token *</Label>
+                    <Input
+                      id="meta_verify_token"
+                      type={showMetaSecrets ? 'text' : 'password'}
+                      placeholder="Create a custom verify token (any string)"
+                      value={metaForm.verify_token}
+                      onChange={(e) => setMetaForm({ ...metaForm, verify_token: e.target.value })}
+                      data-testid="meta-verify-token-input"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Create any unique string - you'll enter this same token in Meta Business Suite
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meta_page_token">Page Access Token *</Label>
+                    <Input
+                      id="meta_page_token"
+                      type={showMetaSecrets ? 'text' : 'password'}
+                      placeholder="Your Page Access Token"
+                      value={metaForm.page_access_token}
+                      onChange={(e) => setMetaForm({ ...metaForm, page_access_token: e.target.value })}
+                      data-testid="meta-token-input"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" disabled={metaLoading} className="w-full" data-testid="save-meta-config-btn">
+                  {metaLoading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Facebook className="w-4 h-4 mr-2" />
+                  )}
+                  Save Meta Configuration
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Admin Section */}
       {isAdmin && (
         <Card className="border-amber-200 dark:border-amber-800">
