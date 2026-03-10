@@ -886,6 +886,24 @@ export default function LeadsPage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedLeads.length === 0) return;
+    setBulkLoading(true);
+    try {
+      await api.post('/leads/bulk-delete', {
+        lead_ids: selectedLeads,
+      });
+      toast.success(`Deleted ${selectedLeads.length} lead(s) successfully`);
+      setSelectedLeads([]);
+      setBulkDeleteDialogOpen(false);
+      fetchLeads();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete leads');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const salesReps = users.filter(u => ['sales_rep', 'team_lead'].includes(u.role));
 
   const handleExport = async () => {
