@@ -7,6 +7,7 @@ import { Booking } from "../entities/Booking";
 import { Activity } from "../entities/Activity";
 import { MetaConfig } from "../entities/MetaConfig";
 import { Payment } from "../entities/Payment";
+import { Notification } from "../entities/Notification";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -20,7 +21,7 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_DATABASE,
   synchronize: true, // Auto-create tables (disable in production after initial setup)
   logging: false,
-  entities: [User, Lead, Call, Booking, Activity, MetaConfig, Payment],
+  entities: [User, Lead, Call, Booking, Activity, MetaConfig, Payment, Notification],
   migrations: [],
   subscribers: [],
   charset: "utf8mb4",
