@@ -1,88 +1,108 @@
-import { Router, Request, Response } from 'express';
-import { RowDataPacket } from 'mysql2';
-import pool from '../config/database';
-import { authMiddleware } from '../middleware/auth';
-import { generateUUID, formatDateForMySQL, addActivity } from '../utils/helpers';
+import { Router, Response } from "express";
+import { AppDataSource } from "../config/data-source";
+import { Payment, Booking, PaymentStatus, Activity } from "../entities";
+import { authenticateToken, AuthRequest } from "../middleware/auth";
+import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
+const paymentRepository = () => AppDataSource.getRepository(Payment);
+const bookingRepository = () => AppDataSource.getRepository(Booking);
+const activityRepository = () => AppDataSource.getRepository(Activity);
 
 // Record payment
-router.post('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { booking_id, amount, notes } = req.body;
     const user = req.user!;
 
-    // Check booking exists
-    const [bookingRows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM bookings WHERE id = ?',
-      [booking_id]
-    );
-
-    if (bookingRows.length === 0) {
-      res.status(404).json({ detail: 'Booking not found' });
-      return;
+    if (!booking_id || !amount) {
+      return res.status(400).json({ detail: "booking_id and amount are required" });
     }
 
-    const booking = bookingRows[0];
-    const now = formatDateForMySQL(new Date());
-    const id = generateUUID();
+    // Check booking exists
+    const booking = await bookingRepository().findOne({ where: { id: booking_id } });
+    if (!booking) {
+      return res.status(404).json({ detail: "Booking not found" });
+    }
 
-    await pool.execute(
-      `INSERT INTO payments (id, booking_id, amount, notes, created_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, booking_id, amount, notes || null, now, user.id]
-    );
+    // Create payment record
+    const payment = paymentRepository().create({
+      id: uuidv4(),
+      booking_id,
+      amount: parseFloat(amount),
+      notes,
+      created_by: user.id,
+    });
+    await paymentRepository().save(payment);
 
     // Update booking payment status
-    const newPaymentAmount = (parseFloat(booking.payment_amount) || 0) + amount;
-    let newStatus = 'partial';
-    if (newPaymentAmount >= booking.final_price) {
-      newStatus = 'paid';
+    const newPaymentAmount = (parseFloat(String(booking.payment_amount)) || 0) + parseFloat(amount);
+    let newStatus: PaymentStatus = PaymentStatus.PARTIAL;
+    if (newPaymentAmount >= parseFloat(String(booking.final_price))) {
+      newStatus = PaymentStatus.PAID;
     }
 
-    await pool.execute(
-      'UPDATE bookings SET payment_amount = ?, payment_status = ? WHERE id = ?',
-      [newPaymentAmount, newStatus, booking_id]
-    );
+    booking.payment_amount = newPaymentAmount;
+    booking.payment_status = newStatus;
+    await bookingRepository().save(booking);
 
+    // Log activity
     if (booking.lead_id) {
-      await addActivity(booking.lead_id, 'Payment recorded', `Amount: ₹${amount}`, user.id, user.name);
+      const activity = activityRepository().create({
+        id: uuidv4(),
+        user_id: user.id,
+        user_name: user.name,
+        action: "payment_recorded",
+        target_id: booking.lead_id,
+        target_type: "lead",
+        target_name: booking.lead_name || "Unknown",
+        details: `Amount: ₹${amount}`,
+      });
+      await activityRepository().save(activity);
     }
 
-    res.status(201).json({
-      id,
-      booking_id,
-      amount,
-      notes,
-      created_at: now,
-      created_by: user.id
-    });
+    res.status(201).json(payment);
   } catch (error) {
-    console.error('Record payment error:', error);
-    res.status(500).json({ detail: 'Failed to record payment' });
+    console.error("Record payment error:", error);
+    res.status(500).json({ detail: "Failed to record payment" });
   }
 });
 
 // Get payments
-router.get('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { booking_id } = req.query;
 
-    let query = 'SELECT * FROM payments WHERE 1=1';
-    const params: any[] = [];
+    let queryBuilder = paymentRepository().createQueryBuilder("payment");
 
     if (booking_id) {
-      query += ' AND booking_id = ?';
-      params.push(booking_id);
+      queryBuilder = queryBuilder.where("payment.booking_id = :booking_id", { booking_id });
     }
 
-    query += ' ORDER BY created_at DESC';
+    queryBuilder = queryBuilder.orderBy("payment.created_at", "DESC");
 
-    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
-    res.json(rows);
+    const payments = await queryBuilder.getMany();
+    res.json(payments);
   } catch (error) {
-    console.error('Get payments error:', error);
-    res.status(500).json({ detail: 'Failed to fetch payments' });
+    console.error("Get payments error:", error);
+    res.status(500).json({ detail: "Failed to fetch payments" });
+  }
+});
+
+// Get payment by ID
+router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const paymentId = req.params.id as string;
+    const payment = await paymentRepository().findOne({ where: { id: paymentId } });
+
+    if (!payment) {
+      return res.status(404).json({ detail: "Payment not found" });
+    }
+
+    res.json(payment);
+  } catch (error) {
+    console.error("Get payment error:", error);
+    res.status(500).json({ detail: "Failed to fetch payment" });
   }
 });
 
