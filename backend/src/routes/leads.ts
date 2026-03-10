@@ -8,6 +8,26 @@ import {
 import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
 import { In } from "typeorm";
+import multer from "multer";
+import * as XLSX from "xlsx";
+
+// Configure multer for file uploads
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
+    if (allowedMimes.includes(file.mimetype) || file.originalname.match(/\.(csv|xlsx|xls)$/i)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV and Excel files are allowed'));
+    }
+  }
+});
 
 const router = Router();
 const leadRepository = () => AppDataSource.getRepository(Lead);
