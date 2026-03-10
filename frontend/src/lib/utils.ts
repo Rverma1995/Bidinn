@@ -160,8 +160,39 @@ export const ACTIVE_PIPELINE_STATUSES = [
   { value: 'new', label: 'New', color: 'blue', icon: 'inbox' },
   { value: 'not_answered', label: 'Not Answered', color: 'amber', icon: 'phone-missed' },
   { value: 'interested', label: 'Interested', color: 'emerald', icon: 'thumbs-up' },
-  { value: 'not_interested', label: 'Not Interested', color: 'slate', icon: 'thumbs-down' },
+  { value: 'followup', label: 'Follow-up', color: 'orange', icon: 'calendar' },
 ];
+
+// Closed reason options for lost/not_interested leads
+export const CLOSED_REASONS = [
+  { value: 'price_too_high', label: 'Price Too High' },
+  { value: 'booked_elsewhere', label: 'Booked Elsewhere' },
+  { value: 'not_travelling', label: 'Not Travelling' },
+  { value: 'no_response', label: 'No Response' },
+  { value: 'just_browsing', label: 'Just Browsing' },
+  { value: 'wrong_contact', label: 'Wrong Contact' },
+  { value: 'competitor', label: 'Went to Competitor' },
+  { value: 'budget_issues', label: 'Budget Issues' },
+  { value: 'timing_not_right', label: 'Timing Not Right' },
+  { value: 'other', label: 'Other' },
+];
+
+// Status requiring closed reason
+export const STATUSES_REQUIRING_REASON = ['not_interested', 'lost'];
+
+// Status requiring assignment before transition
+export const STATUSES_REQUIRING_ASSIGNMENT = ['not_answered', 'interested', 'followup'];
+
+// Stage transition restrictions: interested/followup cannot go to not_interested directly
+export const isTransitionAllowed = (fromStatus: string, toStatus: string): { allowed: boolean; message?: string } => {
+  if ((fromStatus === 'interested' || fromStatus === 'followup') && toStatus === 'not_interested') {
+    return { 
+      allowed: false, 
+      message: 'Cannot move directly from Interested/Follow-up to Not Interested. Please mark as Won or Lost first.' 
+    };
+  }
+  return { allowed: true };
+};
 
 export const CALL_OUTCOMES = [
   { value: 'connected', label: 'Connected' },
