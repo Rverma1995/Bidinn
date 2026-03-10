@@ -32,30 +32,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoLogin = async (role) => {
-    const credentials = {
-      admin: { email: 'alex@bidinn.com', password: 'password123' },
-      manager: { email: 'sarah@bidinn.com', password: 'password123' },
-      team_lead: { email: 'michael@bidinn.com', password: 'password123' },
-      sales_rep: { email: 'emily@bidinn.com', password: 'password123' },
-    };
-
-    const cred = credentials[role];
-    setEmail(cred.email);
-    setPassword(cred.password);
-    setLoading(true);
-
-    try {
-      await login(cred.email, cred.password);
-      toast.success(`Logged in as ${role.replace('_', ' ')}`);
-      navigate('/');
-    } catch (error) {
-      toast.error('Demo login failed. Please seed data first.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex" data-testid="login-page">
       {/* Left side - Form */}
