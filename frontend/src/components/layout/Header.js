@@ -77,7 +77,7 @@ export function Header({ onMenuClick, showMobileMenu }) {
 
   const markAllAsRead = async () => {
     try {
-      await api.put('/notifications/read-all');
+      await api.put('/notifications/mark-all-read');
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
     } catch (error) {
