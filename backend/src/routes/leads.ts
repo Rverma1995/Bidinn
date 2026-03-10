@@ -1,686 +1,334 @@
-import { Router, Request, Response } from 'express';
-import { RowDataPacket } from 'mysql2';
-import multer from 'multer';
-import * as XLSX from 'xlsx';
-import pool from '../config/database';
-import { authMiddleware, requireRoles } from '../middleware/auth';
-import { UserRole, LeadStatus, Lead, LeadResponse } from '../types';
-import { generateUUID, formatDateForMySQL, calculateLeadMetrics, addActivity, createNotification } from '../utils/helpers';
+import { Router, Response } from "express";
+import { AppDataSource } from "../config/data-source";
+import { Lead, LeadStatus, User, UserRole, Activity } from "../entities";
+import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth";
+import { v4 as uuidv4 } from "uuid";
+import { In, IsNull, Not, LessThan, MoreThan } from "typeorm";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const leadRepository = () => AppDataSource.getRepository(Lead);
+const userRepository = () => AppDataSource.getRepository(User);
+const activityRepository = () => AppDataSource.getRepository(Activity);
+
+// Helper to log activity
+const logActivity = async (userId: string, userName: string, action: string, targetId: string, targetType: string, targetName: string, details?: string) => {
+  const activity = activityRepository().create({
+    id: uuidv4(),
+    user_id: userId,
+    user_name: userName,
+    action,
+    target_id: targetId,
+    target_type: targetType,
+    target_name: targetName,
+    details,
+  });
+  await activityRepository().save(activity);
+};
+
+// Get all leads
+router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    let queryBuilder = leadRepository().createQueryBuilder("lead");
+
+    // Sales reps only see their assigned leads
+    if (user.role === UserRole.SALES_REP) {
+      queryBuilder = queryBuilder.where("lead.assigned_to = :userId", { userId: user.id });
+    }
+
+    queryBuilder = queryBuilder.orderBy("lead.created_at", "DESC");
+
+    const leads = await queryBuilder.getMany();
+
+    // Add computed fields
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    const enrichedLeads = leads.map((lead) => {
+      const createdAt = new Date(lead.created_at);
+      const hoursSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+      const isOverdue = lead.status === LeadStatus.NEW && lead.attempt_count === 0 && createdAt < oneHourAgo;
+
+      return {
+        ...lead,
+        hours_since_creation: Math.round(hoursSinceCreation * 10) / 10,
+        is_overdue: isOverdue,
+      };
+    });
+
+    res.json(enrichedLeads);
+  } catch (error) {
+    console.error("Get leads error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Get lead by ID
+router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const lead = await leadRepository().findOne({
+      where: { id: req.params.id },
+      relations: ["calls", "bookings"],
+    });
+
+    if (!lead) {
+      return res.status(404).json({ detail: "Lead not found" });
+    }
+
+    res.json(lead);
+  } catch (error) {
+    console.error("Get lead error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
 
 // Create lead
-router.post('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, phone, email, source, campaign, city, notes, next_followup } = req.body;
-    const user = req.user!;
+    const { name, phone, email, source, campaign, city, assigned_to, notes } = req.body;
 
-    const id = generateUUID();
-    const now = formatDateForMySQL(new Date());
+    if (!name || !phone || !source) {
+      return res.status(400).json({ detail: "Name, phone, and source are required" });
+    }
 
-    await pool.execute(
-      `INSERT INTO leads (id, name, phone, email, source, campaign, city, status, assigned_to, assigned_name, attempt_count, last_activity, next_followup, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'new', NULL, NULL, 0, NULL, ?, ?, ?, ?)`,
-      [id, name, phone, email || null, source, campaign || null, city || null, next_followup || null, notes || null, now, now]
-    );
+    let assignedName: string | null = null;
+    if (assigned_to) {
+      const assignedUser = await userRepository().findOne({ where: { id: assigned_to } });
+      if (assignedUser) {
+        assignedName = assignedUser.name;
+      }
+    }
 
-    await addActivity(id, 'Lead created', `New lead from ${source}`, user.id, user.name);
-
-    const lead: Lead = {
-      id,
+    const lead = leadRepository().create({
+      id: uuidv4(),
       name,
       phone,
       email,
       source,
       campaign,
       city,
-      status: LeadStatus.NEW,
-      assigned_to: undefined,
-      assigned_name: undefined,
-      attempt_count: 0,
-      last_activity: undefined,
-      next_followup,
+      assigned_to,
+      assigned_name: assignedName,
       notes,
-      created_at: now,
-      updated_at: now
-    };
-
-    res.status(201).json(calculateLeadMetrics(lead));
-  } catch (error) {
-    console.error('Create lead error:', error);
-    res.status(500).json({ detail: 'Failed to create lead' });
-  }
-});
-
-// Get leads
-router.get('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const user = req.user!;
-    const { status, assigned_to, source, search, skip = '0', limit = '100' } = req.query;
-
-    let query = 'SELECT * FROM leads WHERE 1=1';
-    const params: any[] = [];
-
-    if (status) {
-      query += ' AND status = ?';
-      params.push(status);
-    }
-    if (assigned_to) {
-      query += ' AND assigned_to = ?';
-      params.push(assigned_to);
-    }
-    if (source) {
-      query += ' AND source = ?';
-      params.push(source);
-    }
-    if (search) {
-      query += ' AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)';
-      const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern, searchPattern);
-    }
-
-    // Sales reps can only see their assigned leads (NOT unassigned)
-    if (user.role === UserRole.SALES_REP) {
-      query += ' AND assigned_to = ?';
-      params.push(user.id);
-    }
-
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit as string), parseInt(skip as string));
-
-    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
-
-    const leads = (rows as Lead[]).map(lead => calculateLeadMetrics(lead));
-    res.json(leads);
-  } catch (error) {
-    console.error('Get leads error:', error);
-    res.status(500).json({ detail: 'Failed to fetch leads' });
-  }
-});
-
-// Get uncontacted leads (>1hr)
-router.get('/uncontacted', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const user = req.user!;
-    const oneHourAgo = formatDateForMySQL(new Date(Date.now() - 60 * 60 * 1000));
-
-    let query = `
-      SELECT l.*, u.name as assigned_name 
-      FROM leads l
-      LEFT JOIN users u ON l.assigned_to = u.id
-      WHERE l.status = 'new' AND l.attempt_count = 0 AND l.created_at < ?
-    `;
-    const params: any[] = [oneHourAgo];
-
-    // Sales reps only see their own uncontacted leads
-    if (user.role === UserRole.SALES_REP) {
-      query += ' AND l.assigned_to = ?';
-      params.push(user.id);
-    }
-
-    query += ' ORDER BY l.created_at ASC';
-
-    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
-
-    const leads = (rows as Lead[]).map(lead => calculateLeadMetrics(lead));
-    res.json(leads);
-  } catch (error) {
-    console.error('Get uncontacted leads error:', error);
-    res.status(500).json({ detail: 'Failed to fetch uncontacted leads' });
-  }
-});
-
-// Export leads to CSV
-router.get('/export', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const user = req.user!;
-    const { status, assigned_to, source, format = 'csv' } = req.query;
-
-    let query = 'SELECT * FROM leads WHERE 1=1';
-    const params: any[] = [];
-
-    if (status) {
-      query += ' AND status = ?';
-      params.push(status);
-    }
-    if (assigned_to) {
-      query += ' AND assigned_to = ?';
-      params.push(assigned_to);
-    }
-    if (source) {
-      query += ' AND source = ?';
-      params.push(source);
-    }
-
-    // Sales reps can only export their assigned leads
-    if (user.role === UserRole.SALES_REP) {
-      query += ' AND (assigned_to = ? OR assigned_to IS NULL)';
-      params.push(user.id);
-    }
-
-    query += ' ORDER BY created_at DESC';
-
-    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
-
-    // Transform data for export
-    const exportData = rows.map((lead: any) => ({
-      'Name': lead.name,
-      'Phone': lead.phone,
-      'Email': lead.email || '',
-      'Source': lead.source,
-      'Campaign': lead.campaign || '',
-      'City': lead.city || '',
-      'Status': lead.status,
-      'Assigned To': lead.assigned_name || 'Unassigned',
-      'Attempt Count': lead.attempt_count,
-      'Last Activity': lead.last_activity || '',
-      'Next Follow-up': lead.next_followup || '',
-      'Notes': lead.notes || '',
-      'Created At': lead.created_at
-    }));
-
-    if (format === 'xlsx') {
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Leads');
-      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-      
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename=leads_export_${Date.now()}.xlsx`);
-      res.send(buffer);
-    } else {
-      // CSV format
-      const headers = Object.keys(exportData[0] || {}).join(',');
-      const csvRows = exportData.map((row: any) => 
-        Object.values(row).map((val: any) => {
-          const strVal = String(val).replace(/"/g, '""');
-          return strVal.includes(',') || strVal.includes('"') || strVal.includes('\n') 
-            ? `"${strVal}"` 
-            : strVal;
-        }).join(',')
-      );
-      const csv = [headers, ...csvRows].join('\n');
-
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=leads_export_${Date.now()}.csv`);
-      res.send(csv);
-    }
-  } catch (error) {
-    console.error('Export leads error:', error);
-    res.status(500).json({ detail: 'Failed to export leads' });
-  }
-});
-
-// Import leads from file
-router.post('/import', authMiddleware, upload.single('file'), async (req: Request, res: Response): Promise<void> => {
-  try {
-    const user = req.user!;
-    const file = req.file;
-
-    if (!file) {
-      res.status(400).json({ detail: 'No file provided' });
-      return;
-    }
-
-    const filename = file.originalname.toLowerCase();
-    if (!filename.endsWith('.csv') && !filename.endsWith('.xlsx') && !filename.endsWith('.xls')) {
-      res.status(400).json({ detail: 'Only CSV and Excel files are supported' });
-      return;
-    }
-
-    let leadsData: any[] = [];
-
-    if (filename.endsWith('.csv')) {
-      const content = file.buffer.toString('utf-8');
-      const lines = content.split('\n').filter(line => line.trim());
-      if (lines.length < 2) {
-        res.status(400).json({ detail: 'CSV file is empty or has no data rows' });
-        return;
-      }
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',');
-        const row: any = {};
-        headers.forEach((header, index) => {
-          row[header] = values[index]?.trim() || '';
-        });
-        leadsData.push(row);
-      }
-    } else {
-      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      leadsData = XLSX.utils.sheet_to_json(sheet);
-    }
-
-    // Column mapping
-    const columnMap: { [key: string]: string[] } = {
-      'name': ['name', 'lead name', 'full name', 'customer name', 'client name', 'company', 'company name'],
-      'phone': ['phone', 'phone number', 'mobile', 'mobile number', 'contact', 'telephone', 'tel'],
-      'email': ['email', 'email address', 'e-mail', 'mail'],
-      'source': ['source', 'lead source', 'channel', 'origin'],
-      'campaign': ['campaign', 'campaign name', 'marketing campaign'],
-      'city': ['city', 'location', 'area', 'region'],
-      'notes': ['notes', 'note', 'comments', 'comment', 'description', 'remarks']
-    };
-
-    const findColumnValue = (row: any, fieldNames: string[]): any => {
-      for (const field of fieldNames) {
-        for (const key of Object.keys(row)) {
-          if (key.toLowerCase().trim() === field) {
-            return row[key];
-          }
-        }
-      }
-      return null;
-    };
-
-    const now = formatDateForMySQL(new Date());
-    let importedCount = 0;
-    let skippedCount = 0;
-    const errors: string[] = [];
-
-    const validSources = ['Website', 'Referral', 'Google Ads', 'Facebook', 'LinkedIn', 'Cold Call', 'Trade Show', 'Partner', 'Import'];
-
-    for (let i = 0; i < leadsData.length; i++) {
-      try {
-        const row = leadsData[i];
-        const name = findColumnValue(row, columnMap['name']);
-        const phone = findColumnValue(row, columnMap['phone']);
-
-        if (!name || !phone) {
-          skippedCount++;
-          errors.push(`Row ${i + 2}: Missing name or phone`);
-          continue;
-        }
-
-        const phoneStr = String(phone).trim();
-
-        // Check for duplicate
-        const [existing] = await pool.execute<RowDataPacket[]>(
-          'SELECT id FROM leads WHERE phone = ?',
-          [phoneStr]
-        );
-
-        if (existing.length > 0) {
-          skippedCount++;
-          errors.push(`Row ${i + 2}: Duplicate phone ${phoneStr}`);
-          continue;
-        }
-
-        let source = findColumnValue(row, columnMap['source']) || 'Import';
-        if (!validSources.includes(source)) {
-          source = 'Import';
-        }
-
-        const id = generateUUID();
-        await pool.execute(
-          `INSERT INTO leads (id, name, phone, email, source, campaign, city, status, assigned_to, assigned_name, attempt_count, notes, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'new', NULL, NULL, 0, ?, ?, ?)`,
-          [
-            id,
-            String(name).trim(),
-            phoneStr,
-            findColumnValue(row, columnMap['email']) || null,
-            source,
-            findColumnValue(row, columnMap['campaign']) || null,
-            findColumnValue(row, columnMap['city']) || null,
-            findColumnValue(row, columnMap['notes']) || null,
-            now,
-            now
-          ]
-        );
-
-        await addActivity(id, 'Lead imported', `Imported from ${file.originalname}`, user.id, user.name);
-        importedCount++;
-      } catch (err: any) {
-        skippedCount++;
-        errors.push(`Row ${i + 2}: ${err.message}`);
-      }
-    }
-
-    res.json({
-      message: 'Import completed',
-      imported: importedCount,
-      skipped: skippedCount,
-      total_rows: leadsData.length,
-      errors: errors.slice(0, 10)
+      status: LeadStatus.NEW,
+      attempt_count: 0,
     });
+
+    await leadRepository().save(lead);
+
+    await logActivity(req.user!.id, req.user!.name, "created_lead", lead.id, "lead", name);
+
+    res.status(201).json(lead);
   } catch (error) {
-    console.error('Import leads error:', error);
-    res.status(400).json({ detail: 'Failed to parse file' });
-  }
-});
-
-// Get import template
-router.get('/import/template', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  res.json({
-    required_columns: ['name', 'phone'],
-    optional_columns: ['email', 'source', 'campaign', 'city', 'notes'],
-    valid_sources: ['Website', 'Referral', 'Google Ads', 'Facebook', 'LinkedIn', 'Cold Call', 'Trade Show', 'Partner'],
-    example: {
-      name: 'Acme Corporation',
-      phone: '+1-555-123-4567',
-      email: 'contact@acme.com',
-      source: 'Google Ads',
-      campaign: 'Summer Sale',
-      city: 'New York',
-      notes: 'Interested in premium package'
-    }
-  });
-});
-
-// Get lead by ID
-router.get('/:leadId', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { leadId } = req.params;
-
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM leads WHERE id = ?',
-      [leadId]
-    );
-
-    if (rows.length === 0) {
-      res.status(404).json({ detail: 'Lead not found' });
-      return;
-    }
-
-    res.json(calculateLeadMetrics(rows[0] as Lead));
-  } catch (error) {
-    console.error('Get lead error:', error);
-    res.status(500).json({ detail: 'Failed to fetch lead' });
+    console.error("Create lead error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
 // Update lead
-router.put('/:leadId', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { leadId } = req.params;
-    const user = req.user!;
-    const updateData = req.body;
+    const lead = await leadRepository().findOne({ where: { id: req.params.id } });
 
-    const allowedFields = ['name', 'phone', 'email', 'source', 'campaign', 'city', 'status', 'assigned_to', 'notes', 'next_followup'];
-    const updates: string[] = [];
-    const values: any[] = [];
+    if (!lead) {
+      return res.status(404).json({ detail: "Lead not found" });
+    }
 
-    for (const field of allowedFields) {
-      if (updateData[field] !== undefined) {
-        updates.push(`${field} = ?`);
-        values.push(updateData[field]);
+    const { name, phone, email, source, campaign, city, status, assigned_to, notes, next_followup } = req.body;
+
+    if (name) lead.name = name;
+    if (phone) lead.phone = phone;
+    if (email !== undefined) lead.email = email;
+    if (source) lead.source = source;
+    if (campaign !== undefined) lead.campaign = campaign;
+    if (city !== undefined) lead.city = city;
+    if (status) lead.status = status;
+    if (notes !== undefined) lead.notes = notes;
+    if (next_followup !== undefined) lead.next_followup = next_followup ? new Date(next_followup) : null;
+
+    if (assigned_to !== undefined) {
+      if (assigned_to) {
+        const assignedUser = await userRepository().findOne({ where: { id: assigned_to } });
+        if (assignedUser) {
+          lead.assigned_to = assigned_to;
+          lead.assigned_name = assignedUser.name;
+        }
+      } else {
+        lead.assigned_to = null;
+        lead.assigned_name = null;
       }
     }
 
-    // If assigning to someone, get their name
-    if (updateData.assigned_to) {
-      const [assignee] = await pool.execute<RowDataPacket[]>(
-        'SELECT name FROM users WHERE id = ?',
-        [updateData.assigned_to]
-      );
-      if (assignee.length > 0) {
-        updates.push('assigned_name = ?');
-        values.push(assignee[0].name);
-      }
-    }
+    lead.last_activity = new Date();
+    await leadRepository().save(lead);
 
-    const now = formatDateForMySQL(new Date());
-    updates.push('updated_at = ?');
-    values.push(now);
-    updates.push('last_activity = ?');
-    values.push(now);
+    await logActivity(req.user!.id, req.user!.name, "updated_lead", lead.id, "lead", lead.name);
 
-    values.push(leadId);
-    const [result] = await pool.execute(
-      `UPDATE leads SET ${updates.join(', ')} WHERE id = ?`,
-      values
-    );
-
-    await addActivity(leadId as string, 'Lead updated', JSON.stringify(updateData), user.id, user.name);
-
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM leads WHERE id = ?',
-      [leadId]
-    );
-
-    if (rows.length === 0) {
-      res.status(404).json({ detail: 'Lead not found' });
-      return;
-    }
-
-    res.json(calculateLeadMetrics(rows[0] as Lead));
+    res.json(lead);
   } catch (error) {
-    console.error('Update lead error:', error);
-    res.status(500).json({ detail: 'Failed to update lead' });
-  }
-});
-
-// Delete lead
-router.delete('/:leadId', authMiddleware, requireRoles([UserRole.ADMIN, UserRole.MANAGER]), async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { leadId } = req.params;
-
-    const [result]: any = await pool.execute(
-      'DELETE FROM leads WHERE id = ?',
-      [leadId]
-    );
-
-    if (result.affectedRows === 0) {
-      res.status(404).json({ detail: 'Lead not found' });
-      return;
-    }
-
-    res.json({ message: 'Lead deleted' });
-  } catch (error) {
-    console.error('Delete lead error:', error);
-    res.status(500).json({ detail: 'Failed to delete lead' });
-  }
-});
-
-// Assign lead
-router.post('/:leadId/assign', authMiddleware, requireRoles([UserRole.ADMIN, UserRole.MANAGER, UserRole.TEAM_LEAD]), async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { leadId } = req.params;
-    const { assignee_id } = req.body;
-    const user = req.user!;
-
-    if (!assignee_id) {
-      res.status(400).json({ detail: 'assignee_id is required' });
-      return;
-    }
-
-    const [assignee] = await pool.execute<RowDataPacket[]>(
-      'SELECT id, name FROM users WHERE id = ?',
-      [assignee_id]
-    );
-
-    if (assignee.length === 0) {
-      res.status(404).json({ detail: 'Assignee not found' });
-      return;
-    }
-
-    const now = formatDateForMySQL(new Date());
-    await pool.execute(
-      'UPDATE leads SET assigned_to = ?, assigned_name = ?, updated_at = ? WHERE id = ?',
-      [assignee_id, assignee[0].name, now, leadId]
-    );
-
-    await addActivity(leadId as string, 'Lead assigned', `Assigned to ${assignee[0].name}`, user.id, user.name);
-    await createNotification(assignee_id, 'New Lead Assigned', 'You have been assigned a new lead', 'assignment', leadId as string);
-
-    res.json({ message: 'Lead assigned successfully' });
-  } catch (error) {
-    console.error('Assign lead error:', error);
-    res.status(500).json({ detail: 'Failed to assign lead' });
-  }
-});
-
-// Log call for lead
-router.post('/:leadId/log_call', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { leadId } = req.params;
-    const { outcome, duration_minutes = 0, notes, next_followup } = req.body;
-    const user = req.user!;
-
-    // Check lead exists
-    const [leadRows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM leads WHERE id = ?',
-      [leadId]
-    );
-
-    if (leadRows.length === 0) {
-      res.status(404).json({ detail: 'Lead not found' });
-      return;
-    }
-
-    const lead = leadRows[0];
-    const now = formatDateForMySQL(new Date());
-    const callId = generateUUID();
-
-    // Insert call log
-    await pool.execute(
-      `INSERT INTO calls (id, lead_id, user_id, user_name, outcome, duration_minutes, notes, next_followup, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [callId, leadId, user.id, user.name, outcome, duration_minutes, notes || null, next_followup || null, now]
-    );
-
-    // Update lead
-    const newAttemptCount = (lead.attempt_count || 0) + 1;
-    let newStatus = lead.status;
-    
-    // If connected and status is NEW, move to INTERESTED
-    if (outcome === 'connected' && lead.status === 'new') {
-      newStatus = 'interested';
-    }
-
-    const updateParams: any[] = [newAttemptCount, now, now, newStatus];
-    let updateQuery = 'UPDATE leads SET attempt_count = ?, last_activity = ?, updated_at = ?, status = ?';
-    
-    if (next_followup) {
-      updateQuery += ', next_followup = ?';
-      updateParams.push(next_followup);
-    }
-    
-    updateQuery += ' WHERE id = ?';
-    updateParams.push(leadId);
-
-    await pool.execute(updateQuery, updateParams);
-
-    await addActivity(leadId as string, 'Call logged', `${outcome} - ${duration_minutes} min`, user.id, user.name);
-
-    res.status(201).json({
-      id: callId,
-      lead_id: leadId,
-      user_id: user.id,
-      user_name: user.name,
-      outcome,
-      duration_minutes,
-      notes,
-      next_followup,
-      created_at: now
-    });
-  } catch (error) {
-    console.error('Log call error:', error);
-    res.status(500).json({ detail: 'Failed to log call' });
-  }
-});
-
-// Bulk update lead status
-router.post('/bulk-update-status', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { lead_ids, status } = req.body;
-    const user = req.user!;
-
-    if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
-      res.status(400).json({ detail: 'lead_ids must be a non-empty array' });
-      return;
-    }
-
-    const validStatuses = ['new', 'interested', 'not_interested', 'followup', 'won', 'lost'];
-    if (!validStatuses.includes(status)) {
-      res.status(400).json({ detail: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
-      return;
-    }
-
-    const now = formatDateForMySQL(new Date());
-    const placeholders = lead_ids.map(() => '?').join(',');
-
-    // Update all leads
-    const [result]: any = await pool.execute(
-      `UPDATE leads SET status = ?, updated_at = ?, last_activity = ? WHERE id IN (${placeholders})`,
-      [status, now, now, ...lead_ids]
-    );
-
-    // Log activity for each lead
-    for (const leadId of lead_ids) {
-      await addActivity(leadId, 'Bulk status update', `Status changed to ${status}`, user.id, user.name);
-    }
-
-    res.json({
-      message: `Successfully updated ${result.affectedRows} lead(s) to ${status}`,
-      updated_count: result.affectedRows
-    });
-  } catch (error) {
-    console.error('Bulk update status error:', error);
-    res.status(500).json({ detail: 'Failed to update leads' });
+    console.error("Update lead error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
 // Bulk assign leads
-router.post('/bulk-assign', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.post("/bulk-assign", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.TEAM_LEAD]), async (req: AuthRequest, res: Response) => {
   try {
-    const { lead_ids, assignee_id } = req.body;
-    const user = req.user!;
+    const { lead_ids, assigned_to } = req.body;
 
     if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
-      res.status(400).json({ detail: 'lead_ids must be a non-empty array' });
-      return;
+      return res.status(400).json({ detail: "lead_ids array is required" });
     }
 
-    if (!assignee_id) {
-      res.status(400).json({ detail: 'assignee_id is required' });
-      return;
+    if (!assigned_to) {
+      return res.status(400).json({ detail: "assigned_to is required" });
     }
 
-    // Get assignee name
-    const [assignee] = await pool.execute<RowDataPacket[]>(
-      'SELECT id, name FROM users WHERE id = ?',
-      [assignee_id]
-    );
-
-    if (assignee.length === 0) {
-      res.status(404).json({ detail: 'Assignee not found' });
-      return;
+    const assignedUser = await userRepository().findOne({ where: { id: assigned_to } });
+    if (!assignedUser) {
+      return res.status(404).json({ detail: "Assigned user not found" });
     }
 
-    const now = formatDateForMySQL(new Date());
-    const placeholders = lead_ids.map(() => '?').join(',');
+    await leadRepository()
+      .createQueryBuilder()
+      .update(Lead)
+      .set({
+        assigned_to: assigned_to,
+        assigned_name: assignedUser.name,
+        last_activity: new Date(),
+      })
+      .whereInIds(lead_ids)
+      .execute();
 
-    // Update all leads
-    const [result]: any = await pool.execute(
-      `UPDATE leads SET assigned_to = ?, assigned_name = ?, updated_at = ? WHERE id IN (${placeholders})`,
-      [assignee_id, assignee[0].name, now, ...lead_ids]
-    );
-
-    // Log activity and notify
-    for (const leadId of lead_ids) {
-      await addActivity(leadId, 'Bulk assignment', `Assigned to ${assignee[0].name}`, user.id, user.name);
-    }
-
-    // Send one notification
-    await createNotification(
-      assignee_id,
-      'Leads Assigned',
-      `You have been assigned ${result.affectedRows} new lead(s)`,
-      'bulk_assignment'
-    );
-
-    res.json({
-      message: `Successfully assigned ${result.affectedRows} lead(s) to ${assignee[0].name}`,
-      updated_count: result.affectedRows
-    });
+    res.json({ message: `${lead_ids.length} leads assigned to ${assignedUser.name}` });
   } catch (error) {
-    console.error('Bulk assign error:', error);
-    res.status(500).json({ detail: 'Failed to assign leads' });
+    console.error("Bulk assign error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Bulk update status
+router.post("/bulk-status", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.TEAM_LEAD]), async (req: AuthRequest, res: Response) => {
+  try {
+    const { lead_ids, status } = req.body;
+
+    if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
+      return res.status(400).json({ detail: "lead_ids array is required" });
+    }
+
+    if (!status) {
+      return res.status(400).json({ detail: "status is required" });
+    }
+
+    await leadRepository()
+      .createQueryBuilder()
+      .update(Lead)
+      .set({
+        status: status,
+        last_activity: new Date(),
+      })
+      .whereInIds(lead_ids)
+      .execute();
+
+    res.json({ message: `${lead_ids.length} leads updated to ${status}` });
+  } catch (error) {
+    console.error("Bulk status error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Export leads as CSV
+router.get("/export/csv", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    let queryBuilder = leadRepository().createQueryBuilder("lead");
+
+    if (user.role === UserRole.SALES_REP) {
+      queryBuilder = queryBuilder.where("lead.assigned_to = :userId", { userId: user.id });
+    }
+
+    const leads = await queryBuilder.orderBy("lead.created_at", "DESC").getMany();
+
+    // Generate CSV
+    const headers = ["Name", "Phone", "Email", "Source", "Campaign", "City", "Status", "Assigned To", "Created At"];
+    const csvRows = [headers.join(",")];
+
+    leads.forEach((lead) => {
+      const row = [
+        `"${lead.name}"`,
+        `"${lead.phone}"`,
+        `"${lead.email || ""}"`,
+        `"${lead.source}"`,
+        `"${lead.campaign || ""}"`,
+        `"${lead.city || ""}"`,
+        `"${lead.status}"`,
+        `"${lead.assigned_name || "Unassigned"}"`,
+        `"${lead.created_at}"`,
+      ];
+      csvRows.push(row.join(","));
+    });
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=leads_export.csv");
+    res.send(csvRows.join("\n"));
+  } catch (error) {
+    console.error("Export leads error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Bulk import leads
+router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
+  try {
+    const { leads: leadsData } = req.body;
+
+    if (!leadsData || !Array.isArray(leadsData)) {
+      return res.status(400).json({ detail: "leads array is required" });
+    }
+
+    const createdLeads: Lead[] = [];
+    for (const data of leadsData) {
+      if (!data.name || !data.phone || !data.source) {
+        continue;
+      }
+
+      const lead = leadRepository().create({
+        id: uuidv4(),
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        source: data.source,
+        campaign: data.campaign,
+        city: data.city,
+        status: LeadStatus.NEW,
+        attempt_count: 0,
+      });
+
+      await leadRepository().save(lead);
+      createdLeads.push(lead);
+    }
+
+    res.status(201).json({ imported: createdLeads.length, leads: createdLeads });
+  } catch (error) {
+    console.error("Import leads error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Delete lead
+router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
+  try {
+    const lead = await leadRepository().findOne({ where: { id: req.params.id } });
+
+    if (!lead) {
+      return res.status(404).json({ detail: "Lead not found" });
+    }
+
+    await leadRepository().remove(lead);
+    res.json({ message: "Lead deleted successfully" });
+  } catch (error) {
+    console.error("Delete lead error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
