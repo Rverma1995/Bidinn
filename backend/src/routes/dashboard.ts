@@ -132,6 +132,10 @@ router.get("/leaderboard", authenticateToken, async (req: AuthRequest, res: Resp
           where: { assigned_to: user.id, status: LeadStatus.WON },
         });
 
+        const lostLeads = await leadRepository().count({
+          where: { assigned_to: user.id, status: LeadStatus.LOST },
+        });
+
         const totalCalls = await callRepository().count({
           where: { user_id: user.id },
         });
@@ -143,6 +147,10 @@ router.get("/leaderboard", authenticateToken, async (req: AuthRequest, res: Resp
           .andWhere("booking.payment_status IN (:...statuses)", { statuses: [PaymentStatus.PAID, PaymentStatus.PARTIAL] })
           .getRawOne();
 
+        // Calculate conversion rate
+        const totalProcessed = wonLeads + lostLeads;
+        const conversionRate = totalProcessed > 0 ? (wonLeads / totalProcessed) * 100 : 0;
+
         return {
           id: user.id,
           name: user.name,
@@ -150,6 +158,7 @@ router.get("/leaderboard", authenticateToken, async (req: AuthRequest, res: Resp
           deals_closed: wonLeads,
           calls_made: totalCalls,
           revenue: parseFloat(revenueResult?.total || "0"),
+          conversion_rate: conversionRate,
         };
       })
     );
