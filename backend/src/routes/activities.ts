@@ -26,8 +26,9 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 // Get activities for a specific target
 router.get("/target/:targetId", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const targetId = req.params.targetId as string;
     const activities = await activityRepository().find({
-      where: { target_id: req.params.targetId },
+      where: { target_id: targetId },
       order: { created_at: "DESC" },
     });
     

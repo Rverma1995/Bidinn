@@ -103,8 +103,8 @@ const runAutoResetJob = async () => {
     for (const lead of leadsToReset) {
       // Reset the lead
       lead.status = LeadStatus.NEW;
-      lead.assigned_to = null;
-      lead.assigned_name = null;
+      lead.assigned_to = undefined;
+      lead.assigned_name = undefined;
       await leadRepository.save(lead);
 
       // Log activity
