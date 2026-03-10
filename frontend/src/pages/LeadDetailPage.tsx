@@ -36,6 +36,10 @@ import {
   LEAD_STATUSES,
   CALL_OUTCOMES,
   LEAD_SOURCES,
+  CLOSED_REASONS,
+  STATUSES_REQUIRING_REASON,
+  STATUSES_REQUIRING_ASSIGNMENT,
+  isTransitionAllowed,
 } from '../lib/utils';
 import {
   ArrowLeft,
@@ -65,6 +69,8 @@ interface EditLeadData {
   source?: string;
   status?: string;
   notes?: string;
+  closed_reason?: string;
+  closed_reason_notes?: string;
 }
 
 interface ActivityItemProps {
