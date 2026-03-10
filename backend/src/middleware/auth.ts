@@ -11,13 +11,15 @@ export interface TokenPayload {
   role: string;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+}
+
 export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    name: string;
-    role: UserRole;
-  };
+  user?: AuthUser;
 }
 
 export const authenticateToken = async (
