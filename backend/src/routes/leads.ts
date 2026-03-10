@@ -699,27 +699,51 @@ router.post("/bulk-status", authenticateToken, requireRole([UserRole.ADMIN, User
   }
 });
 
-// Bulk import leads with duplicate detection
-router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
+// Bulk import leads with duplicate detection (supports file upload)
+router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
-    const { leads: leadsData } = req.body;
+    let leadsData: any[] = [];
 
-    if (!leadsData || !Array.isArray(leadsData)) {
-      return res.status(400).json({ detail: "leads array is required" });
+    // Check if file was uploaded
+    if (req.file) {
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet);
+      
+      // Map the data to expected format
+      leadsData = jsonData.map((row: any) => ({
+        name: row.name || row.Name || row.NAME,
+        phone: String(row.phone || row.Phone || row.PHONE || ''),
+        email: row.email || row.Email || row.EMAIL,
+        source: row.source || row.Source || row.SOURCE || 'Import',
+        campaign: row.campaign || row.Campaign || row.CAMPAIGN,
+        city: row.city || row.City || row.CITY,
+        notes: row.notes || row.Notes || row.NOTES,
+      }));
+    } else if (req.body.leads) {
+      // Handle JSON array input
+      leadsData = req.body.leads;
+    } else {
+      return res.status(400).json({ detail: "No file uploaded or leads array provided" });
+    }
+
+    if (leadsData.length === 0) {
+      return res.status(400).json({ detail: "No valid leads found in the file" });
     }
 
     const createdLeads: Lead[] = [];
     const duplicates: { data: any; existingLead: any }[] = [];
-    const errors: { data: any; error: string }[] = [];
+    const errors: string[] = [];
 
     for (const data of leadsData) {
-      if (!data.name || !data.phone || !data.source) {
-        errors.push({ data, error: "Missing required fields (name, phone, source)" });
+      if (!data.name || !data.phone) {
+        errors.push(`Row missing name or phone: ${JSON.stringify(data).substring(0, 100)}`);
         continue;
       }
 
       // Check for duplicates
-      const normalizedPhone = data.phone.replace(/[\s\-\(\)]/g, "");
+      const normalizedPhone = String(data.phone).replace(/[\s\-\(\)]/g, "");
       let duplicateQuery = leadRepository().createQueryBuilder("lead")
         .where("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '') = :phone", { phone: normalizedPhone });
       
@@ -730,18 +754,19 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
       const existingLead = await duplicateQuery.getOne();
       
       if (existingLead) {
-        duplicates.push({ data, existingLead });
+        duplicates.push({ data, existingLead: { id: existingLead.id, name: existingLead.name, phone: existingLead.phone } });
         continue;
       }
 
       const lead = leadRepository().create({
         id: uuidv4(),
         name: data.name,
-        phone: data.phone,
+        phone: String(data.phone),
         email: data.email,
-        source: data.source,
+        source: data.source || 'Import',
         campaign: data.campaign,
         city: data.city,
+        notes: data.notes,
         status: LeadStatus.NEW,
         attempt_count: 0,
       });
@@ -750,17 +775,19 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
       createdLeads.push(lead);
     }
 
+    await logActivity(req.user!.id, req.user!.name, "imported_leads", "bulk", "lead", `${createdLeads.length} leads`, `Imported ${createdLeads.length} leads from file`);
+
     res.status(201).json({ 
       imported: createdLeads.length, 
+      skipped: duplicates.length,
       duplicates: duplicates.length,
-      errors: errors.length,
-      leads: createdLeads,
-      duplicateDetails: duplicates.length > 0 ? duplicates : undefined,
-      errorDetails: errors.length > 0 ? errors : undefined,
+      errors: errors,
+      leads: createdLeads.slice(0, 10), // Return first 10 for preview
+      duplicateDetails: duplicates.length > 0 ? duplicates.slice(0, 10) : undefined,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Import leads error:", error);
-    res.status(500).json({ detail: "Internal server error" });
+    res.status(500).json({ detail: error.message || "Internal server error" });
   }
 });
 
