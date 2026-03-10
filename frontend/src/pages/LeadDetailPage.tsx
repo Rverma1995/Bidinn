@@ -296,14 +296,83 @@ export default function LeadDetailPage() {
   };
 
   const handleSave = async () => {
+    // Check if status is changing to one that requires a reason
+    const statusChanging = editData.status && editData.status !== lead?.status;
+    const needsReason = statusChanging && STATUSES_REQUIRING_REASON.includes(editData.status!);
+    
+    if (needsReason && !editData.closed_reason) {
+      setPendingStatusChange(editData.status!);
+      setClosedReasonDialogOpen(true);
+      return;
+    }
+
+    // Check transition rules
+    if (statusChanging && lead) {
+      const transitionCheck = isTransitionAllowed(lead.status, editData.status!);
+      if (!transitionCheck.allowed) {
+        toast.error(transitionCheck.message);
+        return;
+      }
+    }
+
+    // Check assignment requirement
+    if (statusChanging && STATUSES_REQUIRING_ASSIGNMENT.includes(editData.status!) && !lead?.assigned_to) {
+      toast.error(`Lead must be assigned to a salesperson before moving to ${getStatusLabel(editData.status!)} status`);
+      return;
+    }
+
     setSaving(true);
     try {
       const response = await api.put(`/leads/${id}`, editData);
       setLead(response.data);
       setEditing(false);
+      setEditData(response.data);
       toast.success('Lead updated successfully');
       fetchActivities();
-    } catch (error) {
+    } catch (error: any) {
+      const errorDetail = error.response?.data?.detail || 'Failed to update lead';
+      const rule = error.response?.data?.rule;
+      
+      if (rule === 'closed_reason_required') {
+        setPendingStatusChange(editData.status!);
+        setClosedReasonDialogOpen(true);
+      } else if (rule === 'assignment_required') {
+        toast.error('Please assign this lead to a salesperson first');
+      } else if (rule === 'stage_transition_restriction') {
+        toast.error(errorDetail);
+      } else {
+        toast.error(errorDetail);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClosedReasonSubmit = async () => {
+    if (!closedReason) {
+      toast.error('Please select a reason');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const updateData = {
+        ...editData,
+        status: pendingStatusChange,
+        closed_reason: closedReason,
+        closed_reason_notes: closedReasonNotes,
+      };
+      const response = await api.put(`/leads/${id}`, updateData);
+      setLead(response.data);
+      setEditing(false);
+      setEditData(response.data);
+      setClosedReasonDialogOpen(false);
+      setPendingStatusChange(null);
+      setClosedReason('');
+      setClosedReasonNotes('');
+      toast.success('Lead updated successfully');
+      fetchActivities();
+    } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to update lead');
     } finally {
       setSaving(false);
