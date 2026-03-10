@@ -4,12 +4,13 @@ import { User } from "./User";
 import { Call } from "./Call";
 import { Booking } from "./Booking";
 
-// Updated Lead Stages as per business rules
+// Lead Stages matching frontend utils.ts
 export enum LeadStatus {
   NEW = "new",
-  CONTACTED = "contacted",
-  FOLLOWUP_INTERESTED = "followup_interested",
+  NOT_ANSWERED = "not_answered",
+  INTERESTED = "interested",
   NOT_INTERESTED = "not_interested",
+  FOLLOWUP = "followup",
   WON = "won",
   LOST = "lost",
 }
@@ -21,26 +22,32 @@ export enum ClosedReason {
   NOT_TRAVELLING = "not_travelling",
   NO_RESPONSE = "no_response",
   JUST_BROWSING = "just_browsing",
+  WRONG_CONTACT = "wrong_contact",
+  COMPETITOR = "competitor",
+  BUDGET_ISSUES = "budget_issues",
+  TIMING_NOT_RIGHT = "timing_not_right",
   OTHER = "other",
 }
 
-// Stage transition rules
+// Stage transition rules - Rule 5: Block direct transition from interested/followup to not_interested
 export const STAGE_TRANSITIONS: Record<LeadStatus, LeadStatus[]> = {
-  [LeadStatus.NEW]: [LeadStatus.CONTACTED, LeadStatus.NOT_INTERESTED, LeadStatus.LOST],
-  [LeadStatus.CONTACTED]: [LeadStatus.FOLLOWUP_INTERESTED, LeadStatus.NOT_INTERESTED, LeadStatus.LOST],
-  [LeadStatus.FOLLOWUP_INTERESTED]: [LeadStatus.WON, LeadStatus.LOST], // Cannot go to NOT_INTERESTED
+  [LeadStatus.NEW]: [LeadStatus.NOT_ANSWERED, LeadStatus.INTERESTED, LeadStatus.NOT_INTERESTED, LeadStatus.FOLLOWUP, LeadStatus.WON, LeadStatus.LOST],
+  [LeadStatus.NOT_ANSWERED]: [LeadStatus.NEW, LeadStatus.INTERESTED, LeadStatus.NOT_INTERESTED, LeadStatus.FOLLOWUP, LeadStatus.WON, LeadStatus.LOST],
+  [LeadStatus.INTERESTED]: [LeadStatus.NEW, LeadStatus.NOT_ANSWERED, LeadStatus.FOLLOWUP, LeadStatus.WON, LeadStatus.LOST], // Cannot go directly to NOT_INTERESTED
+  [LeadStatus.FOLLOWUP]: [LeadStatus.NEW, LeadStatus.NOT_ANSWERED, LeadStatus.INTERESTED, LeadStatus.WON, LeadStatus.LOST], // Cannot go directly to NOT_INTERESTED
   [LeadStatus.NOT_INTERESTED]: [LeadStatus.NEW], // Can reopen
   [LeadStatus.WON]: [], // Final stage
   [LeadStatus.LOST]: [LeadStatus.NEW], // Can reopen
 };
 
-// Stages that require assignment
+// Rule 1: Stages that require assignment before transition
 export const STAGES_REQUIRING_ASSIGNMENT: LeadStatus[] = [
-  LeadStatus.CONTACTED,
-  LeadStatus.FOLLOWUP_INTERESTED,
+  LeadStatus.NOT_ANSWERED,
+  LeadStatus.INTERESTED,
+  LeadStatus.FOLLOWUP,
 ];
 
-// Stages that require closed reason
+// Rule 2: Stages that require closed reason
 export const STAGES_REQUIRING_REASON: LeadStatus[] = [
   LeadStatus.NOT_INTERESTED,
   LeadStatus.LOST,
