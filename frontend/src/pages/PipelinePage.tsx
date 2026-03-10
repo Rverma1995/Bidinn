@@ -642,6 +642,30 @@ export default function PipelinePage() {
     
     if (!leadId || fromStatus === newStatus) return;
 
+    // Find the lead being moved
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) return;
+
+    // Check transition rules (Rule 5)
+    const transitionCheck = isTransitionAllowed(fromStatus, newStatus);
+    if (!transitionCheck.allowed) {
+      toast.error(transitionCheck.message);
+      return;
+    }
+
+    // Check assignment requirement (Rule 1)
+    if (STATUSES_REQUIRING_ASSIGNMENT.includes(newStatus) && !lead.assigned_to) {
+      toast.error(`Lead must be assigned before moving to ${getStatusLabel(newStatus)} status`);
+      return;
+    }
+
+    // Check if reason is required (Rule 2) - redirect to lead detail for closed reasons
+    if (STATUSES_REQUIRING_REASON.includes(newStatus)) {
+      toast.info('Please provide a reason for closing this lead');
+      navigate(`/leads/${leadId}`);
+      return;
+    }
+
     // Optimistic update
     setLeads(prev => prev.map(l => 
       l.id === leadId ? { ...l, status: newStatus } : l
@@ -650,11 +674,12 @@ export default function PipelinePage() {
     try {
       await api.put(`/leads/${leadId}`, { status: newStatus });
       toast.success(`Lead moved to ${getStatusLabel(newStatus)}`);
-    } catch (error) {
+    } catch (error: any) {
       setLeads(prev => prev.map(l => 
         l.id === leadId ? { ...l, status: fromStatus } : l
       ));
-      toast.error('Failed to update lead');
+      const errorDetail = error.response?.data?.detail || 'Failed to update lead';
+      toast.error(errorDetail);
     }
   };
 
