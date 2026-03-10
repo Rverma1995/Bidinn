@@ -81,8 +81,9 @@ router.post("/", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGE
 router.put("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
   try {
     const { name, email, role, is_active } = req.body;
+    const userId = req.params.id as string;
 
-    const user = await userRepository().findOne({ where: { id: req.params.id } });
+    const user = await userRepository().findOne({ where: { id: userId } });
     if (!user) {
       return res.status(404).json({ detail: "User not found" });
     }
@@ -114,12 +115,13 @@ router.put("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANA
 router.post("/:id/reset-password", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
   try {
     const { new_password } = req.body;
+    const userId = req.params.id as string;
 
     if (!new_password || new_password.length < 6) {
       return res.status(400).json({ detail: "Password must be at least 6 characters" });
     }
 
-    const user = await userRepository().findOne({ where: { id: req.params.id } });
+    const user = await userRepository().findOne({ where: { id: userId } });
     if (!user) {
       return res.status(404).json({ detail: "User not found" });
     }
@@ -138,7 +140,8 @@ router.post("/:id/reset-password", authenticateToken, requireRole([UserRole.ADMI
 // Delete user (Admin only)
 router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
   try {
-    const user = await userRepository().findOne({ where: { id: req.params.id } });
+    const userId = req.params.id as string;
+    const user = await userRepository().findOne({ where: { id: userId } });
     if (!user) {
       return res.status(404).json({ detail: "User not found" });
     }
