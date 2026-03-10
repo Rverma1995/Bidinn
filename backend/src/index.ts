@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from "uuid";
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 import { AppDataSource, initializeDatabase } from "./config/data-source";
-import { User, UserRole, Lead, LeadStatus, Booking, PaymentStatus, Call, Activity } from "./entities";
+import { User, UserRole, Lead, LeadStatus, Booking, PaymentStatus, Call, Activity, Notification, NotificationType, NotificationPriority } from "./entities";
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
 import leadRoutes from "./routes/leads";
@@ -21,6 +21,7 @@ import activityRoutes from "./routes/activities";
 import metaRoutes from "./routes/meta";
 import paymentRoutes from "./routes/payments";
 import adminRoutes from "./routes/admin";
+import notificationRoutes from "./routes/notifications";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "8001");
