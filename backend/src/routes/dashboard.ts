@@ -152,10 +152,10 @@ router.get("/leaderboard", authenticateToken, async (req: AuthRequest, res: Resp
         const conversionRate = totalProcessed > 0 ? (wonLeads / totalProcessed) * 100 : 0;
 
         return {
-          id: user.id,
-          name: user.name,
+          user_id: user.id,
+          user_name: user.name,
           role: user.role,
-          deals_closed: wonLeads,
+          leads_closed: wonLeads,
           calls_made: totalCalls,
           revenue: parseFloat(revenueResult?.total || "0"),
           conversion_rate: conversionRate,
