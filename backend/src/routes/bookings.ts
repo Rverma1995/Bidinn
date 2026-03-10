@@ -142,4 +142,31 @@ router.delete("/:id", authenticateToken, async (req: AuthRequest, res: Response)
   }
 });
 
+// Get booking reasons
+router.get("/reasons", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const reasons = [
+      "Flight Ticket",
+      "Dubai Tour",
+      "Thailand Tour", 
+      "Manali Tour",
+      "Sri Lanka",
+      "Maldives",
+      "Singapore",
+      "Europe Tour",
+      "Cruise Package",
+      "Honeymoon Package",
+      "Family Vacation",
+      "Corporate Trip",
+      "Adventure Trip",
+      "Pilgrimage",
+      "Other",
+    ];
+    res.json(reasons);
+  } catch (error) {
+    console.error("Get booking reasons error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 export default router;
