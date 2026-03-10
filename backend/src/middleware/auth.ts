@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { AppDataSource } from "../config/data-source";
 import { User, UserRole } from "../entities";
+import { AuthUser } from "../types";
 
 const JWT_SECRET = process.env.JWT_SECRET || "bidinn-secret-key";
 
@@ -9,13 +10,6 @@ export interface TokenPayload {
   sub: string;
   email: string;
   role: string;
-}
-
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
 }
 
 export interface AuthRequest extends Request {
