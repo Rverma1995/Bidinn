@@ -62,6 +62,70 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Get uncontacted leads - MUST be before /:id route
+router.get("/uncontacted", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    let queryBuilder = leadRepository()
+      .createQueryBuilder("lead")
+      .where("lead.status = :status", { status: LeadStatus.NEW })
+      .andWhere("lead.attempt_count = 0")
+      .andWhere("lead.created_at < :oneHourAgo", { oneHourAgo });
+
+    if (user.role === UserRole.SALES_REP) {
+      queryBuilder = queryBuilder.andWhere("lead.assigned_to = :userId", { userId: user.id });
+    }
+
+    const leads = await queryBuilder.orderBy("lead.created_at", "ASC").getMany();
+    res.json(leads);
+  } catch (error) {
+    console.error("Get uncontacted leads error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Export leads as CSV - MUST be before /:id route
+router.get("/export/csv", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    let queryBuilder = leadRepository().createQueryBuilder("lead");
+
+    if (user.role === UserRole.SALES_REP) {
+      queryBuilder = queryBuilder.where("lead.assigned_to = :userId", { userId: user.id });
+    }
+
+    const leads = await queryBuilder.orderBy("lead.created_at", "DESC").getMany();
+
+    // Generate CSV
+    const headers = ["Name", "Phone", "Email", "Source", "Campaign", "City", "Status", "Assigned To", "Created At"];
+    const csvRows = [headers.join(",")];
+
+    leads.forEach((lead) => {
+      const row = [
+        `"${lead.name}"`,
+        `"${lead.phone}"`,
+        `"${lead.email || ""}"`,
+        `"${lead.source}"`,
+        `"${lead.campaign || ""}"`,
+        `"${lead.city || ""}"`,
+        `"${lead.status}"`,
+        `"${lead.assigned_name || "Unassigned"}"`,
+        `"${lead.created_at}"`,
+      ];
+      csvRows.push(row.join(","));
+    });
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=leads_export.csv");
+    res.send(csvRows.join("\n"));
+  } catch (error) {
+    console.error("Export leads error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 // Get lead by ID
 router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
