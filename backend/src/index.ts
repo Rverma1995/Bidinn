@@ -385,6 +385,9 @@ const startServer = async () => {
     // Schedule the auto-reset job
     scheduleAutoResetJob();
 
+    // Schedule the idle lead escalation job (Rule 4)
+    scheduleIdleLeadEscalationJob();
+
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Bidinn CRM API server running on http://0.0.0.0:${PORT}`);
       console.log(`Using TypeORM with MySQL database`);
