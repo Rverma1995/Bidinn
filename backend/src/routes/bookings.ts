@@ -1,196 +1,141 @@
-import { Router, Request, Response } from 'express';
-import { RowDataPacket } from 'mysql2';
-import pool from '../config/database';
-import { authMiddleware } from '../middleware/auth';
-import { generateUUID, formatDateForMySQL, addActivity } from '../utils/helpers';
+import { Router, Response } from "express";
+import { AppDataSource } from "../config/data-source";
+import { Booking, PaymentStatus, Lead, Activity } from "../entities";
+import { authenticateToken, AuthRequest } from "../middleware/auth";
+import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
+const bookingRepository = () => AppDataSource.getRepository(Booking);
+const leadRepository = () => AppDataSource.getRepository(Lead);
+const activityRepository = () => AppDataSource.getRepository(Activity);
 
-// Valid booking reasons
-const BOOKING_REASONS = [
-  'Corporate Event',
-  'Wedding',
-  'Vacation',
-  'Business Trip',
-  'Conference',
-  'Family Reunion',
-  'Anniversary',
-  'Honeymoon',
-  'Group Tour',
-  'Other'
-];
-
-// Get booking reasons
-router.get('/reasons', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  res.json(BOOKING_REASONS);
-});
-
-// Create booking
-router.post('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+// Get all bookings
+router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { lead_id, hotel_name, check_in, check_out, final_price, bid_price, notes, booking_reason } = req.body;
-    const user = req.user!;
-
-    // Check lead exists
-    const [leadRows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM leads WHERE id = ?',
-      [lead_id]
-    );
-
-    if (leadRows.length === 0) {
-      res.status(404).json({ detail: 'Lead not found' });
-      return;
-    }
-
-    const lead = leadRows[0];
-    const now = formatDateForMySQL(new Date());
-    const id = generateUUID();
-
-    await pool.execute(
-      `INSERT INTO bookings (id, lead_id, lead_name, hotel_name, check_in, check_out, final_price, bid_price, payment_status, payment_amount, notes, booking_reason, created_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 0, ?, ?, ?, ?)`,
-      [id, lead_id, lead.name, hotel_name, check_in, check_out, final_price, bid_price || 0, notes || null, booking_reason || null, now, user.id]
-    );
-
-    // Update lead to won
-    await pool.execute(
-      'UPDATE leads SET status = ?, updated_at = ?, last_activity = ? WHERE id = ?',
-      ['won', now, now, lead_id]
-    );
-
-    await addActivity(lead_id, 'Booking created', `Hotel: ${hotel_name}${booking_reason ? ` (${booking_reason})` : ''}`, user.id, user.name);
-
-    res.status(201).json({
-      id,
-      lead_id,
-      lead_name: lead.name,
-      hotel_name,
-      check_in,
-      check_out,
-      final_price,
-      bid_price: bid_price || 0,
-      payment_status: 'unpaid',
-      payment_amount: 0,
-      notes,
-      booking_reason,
-      created_at: now,
-      created_by: user.id
+    const bookings = await bookingRepository().find({
+      order: { created_at: "DESC" },
     });
+    res.json(bookings);
   } catch (error) {
-    console.error('Create booking error:', error);
-    res.status(500).json({ detail: 'Failed to create booking' });
-  }
-});
-
-// Get bookings
-router.get('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { payment_status, skip = '0', limit = '100' } = req.query;
-
-    let query = 'SELECT * FROM bookings WHERE 1=1';
-    const params: any[] = [];
-
-    if (payment_status) {
-      query += ' AND payment_status = ?';
-      params.push(payment_status);
-    }
-
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit as string), parseInt(skip as string));
-
-    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
-    res.json(rows);
-  } catch (error) {
-    console.error('Get bookings error:', error);
-    res.status(500).json({ detail: 'Failed to fetch bookings' });
+    console.error("Get bookings error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
 // Get booking by ID
-router.get('/:bookingId', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { bookingId } = req.params;
+    const booking = await bookingRepository().findOne({
+      where: { id: req.params.id },
+    });
 
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM bookings WHERE id = ?',
-      [bookingId]
-    );
-
-    if (rows.length === 0) {
-      res.status(404).json({ detail: 'Booking not found' });
-      return;
+    if (!booking) {
+      return res.status(404).json({ detail: "Booking not found" });
     }
 
-    res.json(rows[0]);
+    res.json(booking);
   } catch (error) {
-    console.error('Get booking error:', error);
-    res.status(500).json({ detail: 'Failed to fetch booking' });
+    console.error("Get booking error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Create booking
+router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { lead_id, hotel_name, check_in, check_out, final_price, bid_price, notes, booking_reason } = req.body;
+
+    if (!lead_id || !hotel_name || !check_in || !check_out || !final_price) {
+      return res.status(400).json({ detail: "lead_id, hotel_name, check_in, check_out, and final_price are required" });
+    }
+
+    const lead = await leadRepository().findOne({ where: { id: lead_id } });
+    if (!lead) {
+      return res.status(404).json({ detail: "Lead not found" });
+    }
+
+    const booking = bookingRepository().create({
+      id: uuidv4(),
+      lead_id,
+      lead_name: lead.name,
+      hotel_name,
+      check_in: new Date(check_in),
+      check_out: new Date(check_out),
+      final_price: parseFloat(final_price),
+      bid_price: bid_price ? parseFloat(bid_price) : null,
+      payment_status: PaymentStatus.UNPAID,
+      payment_amount: 0,
+      notes,
+      booking_reason,
+      created_by_id: req.user!.id,
+    });
+
+    await bookingRepository().save(booking);
+
+    // Log activity
+    const activity = activityRepository().create({
+      id: uuidv4(),
+      user_id: req.user!.id,
+      user_name: req.user!.name,
+      action: "created_booking",
+      target_id: booking.id,
+      target_type: "booking",
+      target_name: lead.name,
+      details: `Hotel: ${hotel_name}, Amount: ${final_price}`,
+    });
+    await activityRepository().save(activity);
+
+    res.status(201).json(booking);
+  } catch (error) {
+    console.error("Create booking error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
 // Update booking
-router.put('/:bookingId', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { bookingId } = req.params;
-    const updateData = req.body;
+    const booking = await bookingRepository().findOne({ where: { id: req.params.id } });
 
-    const allowedFields = ['hotel_name', 'check_in', 'check_out', 'final_price', 'bid_price', 'notes', 'booking_reason'];
-    const updates: string[] = [];
-    const values: any[] = [];
-
-    for (const field of allowedFields) {
-      if (updateData[field] !== undefined) {
-        updates.push(`${field} = ?`);
-        values.push(updateData[field]);
-      }
+    if (!booking) {
+      return res.status(404).json({ detail: "Booking not found" });
     }
 
-    if (updates.length === 0) {
-      res.status(400).json({ detail: 'No valid fields to update' });
-      return;
-    }
+    const { hotel_name, check_in, check_out, final_price, bid_price, payment_status, payment_amount, notes, booking_reason } = req.body;
 
-    values.push(bookingId);
-    await pool.execute(
-      `UPDATE bookings SET ${updates.join(', ')} WHERE id = ?`,
-      values
-    );
+    if (hotel_name) booking.hotel_name = hotel_name;
+    if (check_in) booking.check_in = new Date(check_in);
+    if (check_out) booking.check_out = new Date(check_out);
+    if (final_price !== undefined) booking.final_price = parseFloat(final_price);
+    if (bid_price !== undefined) booking.bid_price = bid_price ? parseFloat(bid_price) : null;
+    if (payment_status) booking.payment_status = payment_status;
+    if (payment_amount !== undefined) booking.payment_amount = parseFloat(payment_amount);
+    if (notes !== undefined) booking.notes = notes;
+    if (booking_reason !== undefined) booking.booking_reason = booking_reason;
 
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM bookings WHERE id = ?',
-      [bookingId]
-    );
+    await bookingRepository().save(booking);
 
-    if (rows.length === 0) {
-      res.status(404).json({ detail: 'Booking not found' });
-      return;
-    }
-
-    res.json(rows[0]);
+    res.json(booking);
   } catch (error) {
-    console.error('Update booking error:', error);
-    res.status(500).json({ detail: 'Failed to update booking' });
+    console.error("Update booking error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
-// Get booking analytics by reason
-router.get('/analytics/by-reason', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+// Delete booking
+router.delete("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT 
-         COALESCE(booking_reason, 'Not Specified') as reason,
-         COUNT(*) as count,
-         SUM(final_price) as total_value,
-         SUM(payment_amount) as collected_amount
-       FROM bookings
-       GROUP BY booking_reason
-       ORDER BY count DESC`
-    );
+    const booking = await bookingRepository().findOne({ where: { id: req.params.id } });
 
-    res.json(rows);
+    if (!booking) {
+      return res.status(404).json({ detail: "Booking not found" });
+    }
+
+    await bookingRepository().remove(booking);
+    res.json({ message: "Booking deleted successfully" });
   } catch (error) {
-    console.error('Get booking analytics error:', error);
-    res.status(500).json({ detail: 'Failed to fetch booking analytics' });
+    console.error("Delete booking error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
