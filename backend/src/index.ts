@@ -152,6 +152,101 @@ const scheduleAutoResetJob = () => {
   console.log(`Auto-reset job scheduled. Next run in ${Math.round(msUntilMidnight / 1000 / 60)} minutes`);
 };
 
+// Rule 4: Idle Lead Escalation Job - runs every 6 hours
+const runIdleLeadEscalationJob = async () => {
+  console.log("Running idle lead escalation job...");
+  try {
+    const leadRepository = AppDataSource.getRepository(Lead);
+    const userRepository = AppDataSource.getRepository(User);
+    const notificationRepository = AppDataSource.getRepository(Notification);
+    const activityRepository = AppDataSource.getRepository(Activity);
+
+    // Find leads with no activity for 5 days
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+
+    // Get idle leads that are in active statuses (not won, lost, or not_interested)
+    const idleLeads = await leadRepository
+      .createQueryBuilder("lead")
+      .where("lead.status NOT IN (:...statuses)", { 
+        statuses: [LeadStatus.WON, LeadStatus.LOST, LeadStatus.NOT_INTERESTED] 
+      })
+      .andWhere("(lead.last_activity < :fiveDaysAgo OR lead.last_activity IS NULL)", { fiveDaysAgo })
+      .andWhere("lead.created_at < :fiveDaysAgo", { fiveDaysAgo })
+      .getMany();
+
+    if (idleLeads.length === 0) {
+      console.log("No idle leads found.");
+      return;
+    }
+
+    // Get all managers and admins
+    const managersAndAdmins = await userRepository.find({
+      where: [
+        { role: UserRole.ADMIN, is_active: true },
+        { role: UserRole.MANAGER, is_active: true },
+      ],
+    });
+
+    // Create notifications for each manager/admin
+    for (const user of managersAndAdmins) {
+      // Create a summary notification
+      const notification = notificationRepository.create({
+        id: uuidv4(),
+        user_id: user.id,
+        type: NotificationType.IDLE_LEAD,
+        priority: NotificationPriority.HIGH,
+        title: `${idleLeads.length} Idle Lead${idleLeads.length > 1 ? 's' : ''} Detected`,
+        message: `The following lead${idleLeads.length > 1 ? 's have' : ' has'} had no activity for 5+ days:\n${idleLeads
+          .slice(0, 10)
+          .map(l => `• ${l.name} (${l.phone}) - ${l.assigned_name || 'Unassigned'} - Status: ${l.status}`)
+          .join('\n')}${idleLeads.length > 10 ? `\n...and ${idleLeads.length - 10} more` : ''}`,
+        metadata: {
+          idle_lead_ids: idleLeads.map(l => l.id),
+          idle_lead_count: idleLeads.length,
+          lead_details: idleLeads.slice(0, 20).map(l => ({
+            id: l.id,
+            name: l.name,
+            phone: l.phone,
+            status: l.status,
+            assigned_name: l.assigned_name,
+            last_activity: l.last_activity,
+          })),
+        },
+      });
+      await notificationRepository.save(notification);
+    }
+
+    // Log activity for tracking
+    const activity = activityRepository.create({
+      id: uuidv4(),
+      user_id: "system",
+      user_name: "System",
+      action: "idle_lead_escalation",
+      target_id: "system",
+      target_type: "escalation",
+      target_name: "Idle Lead Check",
+      details: `Detected ${idleLeads.length} idle leads and notified ${managersAndAdmins.length} managers/admins`,
+    });
+    await activityRepository.save(activity);
+
+    console.log(`Idle lead escalation: Notified ${managersAndAdmins.length} managers/admins about ${idleLeads.length} idle leads`);
+  } catch (error) {
+    console.error("Idle lead escalation job error:", error);
+  }
+};
+
+// Schedule idle lead escalation job to run every 6 hours
+const scheduleIdleLeadEscalationJob = () => {
+  // Run immediately on startup (after a small delay for DB connection)
+  setTimeout(() => {
+    runIdleLeadEscalationJob();
+  }, 10000); // 10 seconds after startup
+
+  // Then run every 6 hours
+  setInterval(runIdleLeadEscalationJob, 6 * 60 * 60 * 1000);
+  console.log("Idle lead escalation job scheduled to run every 6 hours");
+};
+
 // Auto-seed database if empty
 const autoSeedIfEmpty = async () => {
   try {
