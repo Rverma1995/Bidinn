@@ -58,6 +58,7 @@ app.use("/api/activities", activityRoutes);
 app.use("/api/meta", metaRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Root API endpoint
 app.get("/api/", (req: Request, res: Response) => {
