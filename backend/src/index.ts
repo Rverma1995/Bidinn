@@ -54,6 +54,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/meta", metaRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // Root API endpoint
 app.get("/api/", (req: Request, res: Response) => {
