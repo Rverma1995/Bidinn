@@ -33,7 +33,7 @@ export class Booking {
   final_price: number;
 
   @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
-  bid_price: number;
+  bid_price: number | undefined;
 
   @Column({ type: "enum", enum: PaymentStatus, default: PaymentStatus.UNPAID })
   payment_status: PaymentStatus;
