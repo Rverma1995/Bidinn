@@ -97,10 +97,10 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
       return res.status(403).json({ detail: "You don't have permission to update this user" });
     }
 
-    // Self-update: can only change name and email
-    if (isSelfUpdate && !isAdminOrManager) {
+    // Self-update: can only change name and email (not role or is_active)
+    if (isSelfUpdate) {
       if (role || typeof is_active === "boolean") {
-        return res.status(403).json({ detail: "You can only update your name and email" });
+        return res.status(403).json({ detail: "You cannot change your own role or active status" });
       }
     }
 
@@ -115,8 +115,8 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
 
     if (name) user.name = name;
     
-    // Only admin/manager can change role and is_active
-    if (isAdminOrManager) {
+    // Only admin/manager can change OTHER users' role and is_active (not their own)
+    if (isAdminOrManager && !isSelfUpdate) {
       if (role) user.role = role;
       if (typeof is_active === "boolean") user.is_active = is_active;
     }
