@@ -1,151 +1,100 @@
-import { Router, Request, Response } from 'express';
-import { RowDataPacket } from 'mysql2';
-import pool from '../config/database';
-import { authMiddleware, requireRoles } from '../middleware/auth';
-import { UserRole, UserResponse } from '../types';
-import { hashPassword, verifyPassword, createToken, generateUUID, formatDateForMySQL } from '../utils/helpers';
+import { Router, Request, Response } from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { AppDataSource } from "../config/data-source";
+import { User, UserRole } from "../entities";
+import { authenticateToken, AuthRequest } from "../middleware/auth";
 
 const router = Router();
-
-// Register new user
-router.post('/register', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { email, name, password, role = 'sales_rep', avatar } = req.body;
-
-    // Check if email exists
-    const [existing] = await pool.execute<RowDataPacket[]>(
-      'SELECT id FROM users WHERE email = ?',
-      [email]
-    );
-
-    if (existing.length > 0) {
-      res.status(400).json({ detail: 'Email already registered' });
-      return;
-    }
-
-    const id = generateUUID();
-    const passwordHash = hashPassword(password);
-    const createdAt = formatDateForMySQL(new Date());
-
-    await pool.execute(
-      'INSERT INTO users (id, email, name, role, avatar, is_active, password_hash, created_at) VALUES (?, ?, ?, ?, ?, TRUE, ?, ?)',
-      [id, email, name, role, avatar || null, passwordHash, createdAt]
-    );
-
-    const response: UserResponse = {
-      id,
-      email,
-      name,
-      role,
-      avatar,
-      is_active: true,
-      created_at: createdAt
-    };
-
-    res.status(201).json(response);
-  } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ detail: 'Registration failed' });
-  }
-});
+const userRepository = () => AppDataSource.getRepository(User);
 
 // Login
-router.post('/login', async (req: Request, res: Response): Promise<void> => {
+router.post("/login", async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM users WHERE email = ?',
-      [email]
-    );
-
-    if (rows.length === 0) {
-      res.status(401).json({ detail: 'Invalid credentials' });
-      return;
+    if (!email || !password) {
+      return res.status(400).json({ detail: "Email and password required" });
     }
 
-    const user = rows[0];
+    const user = await userRepository().findOne({ where: { email } });
 
-    if (!verifyPassword(password, user.password_hash)) {
-      res.status(401).json({ detail: 'Invalid credentials' });
-      return;
+    if (!user) {
+      return res.status(401).json({ detail: "Invalid credentials" });
     }
 
     if (!user.is_active) {
-      res.status(401).json({ detail: 'Account is disabled' });
-      return;
+      return res.status(401).json({ detail: "Account is deactivated" });
     }
 
-    const token = createToken(user.id, user.role);
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ detail: "Invalid credentials" });
+    }
 
-    res.json({
-      access_token: token,
-      token_type: 'bearer',
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        avatar: user.avatar,
-        is_active: user.is_active,
-        created_at: user.created_at
-      }
-    });
+    const token = jwt.sign(
+      { sub: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET || "secret",
+      { expiresIn: "24h" }
+    );
+
+    const { password_hash, ...userWithoutPassword } = user;
+    res.json({ access_token: token, user: userWithoutPassword });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ detail: 'Login failed' });
+    console.error("Login error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
 // Get current user
-router.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  res.json(req.user);
+router.get("/me", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await userRepository().findOne({ where: { id: req.user!.id } });
+
+    if (!user) {
+      return res.status(404).json({ detail: "User not found" });
+    }
+
+    const { password_hash, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error("Get me error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
 });
 
-// Change password (for logged-in user)
-router.post('/change-password', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+// Change password
+router.post("/change-password", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { current_password, new_password } = req.body;
-    const user = req.user!;
 
     if (!current_password || !new_password) {
-      res.status(400).json({ detail: 'Current password and new password are required' });
-      return;
+      return res.status(400).json({ detail: "Current password and new password are required" });
     }
 
     if (new_password.length < 6) {
-      res.status(400).json({ detail: 'New password must be at least 6 characters' });
-      return;
+      return res.status(400).json({ detail: "New password must be at least 6 characters" });
     }
 
-    // Get user with password hash
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT password_hash FROM users WHERE id = ?',
-      [user.id]
-    );
+    const user = await userRepository().findOne({ where: { id: req.user!.id } });
 
-    if (rows.length === 0) {
-      res.status(404).json({ detail: 'User not found' });
-      return;
+    if (!user) {
+      return res.status(404).json({ detail: "User not found" });
     }
 
-    // Verify current password
-    if (!verifyPassword(current_password, rows[0].password_hash)) {
-      res.status(401).json({ detail: 'Current password is incorrect' });
-      return;
+    const validPassword = await bcrypt.compare(current_password, user.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ detail: "Current password is incorrect" });
     }
 
-    // Update password
-    const newPasswordHash = hashPassword(new_password);
-    await pool.execute(
-      'UPDATE users SET password_hash = ? WHERE id = ?',
-      [newPasswordHash, user.id]
-    );
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+    user.password_hash = hashedPassword;
+    await userRepository().save(user);
 
-    res.json({ message: 'Password changed successfully' });
+    res.json({ message: "Password changed successfully" });
   } catch (error) {
-    console.error('Change password error:', error);
-    res.status(500).json({ detail: 'Failed to change password' });
+    console.error("Change password error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
