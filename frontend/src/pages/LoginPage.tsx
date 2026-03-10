@@ -134,61 +134,6 @@ export default function LoginPage() {
                   Sign in
                 </Button>
               </form>
-
-              <div className="mt-6">
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-slate-200 dark:border-slate-700" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white dark:bg-slate-900 px-2 text-muted-foreground">
-                      Demo accounts
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDemoLogin('admin')}
-                    disabled={loading}
-                    data-testid="demo-admin"
-                  >
-                    Admin
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDemoLogin('manager')}
-                    disabled={loading}
-                    data-testid="demo-manager"
-                  >
-                    Manager
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDemoLogin('team_lead')}
-                    disabled={loading}
-                    data-testid="demo-team-lead"
-                  >
-                    Team Lead
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDemoLogin('sales_rep')}
-                    disabled={loading}
-                    data-testid="demo-sales-rep"
-                  >
-                    Sales Rep
-                  </Button>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </div>
