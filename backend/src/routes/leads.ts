@@ -210,17 +210,18 @@ router.post("/:id/assign", authenticateToken, async (req: AuthRequest, res: Resp
 // Bulk assign leads
 router.post("/bulk-assign", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.TEAM_LEAD]), async (req: AuthRequest, res: Response) => {
   try {
-    const { lead_ids, assigned_to } = req.body;
+    const { lead_ids, assigned_to, assignee_id } = req.body;
+    const userId = assigned_to || assignee_id;
 
     if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
       return res.status(400).json({ detail: "lead_ids array is required" });
     }
 
-    if (!assigned_to) {
-      return res.status(400).json({ detail: "assigned_to is required" });
+    if (!userId) {
+      return res.status(400).json({ detail: "assigned_to or assignee_id is required" });
     }
 
-    const assignedUser = await userRepository().findOne({ where: { id: assigned_to } });
+    const assignedUser = await userRepository().findOne({ where: { id: userId } });
     if (!assignedUser) {
       return res.status(404).json({ detail: "Assigned user not found" });
     }
@@ -229,7 +230,7 @@ router.post("/bulk-assign", authenticateToken, requireRole([UserRole.ADMIN, User
       .createQueryBuilder()
       .update(Lead)
       .set({
-        assigned_to: assigned_to,
+        assigned_to: userId,
         assigned_name: assignedUser.name,
         last_activity: new Date(),
       })
