@@ -172,6 +172,41 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
   }
 });
 
+// Assign lead to user (single lead)
+router.post("/:id/assign", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const leadId = req.params.id as string;
+    const { assignee_id, assigned_to } = req.body;
+    const userId = assignee_id || assigned_to;
+
+    if (!userId) {
+      return res.status(400).json({ detail: "assignee_id is required" });
+    }
+
+    const lead = await leadRepository().findOne({ where: { id: leadId } });
+    if (!lead) {
+      return res.status(404).json({ detail: "Lead not found" });
+    }
+
+    const assignedUser = await userRepository().findOne({ where: { id: userId } });
+    if (!assignedUser) {
+      return res.status(404).json({ detail: "User not found" });
+    }
+
+    lead.assigned_to = userId;
+    lead.assigned_name = assignedUser.name;
+    lead.last_activity = new Date();
+    await leadRepository().save(lead);
+
+    await logActivity(req.user!.id, req.user!.name, "assigned_lead", lead.id, "lead", lead.name, `Assigned to ${assignedUser.name}`);
+
+    res.json(lead);
+  } catch (error) {
+    console.error("Assign lead error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 // Bulk assign leads
 router.post("/bulk-assign", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.TEAM_LEAD]), async (req: AuthRequest, res: Response) => {
   try {
