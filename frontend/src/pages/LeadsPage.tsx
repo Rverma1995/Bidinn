@@ -202,6 +202,9 @@ interface CreateLeadDialogProps {
 function CreateLeadDialog({ open, onOpenChange, onSuccess }: CreateLeadDialogProps) {
   const { api } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [showDuplicateAlert, setShowDuplicateAlert] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -212,119 +215,279 @@ function CreateLeadDialog({ open, onOpenChange, onSuccess }: CreateLeadDialogPro
     notes: '',
   });
 
+  // Check for duplicates when phone or email changes
+  const checkForDuplicates = async () => {
+    if (!formData.phone && !formData.email) {
+      setDuplicates([]);
+      return;
+    }
+
+    setCheckingDuplicate(true);
+    try {
+      const response = await api.post('/leads/check-duplicate', {
+        phone: formData.phone,
+        email: formData.email,
+      });
+      setDuplicates(response.data.duplicates || []);
+    } catch (error) {
+      console.error('Duplicate check error:', error);
+    } finally {
+      setCheckingDuplicate(false);
+    }
+  };
+
+  // Debounced duplicate check
+  useEffect(() => {
+    if (!open) return;
+    const timer = setTimeout(checkForDuplicates, 500);
+    return () => clearTimeout(timer);
+  }, [formData.phone, formData.email, open]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // If duplicates exist and user hasn't confirmed, show alert
+    if (duplicates.length > 0 && !showDuplicateAlert) {
+      setShowDuplicateAlert(true);
+      return;
+    }
+
     setLoading(true);
     try {
-      await api.post('/leads', formData);
+      await api.post('/leads', {
+        ...formData,
+        force_create: showDuplicateAlert, // Force create if user confirmed
+      });
       toast.success('Lead created successfully');
       onSuccess();
       onOpenChange(false);
       setFormData({ name: '', phone: '', email: '', source: '', campaign: '', city: '', notes: '' });
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to create lead');
+      setDuplicates([]);
+      setShowDuplicateAlert(false);
+    } catch (error: any) {
+      if (error.response?.status === 409 && error.response?.data?.duplicates) {
+        // Duplicate detected by backend
+        setDuplicates(error.response.data.duplicates);
+        setShowDuplicateAlert(true);
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to create lead');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleMergeLead = async (targetLeadId: string) => {
+    setLoading(true);
+    try {
+      await api.post('/leads/merge', {
+        sourceLeadId: null, // No source yet since we're creating
+        targetLeadId: targetLeadId,
+        mergeData: {
+          name: formData.name || undefined,
+          phone: formData.phone || undefined,
+          email: formData.email || undefined,
+          city: formData.city || undefined,
+          notes: formData.notes || undefined,
+        },
+      });
+      toast.success('Lead data merged successfully! Managers and admins have been notified.');
+      onSuccess();
+      onOpenChange(false);
+      setFormData({ name: '', phone: '', email: '', source: '', campaign: '', city: '', notes: '' });
+      setDuplicates([]);
+      setShowDuplicateAlert(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to merge lead');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetDialog = () => {
+    setFormData({ name: '', phone: '', email: '', source: '', campaign: '', city: '', notes: '' });
+    setDuplicates([]);
+    setShowDuplicateAlert(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]" data-testid="create-lead-dialog">
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) resetDialog();
+      onOpenChange(isOpen);
+    }}>
+      <DialogContent className="sm:max-w-[550px]" data-testid="create-lead-dialog">
         <DialogHeader>
           <DialogTitle>Create New Lead</DialogTitle>
           <DialogDescription>
             Add a new lead to your pipeline
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  data-testid="lead-name-input"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone *</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
-                  data-testid="lead-phone-input"
-                />
+        
+        {/* Duplicate Alert */}
+        {showDuplicateAlert && duplicates.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  Potential Duplicate Detected
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  A lead with similar contact info already exists. What would you like to do?
+                </p>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
+            <div className="space-y-2 ml-7">
+              {duplicates.map((dup) => (
+                <div key={dup.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border">
+                  <div>
+                    <p className="font-medium text-sm">{dup.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {dup.phone} {dup.email && `• ${dup.email}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Status: {getStatusLabel(dup.status)} • {dup.assigned_name || 'Unassigned'}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleMergeLead(dup.id)}
+                    disabled={loading}
+                  >
+                    Merge Into This
+                  </Button>
+                </div>
+              ))}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="source">Source *</Label>
-                <Select
-                  value={formData.source}
-                  onValueChange={(value) => setFormData({ ...formData, source: value })}
-                  required
-                >
-                  <SelectTrigger data-testid="lead-source-select">
-                    <SelectValue placeholder="Select source" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LEAD_SOURCES.map((source) => (
-                      <SelectItem key={source} value={source}>{source}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
-                <Input
-                  id="city"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="campaign">Campaign</Label>
-              <Input
-                id="campaign"
-                value={formData.campaign}
-                onChange={(e) => setFormData({ ...formData, campaign: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-              />
+            <div className="flex gap-2 ml-7 pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowDuplicateAlert(false)}
+              >
+                Go Back
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSubmit}
+                disabled={loading}
+              >
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Create Anyway
+              </Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading} data-testid="create-lead-submit">
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Create Lead
-            </Button>
-          </DialogFooter>
-        </form>
+        )}
+
+        {!showDuplicateAlert && (
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                    data-testid="lead-name-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone *</Label>
+                  <div className="relative">
+                    <Input
+                      id="phone"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      required
+                      data-testid="lead-phone-input"
+                      className={duplicates.length > 0 ? 'border-amber-500' : ''}
+                    />
+                    {checkingDuplicate && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={duplicates.length > 0 && formData.email ? 'border-amber-500' : ''}
+                  />
+                </div>
+              </div>
+              
+              {/* Inline duplicate warning */}
+              {duplicates.length > 0 && !showDuplicateAlert && (
+                <div className="flex items-center gap-2 text-amber-600 text-sm">
+                  <AlertTriangle className="w-4 h-4" />
+                  {duplicates.length} potential duplicate{duplicates.length > 1 ? 's' : ''} found
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="source">Source *</Label>
+                  <Select
+                    value={formData.source}
+                    onValueChange={(value) => setFormData({ ...formData, source: value })}
+                    required
+                  >
+                    <SelectTrigger data-testid="lead-source-select">
+                      <SelectValue placeholder="Select source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LEAD_SOURCES.map((source) => (
+                        <SelectItem key={source} value={source}>{source}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="campaign">Campaign</Label>
+                <Input
+                  id="campaign"
+                  value={formData.campaign}
+                  onChange={(e) => setFormData({ ...formData, campaign: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading} data-testid="create-lead-submit">
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Create Lead
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
