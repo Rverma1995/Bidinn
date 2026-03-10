@@ -77,15 +77,31 @@ router.post("/", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGE
   }
 });
 
-// Update user (Admin/Manager only)
-router.put("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
+// Update user (Admin/Manager only, or self-update for name/email)
+router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { name, email, role, is_active } = req.body;
     const userId = req.params.id as string;
+    const currentUser = req.user!;
 
     const user = await userRepository().findOne({ where: { id: userId } });
     if (!user) {
       return res.status(404).json({ detail: "User not found" });
+    }
+
+    // Check permissions: self-update allowed for name/email only, admin/manager can update everything
+    const isSelfUpdate = currentUser.id === userId;
+    const isAdminOrManager = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
+
+    if (!isSelfUpdate && !isAdminOrManager) {
+      return res.status(403).json({ detail: "You don't have permission to update this user" });
+    }
+
+    // Self-update: can only change name and email
+    if (isSelfUpdate && !isAdminOrManager) {
+      if (role || typeof is_active === "boolean") {
+        return res.status(403).json({ detail: "You can only update your name and email" });
+      }
     }
 
     // Check if email is being changed to an existing email
@@ -98,8 +114,12 @@ router.put("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANA
     }
 
     if (name) user.name = name;
-    if (role) user.role = role;
-    if (typeof is_active === "boolean") user.is_active = is_active;
+    
+    // Only admin/manager can change role and is_active
+    if (isAdminOrManager) {
+      if (role) user.role = role;
+      if (typeof is_active === "boolean") user.is_active = is_active;
+    }
 
     await userRepository().save(user);
 
