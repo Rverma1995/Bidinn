@@ -204,4 +204,135 @@ router.get("/pipeline", authenticateToken, async (req: AuthRequest, res: Respons
   }
 });
 
+// Get pipeline stats (alternate endpoint)
+router.get("/pipeline-stats", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const statuses = Object.values(LeadStatus);
+    const pipeline: Record<string, number> = {};
+
+    for (const status of statuses) {
+      pipeline[status] = await leadRepository().count({ where: { status } });
+    }
+
+    res.json(pipeline);
+  } catch (error) {
+    console.error("Get pipeline-stats error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Get overdue followups
+router.get("/overdue-followups", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const now = new Date();
+    const leads = await leadRepository()
+      .createQueryBuilder("lead")
+      .where("lead.next_followup < :now", { now })
+      .andWhere("lead.next_followup IS NOT NULL")
+      .andWhere("lead.status NOT IN (:...statuses)", { statuses: [LeadStatus.WON, LeadStatus.LOST] })
+      .orderBy("lead.next_followup", "ASC")
+      .getMany();
+
+    res.json(leads);
+  } catch (error) {
+    console.error("Get overdue-followups error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Get agent performance
+router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { start_date, end_date } = req.query;
+
+    const users = await userRepository().find({
+      where: { role: In([UserRole.SALES_REP, UserRole.TEAM_LEAD]) },
+    });
+
+    const performance = await Promise.all(
+      users.map(async (user) => {
+        let callsQuery = callRepository().createQueryBuilder("call").where("call.user_id = :userId", { userId: user.id });
+        let bookingsQuery = bookingRepository().createQueryBuilder("booking").where("booking.created_by_id = :userId", { userId: user.id });
+
+        if (start_date) {
+          callsQuery = callsQuery.andWhere("call.created_at >= :start", { start: new Date(start_date as string) });
+          bookingsQuery = bookingsQuery.andWhere("booking.created_at >= :start", { start: new Date(start_date as string) });
+        }
+        if (end_date) {
+          callsQuery = callsQuery.andWhere("call.created_at <= :end", { end: new Date(end_date as string) });
+          bookingsQuery = bookingsQuery.andWhere("booking.created_at <= :end", { end: new Date(end_date as string) });
+        }
+
+        const callsCount = await callsQuery.getCount();
+        const bookingsCount = await bookingsQuery.getCount();
+
+        const revenueResult = await bookingsQuery
+          .select("SUM(booking.payment_amount)", "total")
+          .andWhere("booking.payment_status IN (:...statuses)", { statuses: [PaymentStatus.PAID, PaymentStatus.PARTIAL] })
+          .getRawOne();
+
+        return {
+          id: user.id,
+          name: user.name,
+          role: user.role,
+          calls_made: callsCount,
+          bookings_created: bookingsCount,
+          revenue: parseFloat(revenueResult?.total || "0"),
+        };
+      })
+    );
+
+    res.json(performance);
+  } catch (error) {
+    console.error("Get agent-performance error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Get revenue trend
+router.get("/revenue-trend", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    // Get last 30 days revenue by day
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    
+    const result = await bookingRepository()
+      .createQueryBuilder("booking")
+      .select("DATE(booking.created_at)", "date")
+      .addSelect("SUM(booking.payment_amount)", "revenue")
+      .where("booking.created_at >= :start", { start: thirtyDaysAgo })
+      .andWhere("booking.payment_status IN (:...statuses)", { statuses: [PaymentStatus.PAID, PaymentStatus.PARTIAL] })
+      .groupBy("DATE(booking.created_at)")
+      .orderBy("date", "ASC")
+      .getRawMany();
+
+    res.json(result.map(r => ({ date: r.date, revenue: parseFloat(r.revenue || "0") })));
+  } catch (error) {
+    console.error("Get revenue-trend error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Get source performance
+router.get("/source-performance", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await leadRepository()
+      .createQueryBuilder("lead")
+      .select("lead.source", "source")
+      .addSelect("COUNT(*)", "total")
+      .addSelect("SUM(CASE WHEN lead.status = 'won' THEN 1 ELSE 0 END)", "won")
+      .groupBy("lead.source")
+      .getRawMany();
+
+    res.json(result.map(r => ({
+      source: r.source,
+      total: parseInt(r.total || "0"),
+      won: parseInt(r.won || "0"),
+      conversion_rate: r.total > 0 ? (r.won / r.total) * 100 : 0,
+    })));
+  } catch (error) {
+    console.error("Get source-performance error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 export default router;
