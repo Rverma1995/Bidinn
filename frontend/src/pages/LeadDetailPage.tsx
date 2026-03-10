@@ -760,6 +760,73 @@ export default function LeadDetailPage() {
           fetchCalls();
         }}
       />
+
+      {/* Closed Reason Dialog */}
+      <Dialog open={closedReasonDialogOpen} onOpenChange={setClosedReasonDialogOpen}>
+        <DialogContent className="sm:max-w-[450px]" data-testid="closed-reason-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              Reason Required
+            </DialogTitle>
+            <DialogDescription>
+              Please provide a reason for marking this lead as {pendingStatusChange === 'lost' ? 'Lost' : 'Not Interested'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="closed-reason">Reason *</Label>
+              <Select
+                value={closedReason}
+                onValueChange={setClosedReason}
+              >
+                <SelectTrigger data-testid="closed-reason-select">
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLOSED_REASONS.map((reason) => (
+                    <SelectItem key={reason.value} value={reason.value}>
+                      {reason.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="closed-reason-notes">Additional Notes (Optional)</Label>
+              <Textarea
+                id="closed-reason-notes"
+                value={closedReasonNotes}
+                onChange={(e) => setClosedReasonNotes(e.target.value)}
+                placeholder="Any additional details..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                setClosedReasonDialogOpen(false);
+                setPendingStatusChange(null);
+                setClosedReason('');
+                setClosedReasonNotes('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleClosedReasonSubmit} 
+              disabled={saving || !closedReason}
+              data-testid="closed-reason-submit"
+            >
+              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
