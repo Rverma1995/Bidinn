@@ -71,6 +71,10 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
   const [nextFollowup, setNextFollowup] = useState('');
   const [newStatus, setNewStatus] = useState(lead?.status || '');
   const [duration, setDuration] = useState(5);
+  const [closedReasonDialogOpen, setClosedReasonDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ outcome: string; status: string } | null>(null);
+  const [closedReason, setClosedReason] = useState('');
+  const [closedReasonNotes, setClosedReasonNotes] = useState('');
 
   useEffect(() => {
     if (lead) {
@@ -79,10 +83,34 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
       setNotes('');
       setNextFollowup('');
       setDuration(5);
+      setClosedReason('');
+      setClosedReasonNotes('');
     }
   }, [lead]);
 
-  const handleQuickAction = async (outcome, status) => {
+  const handleQuickAction = async (outcome: string, status: string, reason?: string, reasonNotes?: string) => {
+    // Check transition rules
+    if (status !== lead.status) {
+      const transitionCheck = isTransitionAllowed(lead.status, status);
+      if (!transitionCheck.allowed) {
+        toast.error(transitionCheck.message);
+        return;
+      }
+
+      // Check assignment requirement
+      if (STATUSES_REQUIRING_ASSIGNMENT.includes(status) && !lead.assigned_to) {
+        toast.error(`Lead must be assigned before moving to ${getStatusLabel(status)} status`);
+        return;
+      }
+
+      // Check if reason is required
+      if (STATUSES_REQUIRING_REASON.includes(status) && !reason) {
+        setPendingAction({ outcome, status });
+        setClosedReasonDialogOpen(true);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       // Log the call
@@ -96,16 +124,43 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
 
       // Update lead status if changed
       if (status !== lead.status) {
-        await api.put(`/leads/${lead.id}`, { status });
+        const updateData: any = { status };
+        if (reason) {
+          updateData.closed_reason = reason;
+          updateData.closed_reason_notes = reasonNotes;
+        }
+        await api.put(`/leads/${lead.id}`, updateData);
       }
 
       toast.success('Lead updated successfully!');
       onSuccess();
       onClose();
-    } catch (error) {
-      toast.error('Failed to update lead');
+    } catch (error: any) {
+      const errorDetail = error.response?.data?.detail || 'Failed to update lead';
+      const rule = error.response?.data?.rule;
+      
+      if (rule === 'closed_reason_required') {
+        setPendingAction({ outcome, status });
+        setClosedReasonDialogOpen(true);
+      } else {
+        toast.error(errorDetail);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClosedReasonSubmit = async () => {
+    if (!closedReason) {
+      toast.error('Please select a reason');
+      return;
+    }
+    if (pendingAction) {
+      await handleQuickAction(pendingAction.outcome, pendingAction.status, closedReason, closedReasonNotes);
+      setClosedReasonDialogOpen(false);
+      setPendingAction(null);
+      setClosedReason('');
+      setClosedReasonNotes('');
     }
   };
 
