@@ -12,8 +12,9 @@ const activityRepository = () => AppDataSource.getRepository(Activity);
 // Get calls for a lead
 router.get("/lead/:leadId", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const leadId = req.params.leadId as string;
     const calls = await callRepository().find({
-      where: { lead_id: req.params.leadId },
+      where: { lead_id: leadId },
       order: { created_at: "DESC" },
     });
     res.json(calls);
@@ -45,7 +46,7 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
       outcome: outcome as CallOutcome,
       duration_minutes: duration_minutes || 0,
       notes,
-      next_followup: next_followup ? new Date(next_followup) : null,
+      next_followup: next_followup ? new Date(next_followup) : undefined,
     });
 
     await callRepository().save(call);
