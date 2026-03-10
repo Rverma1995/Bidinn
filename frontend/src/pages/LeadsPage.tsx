@@ -72,6 +72,7 @@ import {
   Download,
   CheckSquare,
   Square,
+  Trash2,
 } from 'lucide-react';
 import { Checkbox } from '../components/ui/checkbox';
 
