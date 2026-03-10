@@ -53,7 +53,7 @@ export class Lead {
   last_activity: Date;
 
   @Column({ type: "datetime", nullable: true })
-  next_followup: Date;
+  next_followup: Date | undefined;
 
   @Column({ type: "text", nullable: true })
   notes: string;
