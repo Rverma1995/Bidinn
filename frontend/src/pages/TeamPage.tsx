@@ -144,7 +144,7 @@ function CreateUserDialog({ open, onOpenChange, onSuccess }) {
     }
     setLoading(true);
     try {
-      await api.post('/auth/register', formData);
+      await api.post('/users', formData);
       toast.success(`${formData.name} added to the team!`);
       onSuccess();
       onOpenChange(false);
