@@ -752,6 +752,7 @@ export default function LeadsPage() {
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
   const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkAssignee, setBulkAssignee] = useState('');
@@ -767,6 +768,8 @@ export default function LeadsPage() {
     assigned_to: 'all',
     search: '',
   });
+
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     fetchLeads();
