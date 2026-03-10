@@ -44,7 +44,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 // Mark notification as read
 router.put("/:id/read", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const notificationId = req.params.id;
+    const notificationId = req.params.id as string;
     const user = req.user!;
 
     const notification = await notificationRepository().findOne({
