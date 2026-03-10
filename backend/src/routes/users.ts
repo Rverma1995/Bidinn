@@ -25,8 +25,9 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 // Get user by ID
 router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.params.id as string;
     const user = await userRepository().findOne({
-      where: { id: req.params.id },
+      where: { id: userId },
       select: ["id", "email", "name", "role", "is_active", "created_at"],
     });
 
