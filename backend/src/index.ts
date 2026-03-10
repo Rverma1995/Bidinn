@@ -20,6 +20,7 @@ import dashboardRoutes from "./routes/dashboard";
 import activityRoutes from "./routes/activities";
 import metaRoutes from "./routes/meta";
 import paymentRoutes from "./routes/payments";
+import adminRoutes from "./routes/admin";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "8001");
