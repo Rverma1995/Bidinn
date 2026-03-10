@@ -1,31 +1,40 @@
-import { Router, Request, Response } from 'express';
-import { RowDataPacket } from 'mysql2';
-import pool from '../config/database';
-import { authMiddleware } from '../middleware/auth';
+import { Router, Response } from "express";
+import { AppDataSource } from "../config/data-source";
+import { Activity } from "../entities";
+import { authenticateToken, AuthRequest } from "../middleware/auth";
 
 const router = Router();
+const activityRepository = () => AppDataSource.getRepository(Activity);
 
-// Get activities
-router.get('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+// Get all activities
+router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { lead_id, limit = '50' } = req.query;
-
-    let query = 'SELECT * FROM activities WHERE 1=1';
-    const params: any[] = [];
-
-    if (lead_id) {
-      query += ' AND lead_id = ?';
-      params.push(lead_id);
-    }
-
-    query += ' ORDER BY created_at DESC LIMIT ?';
-    params.push(parseInt(limit as string));
-
-    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
-    res.json(rows);
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    const activities = await activityRepository().find({
+      order: { created_at: "DESC" },
+      take: limit,
+    });
+    
+    res.json(activities);
   } catch (error) {
-    console.error('Get activities error:', error);
-    res.status(500).json({ detail: 'Failed to fetch activities' });
+    console.error("Get activities error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Get activities for a specific target
+router.get("/target/:targetId", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const activities = await activityRepository().find({
+      where: { target_id: req.params.targetId },
+      order: { created_at: "DESC" },
+    });
+    
+    res.json(activities);
+  } catch (error) {
+    console.error("Get target activities error:", error);
+    res.status(500).json({ detail: "Internal server error" });
   }
 });
 
