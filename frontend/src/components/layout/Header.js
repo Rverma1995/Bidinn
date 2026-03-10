@@ -46,10 +46,20 @@ export function Header({ onMenuClick, showMobileMenu }) {
   const fetchNotifications = async () => {
     try {
       const response = await api.get('/notifications');
-      setNotifications(response.data);
-      setUnreadCount(response.data.filter(n => !n.is_read).length);
+      // API returns { notifications: [...], unread_count: N }
+      const data = response.data;
+      if (data.notifications) {
+        setNotifications(data.notifications);
+        setUnreadCount(data.unread_count || 0);
+      } else {
+        // Fallback for old format
+        setNotifications(Array.isArray(data) ? data : []);
+        setUnreadCount(Array.isArray(data) ? data.filter(n => !n.is_read).length : 0);
+      }
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
     }
   };
 
