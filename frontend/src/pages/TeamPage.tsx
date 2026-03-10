@@ -118,7 +118,7 @@ function LeaderboardCard({ entry, rank }) {
           {formatCurrency(entry.revenue)}
         </p>
         <p className="text-sm text-muted-foreground">
-          {entry.conversion_rate.toFixed(1)}% conv.
+          {(entry.conversion_rate || 0).toFixed(1)}% conv.
         </p>
       </div>
     </div>
