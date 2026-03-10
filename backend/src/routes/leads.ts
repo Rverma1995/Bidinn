@@ -744,8 +744,8 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
   }
 });
 
-// Delete lead
-router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
+// Delete lead (Admin only)
+router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
   try {
     const leadId = req.params.id as string;
     const lead = await leadRepository().findOne({ where: { id: leadId } });
@@ -758,6 +758,31 @@ router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.M
     res.json({ message: "Lead deleted successfully" });
   } catch (error) {
     console.error("Delete lead error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Bulk delete leads (Admin only)
+router.post("/bulk-delete", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
+  try {
+    const { lead_ids } = req.body;
+
+    if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
+      return res.status(400).json({ detail: "lead_ids array is required" });
+    }
+
+    await leadRepository()
+      .createQueryBuilder()
+      .delete()
+      .from(Lead)
+      .whereInIds(lead_ids)
+      .execute();
+
+    await logActivity(req.user!.id, req.user!.name, "bulk_deleted_leads", "bulk", "lead", `${lead_ids.length} leads`, `Deleted ${lead_ids.length} leads`);
+
+    res.json({ message: `${lead_ids.length} leads deleted successfully` });
+  } catch (error) {
+    console.error("Bulk delete error:", error);
     res.status(500).json({ detail: "Internal server error" });
   }
 });
