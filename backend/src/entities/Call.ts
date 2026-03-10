@@ -36,7 +36,7 @@ export class Call {
   notes: string;
 
   @Column({ type: "datetime", nullable: true })
-  next_followup: Date;
+  next_followup: Date | undefined;
 
   @CreateDateColumn()
   created_at: Date;
