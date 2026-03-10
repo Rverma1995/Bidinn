@@ -298,15 +298,8 @@ export default function LeadDetailPage() {
   const handleSave = async () => {
     // Check if status is changing to one that requires a reason
     const statusChanging = editData.status && editData.status !== lead?.status;
-    const needsReason = statusChanging && STATUSES_REQUIRING_REASON.includes(editData.status!);
     
-    if (needsReason && !editData.closed_reason) {
-      setPendingStatusChange(editData.status!);
-      setClosedReasonDialogOpen(true);
-      return;
-    }
-
-    // Check transition rules
+    // Check transition rules FIRST (Rule 5)
     if (statusChanging && lead) {
       const transitionCheck = isTransitionAllowed(lead.status, editData.status!);
       if (!transitionCheck.allowed) {
@@ -315,9 +308,17 @@ export default function LeadDetailPage() {
       }
     }
 
-    // Check assignment requirement
+    // Check assignment requirement (Rule 1)
     if (statusChanging && STATUSES_REQUIRING_ASSIGNMENT.includes(editData.status!) && !lead?.assigned_to) {
       toast.error(`Lead must be assigned to a salesperson before moving to ${getStatusLabel(editData.status!)} status`);
+      return;
+    }
+
+    // Check if closed reason is required (Rule 2)
+    const needsReason = statusChanging && STATUSES_REQUIRING_REASON.includes(editData.status!);
+    if (needsReason && !editData.closed_reason) {
+      setPendingStatusChange(editData.status!);
+      setClosedReasonDialogOpen(true);
       return;
     }
 
