@@ -25,8 +25,9 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 // Get booking by ID
 router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const bookingId = req.params.id as string;
     const booking = await bookingRepository().findOne({
-      where: { id: req.params.id },
+      where: { id: bookingId },
     });
 
     if (!booking) {
@@ -62,7 +63,7 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
       check_in: new Date(check_in),
       check_out: new Date(check_out),
       final_price: parseFloat(final_price),
-      bid_price: bid_price ? parseFloat(bid_price) : null,
+      bid_price: bid_price ? parseFloat(bid_price) : undefined,
       payment_status: PaymentStatus.UNPAID,
       payment_amount: 0,
       notes,
@@ -95,7 +96,8 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 // Update booking
 router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const booking = await bookingRepository().findOne({ where: { id: req.params.id } });
+    const bookingId = req.params.id as string;
+    const booking = await bookingRepository().findOne({ where: { id: bookingId } });
 
     if (!booking) {
       return res.status(404).json({ detail: "Booking not found" });
@@ -107,7 +109,7 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
     if (check_in) booking.check_in = new Date(check_in);
     if (check_out) booking.check_out = new Date(check_out);
     if (final_price !== undefined) booking.final_price = parseFloat(final_price);
-    if (bid_price !== undefined) booking.bid_price = bid_price ? parseFloat(bid_price) : null;
+    if (bid_price !== undefined) booking.bid_price = bid_price ? parseFloat(bid_price) : undefined;
     if (payment_status) booking.payment_status = payment_status;
     if (payment_amount !== undefined) booking.payment_amount = parseFloat(payment_amount);
     if (notes !== undefined) booking.notes = notes;
@@ -125,7 +127,8 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
 // Delete booking
 router.delete("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const booking = await bookingRepository().findOne({ where: { id: req.params.id } });
+    const bookingId = req.params.id as string;
+    const booking = await bookingRepository().findOne({ where: { id: bookingId } });
 
     if (!booking) {
       return res.status(404).json({ detail: "Booking not found" });
