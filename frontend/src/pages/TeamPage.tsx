@@ -663,46 +663,44 @@ export default function TeamPage() {
                   </TableCell>
                   {isManager && (
                     <TableCell className="text-right">
-                      {user.id !== currentUser?.id && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" data-testid={`user-actions-${user.id}`}>
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEditUserDialog(user)}>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Details
-                            </DropdownMenuItem>
-                            {isAdmin && (
-                              <>
-                                <DropdownMenuItem onClick={() => openResetPasswordDialog(user)}>
-                                  <KeyRound className="w-4 h-4 mr-2" />
-                                  Reset Password
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => setConfirmDeactivate(user)}
-                                  className={user.is_active ? 'text-red-600' : 'text-emerald-600'}
-                                >
-                                  {user.is_active ? (
-                                    <>
-                                      <UserX className="w-4 h-4 mr-2" />
-                                      Deactivate User
-                                    </>
-                                  ) : (
-                                    <>
-                                      <UserCheck className="w-4 h-4 mr-2" />
-                                      Activate User
-                                    </>
-                                  )}
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" data-testid={`user-actions-${user.id}`}>
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEditUserDialog(user)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit Details
+                          </DropdownMenuItem>
+                          {isAdmin && user.id !== currentUser?.id && (
+                            <>
+                              <DropdownMenuItem onClick={() => openResetPasswordDialog(user)}>
+                                <KeyRound className="w-4 h-4 mr-2" />
+                                Reset Password
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setConfirmDeactivate(user)}
+                                className={user.is_active ? 'text-red-600' : 'text-emerald-600'}
+                              >
+                                {user.is_active ? (
+                                  <>
+                                    <UserX className="w-4 h-4 mr-2" />
+                                    Deactivate User
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserCheck className="w-4 h-4 mr-2" />
+                                    Activate User
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   )}
                 </TableRow>
