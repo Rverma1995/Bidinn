@@ -21,7 +21,7 @@ class TestBugFixes:
         """Setup test data and get auth tokens"""
         self.admin_email = "alex@bidinn.com"
         self.admin_password = "password123"
-        self.manager_email = "sarah@bidinn.com"
+        self.manager_email = "robert@bidinn.com"  # Actual manager user
         self.manager_password = "password123"
         
         # Get admin token
