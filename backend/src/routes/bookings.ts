@@ -9,6 +9,33 @@ const bookingRepository = () => AppDataSource.getRepository(Booking);
 const leadRepository = () => AppDataSource.getRepository(Lead);
 const activityRepository = () => AppDataSource.getRepository(Activity);
 
+// Get booking reasons - MUST be before /:id route
+router.get("/reasons", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const reasons = [
+      "Flight Ticket",
+      "Dubai Tour",
+      "Thailand Tour", 
+      "Manali Tour",
+      "Sri Lanka",
+      "Maldives",
+      "Singapore",
+      "Europe Tour",
+      "Cruise Package",
+      "Honeymoon Package",
+      "Family Vacation",
+      "Corporate Trip",
+      "Adventure Trip",
+      "Pilgrimage",
+      "Other",
+    ];
+    res.json(reasons);
+  } catch (error) {
+    console.error("Get booking reasons error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 // Get all bookings
 router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
@@ -138,33 +165,6 @@ router.delete("/:id", authenticateToken, async (req: AuthRequest, res: Response)
     res.json({ message: "Booking deleted successfully" });
   } catch (error) {
     console.error("Delete booking error:", error);
-    res.status(500).json({ detail: "Internal server error" });
-  }
-});
-
-// Get booking reasons
-router.get("/reasons", authenticateToken, async (req: AuthRequest, res: Response) => {
-  try {
-    const reasons = [
-      "Flight Ticket",
-      "Dubai Tour",
-      "Thailand Tour", 
-      "Manali Tour",
-      "Sri Lanka",
-      "Maldives",
-      "Singapore",
-      "Europe Tour",
-      "Cruise Package",
-      "Honeymoon Package",
-      "Family Vacation",
-      "Corporate Trip",
-      "Adventure Trip",
-      "Pilgrimage",
-      "Other",
-    ];
-    res.json(reasons);
-  } catch (error) {
-    console.error("Get booking reasons error:", error);
     res.status(500).json({ detail: "Internal server error" });
   }
 });
