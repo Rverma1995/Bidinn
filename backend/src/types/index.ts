@@ -163,10 +163,17 @@ export interface TokenPayload {
   exp: number;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+}
+
 declare global {
   namespace Express {
     interface Request {
-      user?: UserResponse;
+      user?: AuthUser;
     }
   }
 }
