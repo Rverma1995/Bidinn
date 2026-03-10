@@ -88,7 +88,7 @@ router.put("/mark-all-read", authenticateToken, async (req: AuthRequest, res: Re
 // Delete notification
 router.delete("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const notificationId = req.params.id;
+    const notificationId = req.params.id as string;
     const user = req.user!;
 
     const notification = await notificationRepository().findOne({
