@@ -243,6 +243,10 @@ export default function LeadDetailPage() {
   const [saving, setSaving] = useState(false);
   const [logCallOpen, setLogCallOpen] = useState(false);
   const [editData, setEditData] = useState<EditLeadData>({});
+  const [closedReasonDialogOpen, setClosedReasonDialogOpen] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
+  const [closedReason, setClosedReason] = useState('');
+  const [closedReasonNotes, setClosedReasonNotes] = useState('');
 
   useEffect(() => {
     fetchLead();
