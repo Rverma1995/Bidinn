@@ -1,7 +1,7 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 10.0  
-**Last Updated:** March 6, 2026  
+**Version:** 11.0  
+**Last Updated:** March 10, 2026  
 **Product Name:** Bidinn  
 **Product Type:** B2B Sales CRM Platform
 
@@ -18,7 +18,8 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 ### Backend
 - **Framework:** Express.js (Node.js)
 - **Language:** TypeScript
-- **Database:** MySQL (MariaDB)
+- **ORM:** TypeORM
+- **Database:** AWS RDS MySQL (External, Persistent)
 - **Authentication:** JWT
 
 ### Frontend
@@ -57,16 +58,69 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - ✅ Sales Rep Dashboard with Uncontacted & Overdue Leads Alerts
 - ✅ **Meta Lead Ads Integration** (Facebook/Instagram real-time webhook)
 
-### Bug Fixes (March 6, 2026)
-- ✅ Leads table view shows Name, Phone, Email, Source columns
-- ✅ Booking creation fixed (added booking_reason column)
-- ✅ Booking form simplified: "Amount Received (₹)" replaces bid_price/final_price
-- ✅ Sales Rep visibility scoping: can only see assigned leads (not unassigned)
-- ✅ Dashboard alerts (Uncontacted Leads, Overdue Follow-ups) visible to all roles
+### New Lead Management Rules (March 10, 2026) 🆕
+- ✅ **Rule 1: Lead Assignment Enforcement** - Leads must be assigned before moving to Interested/Not Answered/Follow-up stages
+- ✅ **Rule 2: Closed Lead Reason Capture** - Required reason selection when marking lead as Lost or Not Interested (10 predefined reasons)
+- ✅ **Rule 3: Duplicate Lead Detection** - Checks phone/email on new lead creation, shows merge or create-anyway options
+- ✅ **Rule 4: Idle Lead Escalation** - Cron job (every 6 hours) notifies managers/admins about leads with no activity for 5+ days
+- ✅ **Rule 5: Stage Transition Restriction** - Blocks direct transition from Interested/Follow-up to Not Interested (must go through Won or Lost)
 
 ---
 
-## 4. Meta Lead Ads Integration
+## 4. Lead Statuses & Business Rules
+
+### Lead Stages
+| Status | Label | Description |
+|--------|-------|-------------|
+| new | New | Freshly created lead |
+| not_answered | Not Answered | Call attempted but not answered |
+| interested | Interested | Lead has shown interest |
+| followup | Follow-up | Scheduled for follow-up |
+| not_interested | Not Interested | Lead not interested (requires reason) |
+| won | Won | Deal closed successfully |
+| lost | Lost | Deal lost (requires reason) |
+
+### Closed Reasons (for Lost/Not Interested)
+1. Price Too High
+2. Booked Elsewhere
+3. Not Travelling
+4. No Response
+5. Just Browsing
+6. Wrong Contact
+7. Went to Competitor
+8. Budget Issues
+9. Timing Not Right
+10. Other
+
+### Stage Transition Rules
+- **New** → Can go to: Not Answered, Interested, Not Interested, Follow-up, Won, Lost
+- **Not Answered** → Can go to: New, Interested, Not Interested, Follow-up, Won, Lost
+- **Interested** → Can go to: New, Not Answered, Follow-up, Won, Lost (❌ Cannot go to Not Interested)
+- **Follow-up** → Can go to: New, Not Answered, Interested, Won, Lost (❌ Cannot go to Not Interested)
+- **Not Interested** → Can go to: New (reopen only)
+- **Won** → Final stage (no transitions)
+- **Lost** → Can go to: New (reopen only)
+
+---
+
+## 5. Notifications System
+
+### Notification Types
+- `idle_lead` - Alerts for leads with no activity for 5+ days
+- `duplicate_lead` - Alerts when duplicate leads are detected
+- `lead_merged` - Confirmation when leads are merged
+- `lead_assignment` - Assignment notifications
+- `system` - General system notifications
+
+### API Endpoints
+- `GET /api/notifications` - Get notifications (with unread_count)
+- `PUT /api/notifications/:id/read` - Mark single notification as read
+- `PUT /api/notifications/mark-all-read` - Mark all as read
+- `DELETE /api/notifications/:id` - Delete notification
+
+---
+
+## 6. Meta Lead Ads Integration
 
 ### How It Works
 1. Admin configures Meta credentials in Settings page
@@ -79,23 +133,9 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - Page Access Token with `leads_retrieval` permission
 - Facebook Page ID
 
-### API Endpoints
-- `GET /api/meta/config` - Get Meta configuration status
-- `POST /api/meta/config` - Save Meta credentials (Admin only)
-- `GET /api/meta/webhook` - Webhook verification (Meta challenge)
-- `POST /api/meta/webhook` - Receive lead data from Meta
-- `POST /api/meta/test-connection` - Test Meta API connection
-- `GET /api/meta/leads` - Get leads imported from Meta
-
-### Webhook URL
-After configuring credentials, use this webhook URL in Meta Business Suite:
-```
-https://your-domain.com/api/meta/webhook
-```
-
 ---
 
-## 5. Authentication Flow
+## 7. Authentication Flow
 
 ### How Users Login
 1. **Admin creates user account** via Team page → Sets email, name, role, initial password
@@ -112,7 +152,7 @@ https://your-domain.com/api/meta/webhook
 
 ---
 
-## 6. API Endpoints Summary
+## 8. API Endpoints Summary
 
 ### Authentication
 - `POST /api/auth/login` - Login
@@ -125,10 +165,16 @@ https://your-domain.com/api/meta/webhook
 
 ### Leads
 - `GET /api/leads` - List leads
-- `POST /api/leads` - Create lead
+- `POST /api/leads` - Create lead (with duplicate detection)
+- `GET /api/leads/:id` - Get single lead
+- `PUT /api/leads/:id` - Update lead (with rule validations)
 - `POST /api/leads/:id/assign` - Assign lead
 - `POST /api/leads/bulk-assign` - Bulk assign
-- `GET /api/leads/export` - Export CSV
+- `POST /api/leads/bulk-status` - Bulk status update
+- `GET /api/leads/export/csv` - Export CSV
+- `POST /api/leads/check-duplicate` - Check for duplicates
+- `POST /api/leads/merge` - Merge duplicate leads
+- `GET /api/leads/closed-reasons` - Get closed reason options
 
 ### Meta Integration
 - `GET /api/meta/config` - Get config
@@ -137,21 +183,22 @@ https://your-domain.com/api/meta/webhook
 
 ---
 
-## 7. Database Tables
+## 9. Database Tables (TypeORM Entities)
 
 - `users` - User accounts
-- `leads` - Lead records (includes `meta_leadgen_id` for Meta leads)
-- `call_logs` - Call history
+- `leads` - Lead records (includes `closed_reason`, `closed_reason_notes`)
+- `calls` - Call history
 - `bookings` - Booking records
+- `payments` - Payment records
 - `activities` - Activity log
-- `notifications` - User notifications
+- `notifications` - User notifications (new!)
 - `meta_config` - Meta API credentials
 
 ---
 
-## 8. Future Enhancements (Backlog)
+## 10. Future Enhancements (Backlog)
 
-- Google Sheets integration
+- **P1:** Google Sheets integration for lead import/export
 - Email/SMS notifications for overdue leads
 - Mobile app
 - WhatsApp integration
