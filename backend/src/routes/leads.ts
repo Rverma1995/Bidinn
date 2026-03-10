@@ -3,7 +3,6 @@ import { AppDataSource } from "../config/data-source";
 import { Lead, LeadStatus, User, UserRole, Activity } from "../entities";
 import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
-import { In, IsNull, Not, LessThan, MoreThan } from "typeorm";
 
 const router = Router();
 const leadRepository = () => AppDataSource.getRepository(Lead);
@@ -66,8 +65,9 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 // Get lead by ID
 router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const leadId = req.params.id as string;
     const lead = await leadRepository().findOne({
-      where: { id: req.params.id },
+      where: { id: leadId },
       relations: ["calls", "bookings"],
     });
 
@@ -91,7 +91,7 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ detail: "Name, phone, and source are required" });
     }
 
-    let assignedName: string | null = null;
+    let assignedName: string | undefined;
     if (assigned_to) {
       const assignedUser = await userRepository().findOne({ where: { id: assigned_to } });
       if (assignedUser) {
@@ -128,7 +128,8 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 // Update lead
 router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const lead = await leadRepository().findOne({ where: { id: req.params.id } });
+    const leadId = req.params.id as string;
+    const lead = await leadRepository().findOne({ where: { id: leadId } });
 
     if (!lead) {
       return res.status(404).json({ detail: "Lead not found" });
@@ -144,7 +145,7 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
     if (city !== undefined) lead.city = city;
     if (status) lead.status = status;
     if (notes !== undefined) lead.notes = notes;
-    if (next_followup !== undefined) lead.next_followup = next_followup ? new Date(next_followup) : null;
+    if (next_followup !== undefined) lead.next_followup = next_followup ? new Date(next_followup) : undefined;
 
     if (assigned_to !== undefined) {
       if (assigned_to) {
@@ -154,8 +155,8 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
           lead.assigned_name = assignedUser.name;
         }
       } else {
-        lead.assigned_to = null;
-        lead.assigned_name = null;
+        lead.assigned_to = undefined;
+        lead.assigned_name = undefined;
       }
     }
 
@@ -318,7 +319,8 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
 // Delete lead
 router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
   try {
-    const lead = await leadRepository().findOne({ where: { id: req.params.id } });
+    const leadId = req.params.id as string;
+    const lead = await leadRepository().findOne({ where: { id: leadId } });
 
     if (!lead) {
       return res.status(404).json({ detail: "Lead not found" });
