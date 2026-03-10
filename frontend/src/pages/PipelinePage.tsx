@@ -35,6 +35,10 @@ import {
   generateInitials,
   ACTIVE_PIPELINE_STATUSES,
   CALL_OUTCOMES,
+  CLOSED_REASONS,
+  STATUSES_REQUIRING_REASON,
+  STATUSES_REQUIRING_ASSIGNMENT,
+  isTransitionAllowed,
 } from '../lib/utils';
 import {
   Loader2,
