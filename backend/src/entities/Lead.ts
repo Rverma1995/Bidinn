@@ -41,10 +41,10 @@ export class Lead {
   status: LeadStatus;
 
   @Column({ type: "varchar", length: 36, nullable: true })
-  assigned_to: string;
+  assigned_to: string | undefined;
 
   @Column({ type: "varchar", length: 255, nullable: true })
-  assigned_name: string;
+  assigned_name: string | undefined;
 
   @Column({ type: "int", default: 0 })
   attempt_count: number;
