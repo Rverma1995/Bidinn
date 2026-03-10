@@ -370,4 +370,58 @@ router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.M
   }
 });
 
+// Get uncontacted leads
+router.get("/uncontacted", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    let queryBuilder = leadRepository()
+      .createQueryBuilder("lead")
+      .where("lead.status = :status", { status: LeadStatus.NEW })
+      .andWhere("lead.attempt_count = 0")
+      .andWhere("lead.created_at < :oneHourAgo", { oneHourAgo });
+
+    if (user.role === UserRole.SALES_REP) {
+      queryBuilder = queryBuilder.andWhere("lead.assigned_to = :userId", { userId: user.id });
+    }
+
+    const leads = await queryBuilder.orderBy("lead.created_at", "ASC").getMany();
+    res.json(leads);
+  } catch (error) {
+    console.error("Get uncontacted leads error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Bulk update status (alias for bulk-status)
+router.post("/bulk-update-status", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.TEAM_LEAD]), async (req: AuthRequest, res: Response) => {
+  try {
+    const { lead_ids, status } = req.body;
+
+    if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
+      return res.status(400).json({ detail: "lead_ids array is required" });
+    }
+
+    if (!status) {
+      return res.status(400).json({ detail: "status is required" });
+    }
+
+    await leadRepository()
+      .createQueryBuilder()
+      .update(Lead)
+      .set({
+        status: status,
+        last_activity: new Date(),
+      })
+      .whereInIds(lead_ids)
+      .execute();
+
+    res.json({ message: `${lead_ids.length} leads updated to ${status}` });
+  } catch (error) {
+    console.error("Bulk update status error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 export default router;
