@@ -1134,6 +1134,33 @@ export default function LeadsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Bulk Delete Dialog (Admin Only) */}
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]" data-testid="bulk-delete-dialog">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Delete Leads</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedLeads.length} selected lead(s)? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              All associated calls, bookings, and activities for these leads will also be removed.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleBulkDelete} disabled={bulkLoading} data-testid="bulk-delete-submit">
+              {bulkLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete {selectedLeads.length} Lead(s)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Uncontacted Alert Banner */}
       {showUncontactedOnly && (
         <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10">
