@@ -170,7 +170,7 @@ function CreateBookingDialog({ open, onOpenChange, leads, onSuccess }) {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="amount_received">Amount Received (₹) *</Label>
+              <Label htmlFor="amount_received">Package Amount (₹) *</Label>
               <div className="relative">
                 <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
