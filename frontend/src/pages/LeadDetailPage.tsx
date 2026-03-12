@@ -401,7 +401,7 @@ export default function LeadDetailPage() {
 
   if (!lead) return null;
 
-  const salesReps = users.filter(u => ['sales_rep', 'team_lead'].includes(u.role));
+  const salesReps = users.filter(u => ['sales_rep', 'team_lead', 'admin', 'manager'].includes(u.role));
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="lead-detail-page">
