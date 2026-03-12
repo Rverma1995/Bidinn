@@ -243,46 +243,102 @@ router.get("/overdue-followups", authenticateToken, async (req: AuthRequest, res
 // Get agent performance
 router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { start_date, end_date } = req.query;
+    const { agent_id, start_date, end_date } = req.query;
 
-    const users = await userRepository().find({
-      where: { role: In([UserRole.SALES_REP, UserRole.TEAM_LEAD]) },
+    // Get all sales reps, team leads, and managers for the dropdown
+    const allAgents = await userRepository().find({
+      where: { role: In([UserRole.SALES_REP, UserRole.TEAM_LEAD, UserRole.MANAGER]) },
     });
 
-    const performance = await Promise.all(
-      users.map(async (user) => {
-        let callsQuery = callRepository().createQueryBuilder("call").where("call.user_id = :userId", { userId: user.id });
-        let bookingsQuery = bookingRepository().createQueryBuilder("booking").where("booking.created_by_id = :userId", { userId: user.id });
+    // If specific agent is selected, filter to that agent only
+    const usersToProcess = agent_id && agent_id !== 'all' 
+      ? allAgents.filter(u => u.id === agent_id)
+      : allAgents;
 
+    const agents = await Promise.all(
+      usersToProcess.map(async (user) => {
+        // Build base query for leads assigned to this user
+        let leadsQuery = leadRepository().createQueryBuilder("lead").where("lead.assigned_to = :userId", { userId: user.id });
+        
+        // Apply date filters to leads
+        if (start_date) {
+          leadsQuery = leadsQuery.andWhere("lead.created_at >= :start", { start: new Date(start_date as string) });
+        }
+        if (end_date) {
+          leadsQuery = leadsQuery.andWhere("lead.created_at <= :end", { end: new Date(end_date as string) });
+        }
+
+        const totalLeads = await leadsQuery.getCount();
+        
+        // Contacted = any status except 'new'
+        const contacted = await leadsQuery.clone()
+          .andWhere("lead.status != :newStatus", { newStatus: LeadStatus.NEW })
+          .getCount();
+        
+        const notContacted = totalLeads - contacted;
+        
+        // Converted = won status
+        const converted = await leadsQuery.clone()
+          .andWhere("lead.status = :wonStatus", { wonStatus: LeadStatus.WON })
+          .getCount();
+
+        // Get calls made
+        let callsQuery = callRepository().createQueryBuilder("call").where("call.user_id = :userId", { userId: user.id });
         if (start_date) {
           callsQuery = callsQuery.andWhere("call.created_at >= :start", { start: new Date(start_date as string) });
-          bookingsQuery = bookingsQuery.andWhere("booking.created_at >= :start", { start: new Date(start_date as string) });
         }
         if (end_date) {
           callsQuery = callsQuery.andWhere("call.created_at <= :end", { end: new Date(end_date as string) });
+        }
+        const callsMade = await callsQuery.getCount();
+
+        // Get revenue from bookings
+        let bookingsQuery = bookingRepository().createQueryBuilder("booking").where("booking.created_by_id = :userId", { userId: user.id });
+        if (start_date) {
+          bookingsQuery = bookingsQuery.andWhere("booking.created_at >= :start", { start: new Date(start_date as string) });
+        }
+        if (end_date) {
           bookingsQuery = bookingsQuery.andWhere("booking.created_at <= :end", { end: new Date(end_date as string) });
         }
-
-        const callsCount = await callsQuery.getCount();
-        const bookingsCount = await bookingsQuery.getCount();
-
+        
         const revenueResult = await bookingsQuery
           .select("SUM(booking.payment_amount)", "total")
           .andWhere("booking.payment_status IN (:...statuses)", { statuses: [PaymentStatus.PAID, PaymentStatus.PARTIAL] })
           .getRawOne();
 
+        const totalRevenue = parseFloat(revenueResult?.total || "0");
+        const conversionRate = totalLeads > 0 ? Math.round((converted / totalLeads) * 100) : 0;
+
         return {
-          id: user.id,
-          name: user.name,
-          role: user.role,
-          calls_made: callsCount,
-          bookings_created: bookingsCount,
-          revenue: parseFloat(revenueResult?.total || "0"),
+          agent_id: user.id,
+          agent_name: user.name,
+          agent_email: user.email,
+          agent_role: user.role,
+          total_leads: totalLeads,
+          contacted,
+          not_contacted: notContacted,
+          converted,
+          conversion_rate: conversionRate,
+          calls_made: callsMade,
+          total_revenue: totalRevenue,
         };
       })
     );
 
-    res.json(performance);
+    // Calculate team summary
+    const teamSummary = {
+      total_leads: agents.reduce((sum, a) => sum + a.total_leads, 0),
+      contacted: agents.reduce((sum, a) => sum + a.contacted, 0),
+      not_contacted: agents.reduce((sum, a) => sum + a.not_contacted, 0),
+      converted: agents.reduce((sum, a) => sum + a.converted, 0),
+      total_revenue: agents.reduce((sum, a) => sum + a.total_revenue, 0),
+    };
+
+    res.json({
+      agents,
+      team_summary: teamSummary,
+      all_agents: allAgents.map(a => ({ id: a.id, name: a.name, role: a.role })),
+    });
   } catch (error) {
     console.error("Get agent-performance error:", error);
     res.status(500).json({ detail: "Internal server error" });
