@@ -352,50 +352,48 @@ router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
   }
 });
 
-// Create lead with duplicate detection (Rule 3)
+// Create lead with duplicate detection (Rule 3) - BLOCKS duplicates entirely
 router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, phone, email, source, campaign, city, assigned_to, notes, force_create } = req.body;
+    const { name, phone, email, source, campaign, city, assigned_to, notes } = req.body;
 
     if (!name || !phone || !source) {
       return res.status(400).json({ detail: "Name, phone, and source are required" });
     }
 
-    // Rule 3: Check for duplicates if not forcing creation
-    if (!force_create) {
-      const normalizedPhone = phone.replace(/[\s\-\(\)]/g, "");
-      let duplicateQuery = leadRepository().createQueryBuilder("lead");
-      
-      const conditions: string[] = [];
-      const params: Record<string, any> = {};
-      
-      // Check phone
-      conditions.push("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '') = :phone");
-      params.phone = normalizedPhone;
-      
-      // Check email if provided
-      if (email) {
-        conditions.push("LOWER(lead.email) = LOWER(:email)");
-        params.email = email;
-      }
-      
-      duplicateQuery = duplicateQuery.where(conditions.join(" OR "), params);
-      const duplicates = await duplicateQuery.getMany();
-      
-      if (duplicates.length > 0) {
-        return res.status(409).json({
-          detail: "Duplicate lead detected",
-          duplicates: duplicates.map(d => ({
-            id: d.id,
-            name: d.name,
-            phone: d.phone,
-            email: d.email,
-            status: d.status,
-            assigned_name: d.assigned_name,
-            created_at: d.created_at,
-          })),
-        });
-      }
+    // Rule 3: Check for duplicates - ALWAYS block duplicates
+    const normalizedPhone = phone.replace(/[\s\-\(\)]/g, "");
+    let duplicateQuery = leadRepository().createQueryBuilder("lead");
+    
+    const conditions: string[] = [];
+    const params: Record<string, any> = {};
+    
+    // Check phone
+    conditions.push("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '') = :phone");
+    params.phone = normalizedPhone;
+    
+    // Check email if provided
+    if (email) {
+      conditions.push("LOWER(lead.email) = LOWER(:email)");
+      params.email = email;
+    }
+    
+    duplicateQuery = duplicateQuery.where(conditions.join(" OR "), params);
+    const duplicates = await duplicateQuery.getMany();
+    
+    if (duplicates.length > 0) {
+      const existingLead = duplicates[0];
+      return res.status(409).json({
+        detail: "Lead already exists with this phone number. Please contact Admin to access or reassign this lead.",
+        duplicate: {
+          id: existingLead.id,
+          name: existingLead.name,
+          phone: existingLead.phone,
+          email: existingLead.email,
+          status: existingLead.status,
+          assigned_name: existingLead.assigned_name,
+        },
+      });
     }
 
     let assignedName: string | undefined;
