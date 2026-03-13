@@ -23,13 +23,14 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Get activities for a specific target
+// Get activities for a specific target (limited to prevent performance issues)
 router.get("/target/:targetId", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const targetId = req.params.targetId as string;
     const activities = await activityRepository().find({
       where: { target_id: targetId },
       order: { created_at: "DESC" },
+      take: 100, // Limit to most recent 100 activities
     });
     
     res.json(activities);
