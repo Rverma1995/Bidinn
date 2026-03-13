@@ -274,14 +274,14 @@ function LogCallDialog({ open, onOpenChange, leadId, currentStatus, isAssigned, 
             <div className="space-y-2">
               <Label htmlFor="new_status">Change Status (Optional)</Label>
               <Select
-                value={formData.new_status}
-                onValueChange={(value) => setFormData({ ...formData, new_status: value })}
+                value={formData.new_status || "no_change"}
+                onValueChange={(value) => setFormData({ ...formData, new_status: value === "no_change" ? "" : value })}
               >
                 <SelectTrigger data-testid="call-status-select">
                   <SelectValue placeholder="Keep current status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Keep current ({getStatusLabel(currentStatus || 'new')})</SelectItem>
+                  <SelectItem value="no_change">Keep current ({getStatusLabel(currentStatus || 'new')})</SelectItem>
                   {LEAD_STATUSES.map((status) => (
                     <SelectItem key={status.value} value={status.value}>
                       {status.label}
