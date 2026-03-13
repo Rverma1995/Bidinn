@@ -249,8 +249,11 @@ export default function BookingsPage() {
     try {
       const params = new URLSearchParams();
       if (statusFilter && statusFilter !== 'all') params.append('payment_status', statusFilter);
+      params.append('limit', '1000'); // Get all bookings
       const response = await api.get(`/bookings?${params.toString()}`);
-      setBookings(response.data);
+      // Handle both paginated and non-paginated response formats
+      const bookingsData = response.data.bookings || response.data;
+      setBookings(bookingsData);
     } catch (error) {
       toast.error('Failed to fetch bookings');
     } finally {
