@@ -348,6 +348,208 @@ router.post("/merge", authenticateToken, requireRole([UserRole.ADMIN, UserRole.M
   }
 });
 
+// Get duplicate leads analysis (Admin only) - MUST be before /:id route
+router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
+  try {
+    // Find all duplicate phone numbers
+    const duplicates = await leadRepository()
+      .createQueryBuilder("lead")
+      .select("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '')", "normalized_phone")
+      .addSelect("COUNT(*)", "count")
+      .groupBy("normalized_phone")
+      .having("COUNT(*) > 1")
+      .getRawMany();
+
+    // Get details for each duplicate group
+    const duplicateGroups: any[] = [];
+    let totalDuplicates = 0;
+
+    for (const dup of duplicates) {
+      const normalizedPhone = dup.normalized_phone;
+      const leads = await leadRepository()
+        .createQueryBuilder("lead")
+        .where("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '') = :phone", { phone: normalizedPhone })
+        .orderBy("lead.created_at", "ASC")
+        .getMany();
+
+      // Count activities for each lead
+      const leadsWithActivity = await Promise.all(leads.map(async (lead) => {
+        const activityCount = await activityRepository()
+          .createQueryBuilder("activity")
+          .where("activity.target_id = :leadId", { leadId: lead.id })
+          .getCount();
+        
+        return {
+          id: lead.id,
+          name: lead.name,
+          phone: lead.phone,
+          email: lead.email,
+          status: lead.status,
+          assigned_to: lead.assigned_to,
+          assigned_name: lead.assigned_name,
+          attempt_count: lead.attempt_count,
+          created_at: lead.created_at,
+          activityCount,
+          hasAssignment: !!lead.assigned_to,
+          hasActivity: activityCount > 0 || lead.attempt_count > 0,
+        };
+      }));
+
+      duplicateGroups.push({
+        phone: normalizedPhone,
+        count: parseInt(dup.count),
+        leads: leadsWithActivity,
+      });
+
+      totalDuplicates += parseInt(dup.count) - 1; // Each group has (count - 1) duplicates to merge
+    }
+
+    res.json({
+      totalDuplicateGroups: duplicates.length,
+      totalDuplicatesToMerge: totalDuplicates,
+      duplicateGroups,
+    });
+  } catch (error) {
+    console.error("Analyze duplicates error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+// Merge all duplicates (Admin only) - applies user's merge logic - MUST be before /:id route
+router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
+  try {
+    const adminUser = req.user!;
+    
+    // Find all duplicate phone numbers
+    const duplicates = await leadRepository()
+      .createQueryBuilder("lead")
+      .select("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '')", "normalized_phone")
+      .addSelect("COUNT(*)", "count")
+      .groupBy("normalized_phone")
+      .having("COUNT(*) > 1")
+      .getRawMany();
+
+    let mergedCount = 0;
+    let deletedCount = 0;
+    const mergeLog: any[] = [];
+
+    for (const dup of duplicates) {
+      const normalizedPhone = dup.normalized_phone;
+      
+      // Get all leads with this phone, ordered by creation date (oldest first)
+      const leads = await leadRepository()
+        .createQueryBuilder("lead")
+        .where("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '') = :phone", { phone: normalizedPhone })
+        .orderBy("lead.created_at", "ASC")
+        .getMany();
+
+      if (leads.length <= 1) continue;
+
+      // Check each lead for assignment and activity
+      const leadsWithDetails = await Promise.all(leads.map(async (lead) => {
+        const activityCount = await activityRepository()
+          .createQueryBuilder("activity")
+          .where("activity.target_id = :leadId", { leadId: lead.id })
+          .getCount();
+        
+        return {
+          ...lead,
+          activityCount,
+          hasAssignment: !!lead.assigned_to,
+          hasActivity: activityCount > 0 || lead.attempt_count > 0,
+        };
+      }));
+
+      // Find the lead to keep based on user's logic:
+      // If lead has assignment AND activity → keep it (merge others into it)
+      // Otherwise → keep the newest one and assign to admin
+
+      let leadToKeep = leadsWithDetails.find(l => l.hasAssignment && l.hasActivity);
+      
+      if (!leadToKeep) {
+        // No lead has both assignment and activity - keep the newest one
+        leadToKeep = leadsWithDetails[leadsWithDetails.length - 1]; // newest
+        
+        // Assign to admin if not already assigned
+        if (!leadToKeep.assigned_to) {
+          leadToKeep.assigned_to = adminUser.id;
+          leadToKeep.assigned_name = adminUser.name;
+        }
+      }
+
+      // Merge all other leads into leadToKeep
+      const leadsToDelete = leadsWithDetails.filter(l => l.id !== leadToKeep!.id);
+      
+      // Combine notes from all leads
+      let combinedNotes = leadToKeep.notes || '';
+      for (const leadToMerge of leadsToDelete) {
+        if (leadToMerge.notes) {
+          combinedNotes += combinedNotes 
+            ? `\n\n--- Merged from duplicate (${leadToMerge.name}) ---\n${leadToMerge.notes}`
+            : leadToMerge.notes;
+        }
+        
+        // Take the better email if current is empty
+        if (!leadToKeep.email && leadToMerge.email) {
+          leadToKeep.email = leadToMerge.email;
+        }
+        
+        // Take the better city if current is empty
+        if (!leadToKeep.city && leadToMerge.city) {
+          leadToKeep.city = leadToMerge.city;
+        }
+        
+        // Take higher attempt count
+        if (leadToMerge.attempt_count > leadToKeep.attempt_count) {
+          leadToKeep.attempt_count = leadToMerge.attempt_count;
+        }
+      }
+      
+      leadToKeep.notes = combinedNotes;
+      leadToKeep.last_activity = new Date();
+      
+      // Save the merged lead
+      await leadRepository().save(leadToKeep);
+      
+      // Delete the duplicate leads
+      for (const leadToDelete of leadsToDelete) {
+        await leadRepository().remove(leadToDelete);
+        deletedCount++;
+      }
+      
+      mergedCount++;
+      mergeLog.push({
+        phone: normalizedPhone,
+        keptLeadId: leadToKeep.id,
+        keptLeadName: leadToKeep.name,
+        deletedCount: leadsToDelete.length,
+        deletedLeadNames: leadsToDelete.map(l => l.name),
+      });
+    }
+
+    // Log the activity
+    await logActivity(
+      adminUser.id,
+      adminUser.name,
+      "merged_all_duplicates",
+      "bulk",
+      "lead",
+      `${mergedCount} duplicate groups`,
+      `Merged ${mergedCount} duplicate groups, deleted ${deletedCount} duplicate leads`
+    );
+
+    res.json({
+      message: `Successfully merged duplicates`,
+      mergedGroups: mergedCount,
+      deletedLeads: deletedCount,
+      mergeLog,
+    });
+  } catch (error) {
+    console.error("Merge all duplicates error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 // Get lead by ID
 router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
