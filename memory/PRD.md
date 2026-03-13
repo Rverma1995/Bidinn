@@ -178,6 +178,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 2. **Duplicate Lead Merge** - Added admin-only endpoints to analyze and merge duplicate leads
 3. **Cleaned Database** - Merged 684 duplicate groups, deleted 755 duplicate leads
 4. **UTF-8 Support** - New imports correctly handle Hindi and international characters
+5. **Fixed Pipeline & Bookings Pages** - Updated API response handling to work with paginated endpoints
 
 ---
 
