@@ -420,12 +420,12 @@ router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.AD
   try {
     const adminUser = req.user!;
     
-    // Find all duplicate phone numbers
+    // Find all duplicate phone numbers using raw phone (data is already consistent)
     const duplicates = await leadRepository()
       .createQueryBuilder("lead")
-      .select("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '')", "normalized_phone")
+      .select("lead.phone", "phone")
       .addSelect("COUNT(*)", "count")
-      .groupBy("normalized_phone")
+      .groupBy("lead.phone")
       .having("COUNT(*) > 1")
       .getRawMany();
 
@@ -434,12 +434,12 @@ router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.AD
     const mergeLog: any[] = [];
 
     for (const dup of duplicates) {
-      const normalizedPhone = dup.normalized_phone;
+      const phone = dup.phone;
       
       // Get all leads with this phone, ordered by creation date (oldest first)
       const leads = await leadRepository()
         .createQueryBuilder("lead")
-        .where("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '') = :phone", { phone: normalizedPhone })
+        .where("lead.phone = :phone", { phone })
         .orderBy("lead.created_at", "ASC")
         .getMany();
 
@@ -519,7 +519,7 @@ router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.AD
       
       mergedCount++;
       mergeLog.push({
-        phone: normalizedPhone,
+        phone,
         keptLeadId: leadToKeep.id,
         keptLeadName: leadToKeep.name,
         deletedCount: leadsToDelete.length,
