@@ -247,18 +247,15 @@ function CreateLeadDialog({ open, onOpenChange, onSuccess }: CreateLeadDialogPro
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // If duplicates exist and user hasn't confirmed, show alert
-    if (duplicates.length > 0 && !showDuplicateAlert) {
+    // If duplicates exist, show alert - NO force create allowed
+    if (duplicates.length > 0) {
       setShowDuplicateAlert(true);
       return;
     }
 
     setLoading(true);
     try {
-      await api.post('/leads', {
-        ...formData,
-        force_create: showDuplicateAlert, // Force create if user confirmed
-      });
+      await api.post('/leads', formData);
       toast.success('Lead created successfully');
       onSuccess();
       onOpenChange(false);
@@ -266,10 +263,14 @@ function CreateLeadDialog({ open, onOpenChange, onSuccess }: CreateLeadDialogPro
       setDuplicates([]);
       setShowDuplicateAlert(false);
     } catch (error: any) {
-      if (error.response?.status === 409 && error.response?.data?.duplicates) {
+      if (error.response?.status === 409) {
         // Duplicate detected by backend
-        setDuplicates(error.response.data.duplicates);
+        const duplicate = error.response.data.duplicate;
+        if (duplicate) {
+          setDuplicates([duplicate]);
+        }
         setShowDuplicateAlert(true);
+        toast.error('Lead already exists. Please contact Admin.');
       } else {
         toast.error(error.response?.data?.detail || 'Failed to create lead');
       }
