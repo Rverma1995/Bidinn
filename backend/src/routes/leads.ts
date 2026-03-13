@@ -723,20 +723,25 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
 
     // Check if file was uploaded
     if (req.file) {
-      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      // Read with UTF-8 encoding support for Hindi and other languages
+      const workbook = XLSX.read(req.file.buffer, { 
+        type: 'buffer',
+        codepage: 65001, // UTF-8
+        raw: false,
+      });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet);
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
       
-      // Map the data to expected format
+      // Map the data to expected format - handle various column name formats
       leadsData = jsonData.map((row: any) => ({
-        name: row.name || row.Name || row.NAME,
-        phone: String(row.phone || row.Phone || row.PHONE || ''),
-        email: row.email || row.Email || row.EMAIL,
-        source: row.source || row.Source || row.SOURCE || 'Import',
-        campaign: row.campaign || row.Campaign || row.CAMPAIGN,
-        city: row.city || row.City || row.CITY,
-        notes: row.notes || row.Notes || row.NOTES,
+        name: String(row.name || row.Name || row.NAME || row['नाम'] || '').trim(),
+        phone: String(row.phone || row.Phone || row.PHONE || row['फ़ोन'] || row['मोबाइल'] || '').trim(),
+        email: String(row.email || row.Email || row.EMAIL || row['ईमेल'] || '').trim(),
+        source: String(row.source || row.Source || row.SOURCE || row['स्रोत'] || 'Import').trim(),
+        campaign: String(row.campaign || row.Campaign || row.CAMPAIGN || row['अभियान'] || '').trim(),
+        city: String(row.city || row.City || row.CITY || row['शहर'] || '').trim(),
+        notes: String(row.notes || row.Notes || row.NOTES || row['नोट्स'] || '').trim(),
       }));
     } else if (req.body.leads) {
       // Handle JSON array input
