@@ -351,6 +351,8 @@ router.post("/merge", authenticateToken, requireRole([UserRole.ADMIN, UserRole.M
 // Get duplicate leads analysis (Admin only) - MUST be before /:id route
 router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
   try {
+    console.log("Starting duplicate analysis...");
+    
     // Find all duplicate phone numbers using raw phone (data is already consistent)
     const duplicates = await leadRepository()
       .createQueryBuilder("lead")
@@ -359,6 +361,8 @@ router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN
       .groupBy("lead.phone")
       .having("COUNT(*) > 1")
       .getRawMany();
+
+    console.log(`Found ${duplicates.length} duplicate phone groups`);
 
     // Get details for each duplicate group
     const duplicateGroups: any[] = [];
@@ -403,6 +407,8 @@ router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN
 
       totalDuplicates += parseInt(dup.count) - 1; // Each group has (count - 1) duplicates to merge
     }
+
+    console.log(`Total duplicates to merge: ${totalDuplicates}`);
 
     res.json({
       totalDuplicateGroups: duplicates.length,
