@@ -514,13 +514,20 @@ router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.AD
       leadToKeep.notes = combinedNotes;
       leadToKeep.last_activity = new Date();
       
-      // Save the merged lead
-      await leadRepository().save(leadToKeep);
+      // Save the merged lead (cast back to Lead for TypeORM)
+      const leadEntity = leadRepository().create(leadToKeep);
+      await leadRepository().save(leadEntity);
       
-      // Delete the duplicate leads
-      for (const leadToDelete of leadsToDelete) {
-        await leadRepository().remove(leadToDelete);
-        deletedCount++;
+      // Delete the duplicate leads by ID
+      const idsToDelete = leadsToDelete.map(l => l.id);
+      if (idsToDelete.length > 0) {
+        await leadRepository()
+          .createQueryBuilder()
+          .delete()
+          .from(Lead)
+          .whereInIds(idsToDelete)
+          .execute();
+        deletedCount += idsToDelete.length;
       }
       
       mergedCount++;
