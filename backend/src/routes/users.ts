@@ -8,12 +8,13 @@ import { v4 as uuidv4 } from "uuid";
 const router = Router();
 const userRepository = () => AppDataSource.getRepository(User);
 
-// Get all users
+// Get all users (with limit for safety)
 router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const users = await userRepository().find({
       order: { created_at: "DESC" },
       select: ["id", "email", "name", "role", "is_active", "created_at"],
+      take: 500, // Safety limit
     });
     res.json(users);
   } catch (error) {
