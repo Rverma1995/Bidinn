@@ -120,39 +120,124 @@ interface LogCallDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   leadId: string;
+  currentStatus?: string;
+  isAssigned?: boolean;
   onSuccess: () => void;
 }
 
-function LogCallDialog({ open, onOpenChange, leadId, onSuccess }: LogCallDialogProps) {
+function LogCallDialog({ open, onOpenChange, leadId, currentStatus, isAssigned, onSuccess }: LogCallDialogProps) {
   const { api } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showClosedReasonDialog, setShowClosedReasonDialog] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [closedReason, setClosedReason] = useState('');
+  const [closedReasonNotes, setClosedReasonNotes] = useState('');
   const [formData, setFormData] = useState({
     outcome: '',
     duration_minutes: 5,
     notes: '',
     next_followup: '',
+    new_status: '',
   });
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        outcome: '',
+        duration_minutes: 5,
+        notes: '',
+        next_followup: '',
+        new_status: '',
+      });
+      setClosedReason('');
+      setClosedReasonNotes('');
+    }
+  }, [open]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    const newStatus = formData.new_status;
+    
+    // Check if status change requires closed reason
+    if (newStatus && STATUSES_REQUIRING_REASON.includes(newStatus) && !closedReason) {
+      setPendingStatus(newStatus);
+      setShowClosedReasonDialog(true);
+      return;
+    }
+
+    // Check transition rules
+    if (newStatus && currentStatus) {
+      const transitionCheck = isTransitionAllowed(currentStatus, newStatus);
+      if (!transitionCheck.allowed) {
+        toast.error(transitionCheck.message);
+        return;
+      }
+    }
+
+    // Check assignment requirement
+    if (newStatus && STATUSES_REQUIRING_ASSIGNMENT.includes(newStatus) && !isAssigned) {
+      toast.error(`Lead must be assigned before moving to ${getStatusLabel(newStatus)} status`);
+      return;
+    }
+
+    await submitCall(newStatus, closedReason, closedReasonNotes);
+  };
+
+  const submitCall = async (statusToSet?: string, reason?: string, reasonNotes?: string) => {
     setLoading(true);
     try {
+      // Log the call
       await api.post('/calls', {
         lead_id: leadId,
-        ...formData,
+        outcome: formData.outcome,
+        duration_minutes: formData.duration_minutes,
+        notes: formData.notes,
+        next_followup: formData.next_followup || null,
       });
+
+      // Update lead status if changed
+      if (statusToSet && statusToSet !== currentStatus) {
+        const updateData: any = { status: statusToSet };
+        if (reason) {
+          updateData.closed_reason = reason;
+          updateData.closed_reason_notes = reasonNotes;
+        }
+        await api.put(`/leads/${leadId}`, updateData);
+      }
+
       toast.success('Call logged successfully');
       onSuccess();
       onOpenChange(false);
-      setFormData({ outcome: '', duration_minutes: 5, notes: '', next_followup: '' });
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to log call');
+      setFormData({ outcome: '', duration_minutes: 5, notes: '', next_followup: '', new_status: '' });
+      setClosedReason('');
+      setClosedReasonNotes('');
+      setShowClosedReasonDialog(false);
+      setPendingStatus(null);
+    } catch (error: any) {
+      const errorDetail = error.response?.data?.detail || 'Failed to log call';
+      if (error.response?.data?.rule === 'closed_reason_required') {
+        setPendingStatus(statusToSet || formData.new_status);
+        setShowClosedReasonDialog(true);
+      } else {
+        toast.error(errorDetail);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleClosedReasonSubmit = async () => {
+    if (!closedReason) {
+      toast.error('Please select a reason');
+      return;
+    }
+    await submitCall(pendingStatus || formData.new_status, closedReason, closedReasonNotes);
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]" data-testid="log-call-dialog">
         <DialogHeader>
@@ -185,6 +270,27 @@ function LogCallDialog({ open, onOpenChange, leadId, onSuccess }: LogCallDialogP
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new_status">Change Status (Optional)</Label>
+              <Select
+                value={formData.new_status}
+                onValueChange={(value) => setFormData({ ...formData, new_status: value })}
+              >
+                <SelectTrigger data-testid="call-status-select">
+                  <SelectValue placeholder="Keep current status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Keep current ({getStatusLabel(currentStatus || 'new')})</SelectItem>
+                  {LEAD_STATUSES.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="duration">Duration (minutes)</Label>
               <Input
