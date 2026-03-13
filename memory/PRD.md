@@ -1,9 +1,9 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 12.0  
-**Last Updated:** March 10, 2026  
+**Version:** 13.0  
+**Last Updated:** March 13, 2026  
 **Product Name:** Bidinn  
-**Status:** DEPLOYMENT READY ✅
+**Status:** PRODUCTION READY ✅
 
 ---
 
@@ -45,18 +45,20 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 ### Advanced Features
 - ✅ 1-Hour Follow-up Rule with countdown
 - ✅ 30-Day Auto-Reset (scheduled daily)
-- ✅ **Bulk Lead Import (CSV/Excel file upload)**
+- ✅ **Bulk Lead Import (CSV/Excel file upload)** - With 10-minute timeout for large files (~1000 leads)
 - ✅ Bulk Lead Export with Filters (CSV)
 - ✅ Bulk Lead Assignment
 - ✅ **Bulk Lead Delete (Admin only)**
 - ✅ Agent Performance Reports with Date Filters
 - ✅ **User Management: Create, Edit (including self-edit), Deactivate, Reset Password**
 - ✅ Meta Lead Ads Integration (Facebook/Instagram webhook)
+- ✅ **Duplicate Lead Merge** - Admin-only tool to analyze and merge duplicate leads
+- ✅ **Server-side Pagination** - For leads, users, and activities (50 per page)
 
 ### Lead Management Rules (5 Rules)
 - ✅ **Rule 1: Lead Assignment Enforcement** - Leads must be assigned before moving to certain stages
 - ✅ **Rule 2: Closed Lead Reason Capture** - Required reason when marking as Lost/Not Interested
-- ✅ **Rule 3: Duplicate Lead Detection** - Check phone/email with merge option
+- ✅ **Rule 3: Strict Duplicate Prevention** - BLOCKS duplicate leads by phone (no force create)
 - ✅ **Rule 4: Idle Lead Escalation** - Cron job notifies managers about 5+ day inactive leads
 - ✅ **Rule 5: Stage Transition Restriction** - Blocks Interested/Follow-up → Not Interested
 
@@ -98,6 +100,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 | Assign Leads | ✅ | ✅ | ✅ | ❌ |
 | Bulk Delete Leads | ✅ | ❌ | ❌ | ❌ |
 | Import Leads | ✅ | ✅ | ❌ | ❌ |
+| Analyze/Merge Duplicates | ✅ | ❌ | ❌ | ❌ |
 | Create Users | ✅ | ❌ | ❌ | ❌ |
 | Edit Users | ✅ | ✅ | ❌ | Self only |
 | Deactivate Users | ✅ | ❌ | ❌ | ❌ |
@@ -118,13 +121,15 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - `POST /api/users/:id/reset-password`
 
 ### Leads
-- `GET /api/leads`
-- `POST /api/leads` - With duplicate detection
+- `GET /api/leads` - Paginated (page, limit params)
+- `POST /api/leads` - With strict duplicate blocking
 - `PUT /api/leads/:id` - With rule validation
 - `POST /api/leads/import` - File upload (CSV/Excel)
 - `POST /api/leads/bulk-delete` - Admin only
 - `POST /api/leads/check-duplicate`
 - `POST /api/leads/merge`
+- `GET /api/leads/duplicates/analyze` - Admin only, shows duplicate groups
+- `POST /api/leads/duplicates/merge-all` - Admin only, merges all duplicates
 - `GET /api/leads/closed-reasons`
 
 ### Notifications
@@ -141,6 +146,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - Users cannot change their own role or active status
 - Bulk delete restricted to Admin only
 - Password hashing with bcrypt
+- UTF-8 encoding for international characters (Hindi, etc.)
 
 ---
 
@@ -159,15 +165,31 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 - **Database:** External AWS RDS MySQL (persistent)
 - **File Upload:** Supports CSV, XLSX, XLS up to 10MB
+- **Character Encoding:** UTF-8/utf8mb4 for Hindi and international characters
 - **Scheduled Jobs:**
   - 30-day auto-reset: Daily at midnight
   - Idle lead escalation: Every 6 hours
 
 ---
 
-## 10. Future Enhancements (Backlog)
+## 10. Recent Changes (March 13, 2026)
 
-- **P1:** Google Sheets integration for lead import/export
+1. **Fixed Import Error** - Increased frontend timeout to 10 minutes for large file uploads (~1000 leads)
+2. **Duplicate Lead Merge** - Added admin-only endpoints to analyze and merge duplicate leads
+3. **Cleaned Database** - Merged 684 duplicate groups, deleted 755 duplicate leads
+4. **UTF-8 Support** - New imports correctly handle Hindi and international characters
+
+---
+
+## 11. Known Issues
+
+1. **Existing Hindi Data Garbled** - Pre-existing leads with Hindi names display incorrectly. These cannot be fixed automatically and require re-import from original source file.
+
+---
+
+## 12. Future Enhancements (Backlog)
+
+- **P2:** Google Sheets integration for lead import/export
 - Email/SMS notifications for overdue leads
 - Mobile app
 - WhatsApp integration
