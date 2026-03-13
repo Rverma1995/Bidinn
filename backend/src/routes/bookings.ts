@@ -36,13 +36,23 @@ router.get("/reasons", authenticateToken, async (req: AuthRequest, res: Response
   }
 });
 
-// Get all bookings
+// Get all bookings with pagination
 router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const bookings = await bookingRepository().find({
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 100;
+    const skip = (page - 1) * limit;
+
+    const [bookings, total] = await bookingRepository().findAndCount({
       order: { created_at: "DESC" },
+      skip,
+      take: limit,
     });
-    res.json(bookings);
+
+    res.json({
+      bookings,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
   } catch (error) {
     console.error("Get bookings error:", error);
     res.status(500).json({ detail: "Internal server error" });
