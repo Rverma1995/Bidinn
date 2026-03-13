@@ -427,6 +427,7 @@ router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN
 router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
   try {
     const adminUser = req.user!;
+    console.log(`Starting duplicate merge process by ${adminUser.name}...`);
     
     // Find all duplicate phone numbers using raw phone (data is already consistent)
     const duplicates = await leadRepository()
@@ -437,12 +438,19 @@ router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.AD
       .having("COUNT(*) > 1")
       .getRawMany();
 
+    console.log(`Found ${duplicates.length} duplicate groups to merge`);
+
     let mergedCount = 0;
     let deletedCount = 0;
     const mergeLog: any[] = [];
 
-    for (const dup of duplicates) {
+    for (let i = 0; i < duplicates.length; i++) {
+      const dup = duplicates[i];
       const phone = dup.phone;
+      
+      if ((i + 1) % 50 === 0) {
+        console.log(`Processing duplicate group ${i + 1}/${duplicates.length}...`);
+      }
       
       // Get all leads with this phone, ordered by creation date (oldest first)
       const leads = await leadRepository()
@@ -533,14 +541,19 @@ router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.AD
       }
       
       mergedCount++;
-      mergeLog.push({
-        phone,
-        keptLeadId: leadToKeep.id,
-        keptLeadName: leadToKeep.name,
-        deletedCount: leadsToDelete.length,
-        deletedLeadNames: leadsToDelete.map(l => l.name),
-      });
+      // Only log first 20 to keep response size manageable
+      if (mergeLog.length < 20) {
+        mergeLog.push({
+          phone,
+          keptLeadId: leadToKeep.id,
+          keptLeadName: leadToKeep.name,
+          deletedCount: leadsToDelete.length,
+          deletedLeadNames: leadsToDelete.map(l => l.name),
+        });
+      }
     }
+
+    console.log(`Duplicate merge complete: ${mergedCount} groups merged, ${deletedCount} leads deleted`);
 
     // Log the activity
     await logActivity(
