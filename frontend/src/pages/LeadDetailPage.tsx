@@ -917,6 +917,8 @@ export default function LeadDetailPage() {
         open={logCallOpen}
         onOpenChange={setLogCallOpen}
         leadId={id}
+        currentStatus={lead?.status}
+        isAssigned={!!lead?.assigned_to}
         onSuccess={() => {
           fetchLead();
           fetchActivities();
