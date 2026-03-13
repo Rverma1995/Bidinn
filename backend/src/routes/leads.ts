@@ -364,11 +364,14 @@ router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN
 
     console.log(`Found ${duplicates.length} duplicate phone groups`);
 
-    // Get details for each duplicate group
-    const duplicateGroups: any[] = [];
-    let totalDuplicates = 0;
+    // Calculate total duplicates to merge
+    const totalDuplicates = duplicates.reduce((sum, dup) => sum + parseInt(dup.count) - 1, 0);
 
-    for (const dup of duplicates) {
+    // Only get details for first 20 groups to avoid timeout
+    const duplicateGroups: any[] = [];
+    const limitedDups = duplicates.slice(0, 20);
+
+    for (const dup of limitedDups) {
       const phone = dup.phone;
       const leads = await leadRepository()
         .createQueryBuilder("lead")
@@ -404,8 +407,6 @@ router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN
         count: parseInt(dup.count),
         leads: leadsWithActivity,
       });
-
-      totalDuplicates += parseInt(dup.count) - 1; // Each group has (count - 1) duplicates to merge
     }
 
     console.log(`Total duplicates to merge: ${totalDuplicates}`);
@@ -414,6 +415,7 @@ router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN
       totalDuplicateGroups: duplicates.length,
       totalDuplicatesToMerge: totalDuplicates,
       duplicateGroups,
+      message: duplicates.length > 20 ? `Showing first 20 of ${duplicates.length} duplicate groups` : undefined,
     });
   } catch (error) {
     console.error("Analyze duplicates error:", error);
