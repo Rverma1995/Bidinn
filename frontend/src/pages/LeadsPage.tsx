@@ -327,38 +327,28 @@ function CreateLeadDialog({ open, onOpenChange, onSuccess }: CreateLeadDialogPro
         
         {/* Duplicate Alert */}
         {showDuplicateAlert && duplicates.length > 0 && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-3">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-3">
             <div className="flex items-start gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
               <div>
-                <p className="font-medium text-amber-800 dark:text-amber-200">
-                  Potential Duplicate Detected
+                <p className="font-medium text-red-800 dark:text-red-200">
+                  Lead Already Exists
                 </p>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  A lead with similar contact info already exists. What would you like to do?
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  A lead with this phone number already exists in the system. Please contact Admin to access or reassign this lead.
                 </p>
               </div>
             </div>
             <div className="space-y-2 ml-7">
               {duplicates.map((dup) => (
-                <div key={dup.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border">
-                  <div>
-                    <p className="font-medium text-sm">{dup.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {dup.phone} {dup.email && `• ${dup.email}`}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Status: {getStatusLabel(dup.status)} • {dup.assigned_name || 'Unassigned'}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleMergeLead(dup.id)}
-                    disabled={loading}
-                  >
-                    Merge Into This
-                  </Button>
+                <div key={dup.id} className="p-3 bg-white dark:bg-slate-800 rounded-lg border">
+                  <p className="font-medium text-sm">{dup.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {dup.phone} {dup.email && `• ${dup.email}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Status: {getStatusLabel(dup.status)} • {dup.assigned_name || 'Unassigned'}
+                  </p>
                 </div>
               ))}
             </div>
@@ -366,17 +356,19 @@ function CreateLeadDialog({ open, onOpenChange, onSuccess }: CreateLeadDialogPro
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setShowDuplicateAlert(false)}
+                onClick={() => {
+                  setShowDuplicateAlert(false);
+                  setDuplicates([]);
+                }}
               >
                 Go Back
               </Button>
               <Button
                 size="sm"
-                onClick={handleSubmit}
-                disabled={loading}
+                variant="secondary"
+                onClick={() => onOpenChange(false)}
               >
-                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Create Anyway
+                Close
               </Button>
             </div>
           </div>
