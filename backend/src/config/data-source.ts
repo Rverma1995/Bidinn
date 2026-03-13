@@ -25,6 +25,10 @@ export const AppDataSource = new DataSource({
   migrations: [],
   subscribers: [],
   charset: "utf8mb4",
+  extra: {
+    charset: "utf8mb4_unicode_ci",
+    connectionLimit: 10,
+  },
 });
 
 export const initializeDatabase = async (): Promise<void> => {
