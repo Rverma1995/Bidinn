@@ -333,6 +333,62 @@ function LogCallDialog({ open, onOpenChange, leadId, currentStatus, isAssigned, 
         </form>
       </DialogContent>
     </Dialog>
+
+    {/* Closed Reason Sub-Dialog for Log Call */}
+    <Dialog open={showClosedReasonDialog} onOpenChange={setShowClosedReasonDialog}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Reason Required</DialogTitle>
+          <DialogDescription>
+            Please provide a reason for marking this lead as {pendingStatus === 'lost' ? 'Lost' : 'Not Interested'}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Reason *</Label>
+            <Select value={closedReason} onValueChange={setClosedReason}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a reason" />
+              </SelectTrigger>
+              <SelectContent>
+                {CLOSED_REASONS.map((reason) => (
+                  <SelectItem key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Additional Notes (Optional)</Label>
+            <Textarea
+              value={closedReasonNotes}
+              onChange={(e) => setClosedReasonNotes(e.target.value)}
+              placeholder="Any additional details..."
+              rows={2}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setShowClosedReasonDialog(false);
+              setPendingStatus(null);
+              setClosedReason('');
+              setClosedReasonNotes('');
+            }}
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleClosedReasonSubmit} disabled={loading || !closedReason}>
+            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Confirm
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
