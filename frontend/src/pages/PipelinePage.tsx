@@ -614,8 +614,11 @@ export default function PipelinePage() {
 
   const fetchLeads = async () => {
     try {
-      const response = await api.get('/leads');
-      setLeads(response.data);
+      // Fetch all leads for pipeline view (need full dataset for kanban)
+      const response = await api.get('/leads?limit=1000');
+      // Handle both paginated and non-paginated response formats
+      const leadsData = response.data.leads || response.data;
+      setLeads(leadsData);
     } catch (error) {
       toast.error('Failed to fetch leads');
     } finally {
