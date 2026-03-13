@@ -98,10 +98,14 @@ router.get("/closed-reasons", authenticateToken, async (req: AuthRequest, res: R
   res.json(reasons);
 });
 
-// Get all leads
+// Get all leads with pagination
 router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const skip = (page - 1) * limit;
+
     let queryBuilder = leadRepository().createQueryBuilder("lead");
 
     // Sales reps only see their assigned leads
@@ -109,7 +113,14 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
       queryBuilder = queryBuilder.where("lead.assigned_to = :userId", { userId: user.id });
     }
 
-    queryBuilder = queryBuilder.orderBy("lead.created_at", "DESC");
+    // Get total count for pagination
+    const totalCount = await queryBuilder.getCount();
+
+    // Apply pagination and ordering
+    queryBuilder = queryBuilder
+      .orderBy("lead.created_at", "DESC")
+      .skip(skip)
+      .take(limit);
 
     const leads = await queryBuilder.getMany();
 
@@ -130,7 +141,15 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
       };
     });
 
-    res.json(enrichedLeads);
+    res.json({
+      leads: enrichedLeads,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+      }
+    });
   } catch (error) {
     console.error("Get leads error:", error);
     res.status(500).json({ detail: "Internal server error" });
