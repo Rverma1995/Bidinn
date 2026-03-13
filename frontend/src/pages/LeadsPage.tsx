@@ -751,6 +751,10 @@ export default function LeadsPage() {
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkAssignee, setBulkAssignee] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalLeads, setTotalLeads] = useState(0);
+  const [pageSize] = useState(50);
   const [exportFilters, setExportFilters] = useState({
     status: 'all',
     source: 'all',
@@ -768,30 +772,54 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
     fetchUsers();
+  }, [filters, showUncontactedOnly, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
   }, [filters, showUncontactedOnly]);
 
   const fetchLeads = async () => {
+    setLoading(true);
     try {
       // If showing uncontacted leads only, use the special endpoint
       if (showUncontactedOnly) {
         try {
           const response = await api.get('/leads/uncontacted');
           setLeads(response.data);
+          setTotalLeads(response.data.length);
+          setTotalPages(1);
         } catch (error) {
           // Fallback if user doesn't have access to uncontacted endpoint
-          const response = await api.get('/leads?status=new');
-          const filtered = response.data.filter(l => l.is_overdue || l.attempt_count === 0);
+          const response = await api.get(`/leads?limit=1000`);
+          const data = response.data.leads || response.data;
+          const filtered = data.filter(l => l.is_overdue || l.attempt_count === 0);
           setLeads(filtered);
+          setTotalLeads(filtered.length);
+          setTotalPages(1);
         }
       } else {
         const params = new URLSearchParams();
+        params.append('page', currentPage.toString());
+        params.append('limit', pageSize.toString());
         if (filters.status && filters.status !== 'all') params.append('status', filters.status);
         if (filters.source && filters.source !== 'all') params.append('source', filters.source);
         if (filters.assigned_to && filters.assigned_to !== 'all') params.append('assigned_to', filters.assigned_to);
         if (filters.search) params.append('search', filters.search);
 
         const response = await api.get(`/leads?${params.toString()}`);
-        setLeads(response.data);
+        
+        // Handle both old array format and new paginated format
+        if (response.data.leads) {
+          setLeads(response.data.leads);
+          setTotalLeads(response.data.pagination?.total || response.data.leads.length);
+          setTotalPages(response.data.pagination?.totalPages || 1);
+        } else {
+          // Fallback for old format
+          setLeads(response.data);
+          setTotalLeads(response.data.length);
+          setTotalPages(1);
+        }
       }
     } catch (error) {
       toast.error('Failed to fetch leads');
