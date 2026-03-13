@@ -540,21 +540,38 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
       const formData = new FormData();
       formData.append('file', file);
       
+      // Show progress toast for large files
+      const toastId = toast.loading('Importing leads... This may take a few minutes for large files.');
+      
       const response = await api.post('/leads/import', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 600000, // 10 minutes timeout for large imports
       });
       
+      toast.dismiss(toastId);
       setResult(response.data);
       
       if (response.data.imported > 0) {
-        toast.success(`Successfully imported ${response.data.imported} leads!`);
+        const skippedMsg = response.data.skipped > 0 ? ` (${response.data.skipped} duplicates skipped)` : '';
+        toast.success(`Successfully imported ${response.data.imported} leads!${skippedMsg}`);
         onSuccess();
+      } else if (response.data.skipped > 0) {
+        toast.warning(`All ${response.data.skipped} leads were duplicates and skipped.`);
       } else {
         toast.warning('No leads were imported. Check the errors below.');
       }
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to import leads');
-      setResult({ error: error.response?.data?.detail || 'Import failed' });
+    } catch (error: any) {
+      // Handle specific error cases
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        toast.error('Import is taking too long. Please try with a smaller file or contact support.');
+        setResult({ error: 'Request timed out. The file may be too large.' });
+      } else if (error.code === 'ERR_NETWORK') {
+        toast.error('Network error. Please check your connection and try again.');
+        setResult({ error: 'Network error occurred.' });
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to import leads');
+        setResult({ error: error.response?.data?.detail || 'Import failed' });
+      }
     } finally {
       setLoading(false);
     }

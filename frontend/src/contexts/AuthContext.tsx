@@ -14,6 +14,7 @@ export function AuthProvider({ children }) {
     const instance = axios.create({
       baseURL: API_URL,
       headers: token ? { Authorization: `Bearer ${token}` } : {},
+      timeout: 300000, // 5 minutes timeout for large file uploads
     });
     
     instance.interceptors.response.use(
