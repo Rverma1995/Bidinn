@@ -134,23 +134,48 @@ router.delete("/delete-database", authenticateToken, requireRole([UserRole.ADMIN
     console.log(`Database deletion initiated by ${req.user?.email}`);
     
     // Delete in order to respect foreign key constraints
-    // First delete dependent entities
-    const notificationsDeleted = await notificationRepository().delete({});
+    // Use createQueryBuilder for bulk deletes (TypeORM doesn't allow empty criteria in delete())
+    
+    const notificationsDeleted = await notificationRepository()
+      .createQueryBuilder()
+      .delete()
+      .from(Notification)
+      .execute();
     console.log(`Deleted ${notificationsDeleted.affected} notifications`);
     
-    const activitiesDeleted = await activityRepository().delete({});
+    const activitiesDeleted = await activityRepository()
+      .createQueryBuilder()
+      .delete()
+      .from(Activity)
+      .execute();
     console.log(`Deleted ${activitiesDeleted.affected} activities`);
     
-    const callsDeleted = await callRepository().delete({});
+    const callsDeleted = await callRepository()
+      .createQueryBuilder()
+      .delete()
+      .from(Call)
+      .execute();
     console.log(`Deleted ${callsDeleted.affected} calls`);
     
-    const paymentsDeleted = await paymentRepository().delete({});
+    const paymentsDeleted = await paymentRepository()
+      .createQueryBuilder()
+      .delete()
+      .from(Payment)
+      .execute();
     console.log(`Deleted ${paymentsDeleted.affected} payments`);
     
-    const bookingsDeleted = await bookingRepository().delete({});
+    const bookingsDeleted = await bookingRepository()
+      .createQueryBuilder()
+      .delete()
+      .from(Booking)
+      .execute();
     console.log(`Deleted ${bookingsDeleted.affected} bookings`);
     
-    const leadsDeleted = await leadRepository().delete({});
+    const leadsDeleted = await leadRepository()
+      .createQueryBuilder()
+      .delete()
+      .from(Lead)
+      .execute();
     console.log(`Deleted ${leadsDeleted.affected} leads`);
     
     // Log this action in activities (since we just deleted all activities, create a new one)
