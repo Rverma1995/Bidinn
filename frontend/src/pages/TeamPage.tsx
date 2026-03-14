@@ -468,7 +468,7 @@ export default function TeamPage() {
   const handleToggleStatus = async (user) => {
     if (!canManageUsers) return;
     // Managers cannot deactivate admins
-    if (isManager && user.role === 'admin') {
+    if (isManagerRole && user.role === 'admin') {
       toast.error('Managers cannot deactivate admin users');
       return;
     }
