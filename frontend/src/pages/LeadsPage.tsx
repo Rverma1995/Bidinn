@@ -719,30 +719,78 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
                   <span>{result.message}</span>
                 </div>
               ) : (
-                <>
-                  <div className="flex items-center gap-4 mb-2">
-                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span className="font-medium">{result.imported} imported</span>
+                <div className="space-y-3">
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                      <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{result.imported}</div>
+                      <div className="text-xs text-emerald-600 dark:text-emerald-400">Imported</div>
                     </div>
-                    {result.skipped > 0 && (
-                      <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
-                        <AlertTriangle className="w-4 h-4" />
-                        <span>{result.skipped} skipped</span>
-                      </div>
-                    )}
+                    <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                      <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{result.duplicates || 0}</div>
+                      <div className="text-xs text-amber-600 dark:text-amber-400">Duplicates</div>
+                    </div>
+                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                      <div className="text-2xl font-bold text-red-700 dark:text-red-300">{result.errors?.length || 0}</div>
+                      <div className="text-xs text-red-600 dark:text-red-400">Errors</div>
+                    </div>
                   </div>
-                  {result.errors && result.errors.length > 0 && (
-                    <div className="mt-2 text-sm">
-                      <p className="text-muted-foreground mb-1">Issues:</p>
-                      <ul className="text-xs text-muted-foreground space-y-1 max-h-24 overflow-y-auto">
-                        {result.errors.map((err, i) => (
-                          <li key={i}>• {err}</li>
+
+                  {/* Duplicate Details */}
+                  {result.duplicateDetails && result.duplicateDetails.length > 0 && (
+                    <div className="border-t pt-3">
+                      <p className="text-sm font-medium text-amber-700 dark:text-amber-300 mb-2 flex items-center gap-1">
+                        <AlertTriangle className="w-4 h-4" />
+                        Duplicate Leads Skipped ({result.duplicates})
+                      </p>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {result.duplicateDetails.slice(0, 10).map((dup: any, i: number) => (
+                          <div key={i} className="text-xs p-2 bg-amber-50 dark:bg-amber-900/20 rounded flex justify-between">
+                            <span className="text-amber-800 dark:text-amber-200">{dup.data?.name || 'Unknown'}</span>
+                            <span className="text-amber-600 dark:text-amber-400">{dup.data?.phone} → exists as "{dup.existingLead?.name}"</span>
+                          </div>
                         ))}
-                      </ul>
+                        {result.duplicates > 10 && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 italic">
+                            ...and {result.duplicates - 10} more duplicates
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
-                </>
+
+                  {/* Error Details */}
+                  {result.errors && result.errors.length > 0 && (
+                    <div className="border-t pt-3">
+                      <p className="text-sm font-medium text-red-700 dark:text-red-300 mb-2 flex items-center gap-1">
+                        <XCircle className="w-4 h-4" />
+                        Not Imported ({result.errors.length})
+                      </p>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {result.errors.slice(0, 10).map((err: string, i: number) => (
+                          <div key={i} className="text-xs p-2 bg-red-50 dark:bg-red-900/20 rounded text-red-700 dark:text-red-300">
+                            {err}
+                          </div>
+                        ))}
+                        {result.errors.length > 10 && (
+                          <p className="text-xs text-red-600 dark:text-red-400 italic">
+                            ...and {result.errors.length - 10} more errors
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Success Message */}
+                  {result.imported > 0 && (
+                    <div className="border-t pt-3 flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span className="text-sm font-medium">
+                        Successfully imported {result.imported} leads!
+                      </span>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -750,9 +798,9 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleClose}>
-            {result?.imported > 0 ? 'Done' : 'Cancel'}
+            {result?.imported > 0 || result?.warning ? 'Done' : 'Cancel'}
           </Button>
-          {!result?.imported && (
+          {!result?.imported && !result?.warning && (
             <Button onClick={handleImport} disabled={!file || loading} data-testid="import-leads-submit">
               {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Import Leads
