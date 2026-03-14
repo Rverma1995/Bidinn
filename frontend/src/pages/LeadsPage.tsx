@@ -1237,7 +1237,7 @@ export default function LeadsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Bulk Delete Dialog (Admin Only) */}
+      {/* Bulk Delete Dialog (Admin and Manager) */}
       <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[400px]" data-testid="bulk-delete-dialog">
           <DialogHeader>
