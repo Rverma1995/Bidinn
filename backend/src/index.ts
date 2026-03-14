@@ -246,22 +246,23 @@ const scheduleIdleLeadEscalationJob = () => {
   console.log("Idle lead escalation job scheduled to run every 6 hours");
 };
 
-// Auto-seed database if empty
+// Auto-seed database if empty - DISABLED
 const autoSeedIfEmpty = async () => {
-  try {
-    const userRepository = AppDataSource.getRepository(User);
-    const userCount = await userRepository.count();
-
-    if (userCount === 0) {
-      console.log("Database is empty, auto-seeding demo data...");
-      await seedDemoData();
-      console.log("Auto-seed completed successfully");
-    } else {
-      console.log(`Database has ${userCount} users, skipping auto-seed`);
-    }
-  } catch (error) {
-    console.error("Auto-seed check error:", error);
-  }
+  // DISABLED: Auto-seed is disabled per user request
+  console.log("Auto-seed is DISABLED");
+  // try {
+  //   const userRepository = AppDataSource.getRepository(User);
+  //   const userCount = await userRepository.count();
+  //   if (userCount === 0) {
+  //     console.log("Database is empty, auto-seeding demo data...");
+  //     await seedDemoData();
+  //     console.log("Auto-seed completed successfully");
+  //   } else {
+  //     console.log(`Database has ${userCount} users, skipping auto-seed`);
+  //   }
+  // } catch (error) {
+  //   console.error("Auto-seed check error:", error);
+  // }
 };
 
 // Seed demo data function
