@@ -848,6 +848,8 @@ export default function LeadsPage() {
   });
 
   const isAdmin = user?.role === 'admin';
+  const isManager = user?.role === 'manager';
+  const canBulkDelete = isAdmin || isManager;
 
   useEffect(() => {
     fetchLeads();
