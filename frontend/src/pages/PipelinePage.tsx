@@ -545,7 +545,7 @@ function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, o
 
   return (
     <div
-      className={`flex-1 min-w-[300px] max-w-[380px] rounded-2xl bg-slate-50/50 dark:bg-slate-800/30 border ${
+      className={`flex flex-col flex-1 min-w-[300px] max-w-[380px] h-full rounded-2xl bg-slate-50/50 dark:bg-slate-800/30 border ${
         isDragOver ? 'border-primary border-dashed bg-primary/5' : 'border-transparent'
       }`}
       onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
