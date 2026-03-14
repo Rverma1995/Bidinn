@@ -43,13 +43,18 @@ router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
   }
 });
 
-// Create user (Admin/Manager only)
+// Create user (Admin and Manager only)
 router.post("/", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
   try {
     const { email, name, password, role } = req.body;
 
     if (!email || !name || !password) {
       return res.status(400).json({ detail: "Email, name, and password are required" });
+    }
+
+    // Managers cannot create admin users
+    if (req.user?.role === UserRole.MANAGER && role === UserRole.ADMIN) {
+      return res.status(403).json({ detail: "Managers cannot create admin users" });
     }
 
     const existingUser = await userRepository().findOne({ where: { email } });
