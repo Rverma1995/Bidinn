@@ -402,18 +402,33 @@ export default function ReportsPage() {
                     </thead>
                     <tbody>
                       {agentPerformance.agents.map((agent) => (
-                        <tr key={agent.agent_id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <tr 
+                          key={agent.agent_id} 
+                          className={`border-b hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                            agent.agent_role === 'system' ? 'bg-slate-100 dark:bg-slate-800/80 font-medium' : ''
+                          }`}
+                        >
                           <td className="p-3">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
-                                <AvatarImage src={agent.agent_avatar} />
-                                <AvatarFallback className="text-xs bg-primary/10">
-                                  {agent.agent_name?.split(' ').map(n => n[0]).join('')}
-                                </AvatarFallback>
+                                {agent.agent_role === 'system' ? (
+                                  <AvatarFallback className="text-xs bg-slate-300 dark:bg-slate-600">
+                                    SYS
+                                  </AvatarFallback>
+                                ) : (
+                                  <>
+                                    <AvatarImage src={agent.agent_avatar} />
+                                    <AvatarFallback className="text-xs bg-primary/10">
+                                      {agent.agent_name?.split(' ').map(n => n[0]).join('')}
+                                    </AvatarFallback>
+                                  </>
+                                )}
                               </Avatar>
                               <div>
                                 <p className="font-medium text-sm">{agent.agent_name}</p>
-                                <p className="text-xs text-muted-foreground">{agent.agent_email}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {agent.agent_role === 'system' ? 'Unassigned / Admin / Default' : agent.agent_email}
+                                </p>
                               </div>
                             </div>
                           </td>
@@ -436,10 +451,14 @@ export default function ReportsPage() {
                             {formatINR(agent.total_revenue)}
                           </td>
                           <td className="p-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Phone className="w-3 h-3 text-muted-foreground" />
-                              {agent.calls_made}
-                            </div>
+                            {agent.agent_role === 'system' ? (
+                              <span className="text-muted-foreground">-</span>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1">
+                                <Phone className="w-3 h-3 text-muted-foreground" />
+                                {agent.calls_made}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
