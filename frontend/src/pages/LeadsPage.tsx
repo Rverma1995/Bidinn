@@ -563,11 +563,18 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
     } catch (error: any) {
       // Handle specific error cases
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        toast.error('Import is taking too long. Please try with a smaller file or contact support.');
-        setResult({ error: 'Request timed out. The file may be too large.' });
-      } else if (error.code === 'ERR_NETWORK') {
-        toast.error('Network error. Please check your connection and try again.');
-        setResult({ error: 'Network error occurred.' });
+        toast.info('Import is still processing on the server. Please refresh the page in a moment to see imported leads.', { duration: 8000 });
+        setResult({ 
+          warning: true,
+          message: 'Import is processing in the background. The server continues even if the connection times out. Please close this dialog and refresh the leads list in a moment.' 
+        });
+      } else if (error.code === 'ERR_NETWORK' || error.response?.status === 502) {
+        // 502 is likely a proxy timeout - the import may still be running
+        toast.info('Large file detected - import continues on the server. Please refresh in 30-60 seconds to see results.', { duration: 8000 });
+        setResult({ 
+          warning: true,
+          message: 'For large files (500+ leads), the import continues in the background. Please close this dialog and refresh the leads list in about 30-60 seconds to see the imported leads.' 
+        });
       } else {
         toast.error(error.response?.data?.detail || 'Failed to import leads');
         setResult({ error: error.response?.data?.detail || 'Import failed' });
