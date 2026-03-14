@@ -1071,7 +1071,7 @@ export default function LeadsPage() {
                   Assign {selectedLeads.length} Lead(s)
                 </Button>
               )}
-              {isAdmin && (
+              {canBulkDelete && (
                 <Button variant="destructive" onClick={() => setBulkDeleteDialogOpen(true)} data-testid="bulk-delete-btn">
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete {selectedLeads.length} Lead(s)
