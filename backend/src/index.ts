@@ -275,12 +275,6 @@ const autoSeedIfEmpty = async () => {
     console.error("Auto-seed check error:", error);
   }
 };
-  //     console.log(`Database has ${userCount} users, skipping auto-seed`);
-  //   }
-  // } catch (error) {
-  //   console.error("Auto-seed check error:", error);
-  // }
-};
 
 // Seed demo data function
 const seedDemoData = async () => {
