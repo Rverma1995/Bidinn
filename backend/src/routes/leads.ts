@@ -984,29 +984,56 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
       return res.status(400).json({ detail: "No valid leads found in the file" });
     }
 
-    const createdLeads: Lead[] = [];
+    console.log(`Processing import of ${leadsData.length} leads...`);
+
+    // OPTIMIZATION: Fetch ALL existing phone numbers in one query
+    const existingLeads = await leadRepository()
+      .createQueryBuilder("lead")
+      .select(["lead.phone", "lead.email", "lead.id", "lead.name"])
+      .getMany();
+
+    // Create a Set of normalized phone numbers for O(1) lookup
+    const existingPhones = new Set<string>();
+    const existingEmails = new Set<string>();
+    const existingLeadMap = new Map<string, { id: string; name: string; phone: string }>();
+
+    for (const lead of existingLeads) {
+      const normalizedPhone = String(lead.phone).replace(/[\s\-\(\)]/g, "");
+      existingPhones.add(normalizedPhone);
+      existingLeadMap.set(normalizedPhone, { id: lead.id, name: lead.name, phone: lead.phone });
+      if (lead.email) {
+        existingEmails.add(lead.email.toLowerCase());
+      }
+    }
+
+    const leadsToCreate: Lead[] = [];
     const duplicates: { data: any; existingLead: any }[] = [];
     const errors: string[] = [];
 
+    // Process leads without individual DB queries
     for (const data of leadsData) {
       if (!data.name || !data.phone) {
         errors.push(`Row missing name or phone: ${JSON.stringify(data).substring(0, 100)}`);
         continue;
       }
 
-      // Check for duplicates
       const normalizedPhone = String(data.phone).replace(/[\s\-\(\)]/g, "");
-      let duplicateQuery = leadRepository().createQueryBuilder("lead")
-        .where("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '') = :phone", { phone: normalizedPhone });
       
-      if (data.email) {
-        duplicateQuery = duplicateQuery.orWhere("LOWER(lead.email) = LOWER(:email)", { email: data.email });
+      // Check for duplicates using in-memory Sets (O(1) lookup)
+      if (existingPhones.has(normalizedPhone)) {
+        const existingLead = existingLeadMap.get(normalizedPhone);
+        duplicates.push({ data, existingLead });
+        continue;
       }
-      
-      const existingLead = await duplicateQuery.getOne();
-      
-      if (existingLead) {
-        duplicates.push({ data, existingLead: { id: existingLead.id, name: existingLead.name, phone: existingLead.phone } });
+
+      if (data.email && existingEmails.has(data.email.toLowerCase())) {
+        duplicates.push({ data, existingLead: { phone: 'N/A', name: 'Email match' } });
+        continue;
+      }
+
+      // Also check if this phone already exists in the batch being imported (prevent self-duplicates)
+      if (leadsToCreate.some(l => String(l.phone).replace(/[\s\-\(\)]/g, "") === normalizedPhone)) {
+        duplicates.push({ data, existingLead: { phone: data.phone, name: 'Duplicate in file' } });
         continue;
       }
 
@@ -1014,27 +1041,44 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
         id: uuidv4(),
         name: data.name,
         phone: String(data.phone),
-        email: data.email,
+        email: data.email || null,
         source: data.source || 'Import',
-        campaign: data.campaign,
-        city: data.city,
-        notes: data.notes,
+        campaign: data.campaign || null,
+        city: data.city || null,
+        notes: data.notes || null,
         status: LeadStatus.NEW,
         attempt_count: 0,
       });
 
-      await leadRepository().save(lead);
-      createdLeads.push(lead);
+      leadsToCreate.push(lead);
+      // Add to existing sets to prevent duplicates within the import batch
+      existingPhones.add(normalizedPhone);
+      if (data.email) {
+        existingEmails.add(data.email.toLowerCase());
+      }
     }
 
-    await logActivity(req.user!.id, req.user!.name, "imported_leads", "bulk", "lead", `${createdLeads.length} leads`, `Imported ${createdLeads.length} leads from file`);
+    // OPTIMIZATION: Bulk insert in batches of 100
+    const BATCH_SIZE = 100;
+    let importedCount = 0;
+
+    for (let i = 0; i < leadsToCreate.length; i += BATCH_SIZE) {
+      const batch = leadsToCreate.slice(i, i + BATCH_SIZE);
+      await leadRepository().save(batch);
+      importedCount += batch.length;
+      console.log(`Imported batch ${Math.floor(i / BATCH_SIZE) + 1}: ${importedCount}/${leadsToCreate.length} leads`);
+    }
+
+    await logActivity(req.user!.id, req.user!.name, "imported_leads", "bulk", "lead", `${importedCount} leads`, `Imported ${importedCount} leads from file`);
+
+    console.log(`Import complete: ${importedCount} imported, ${duplicates.length} duplicates skipped`);
 
     res.status(201).json({ 
-      imported: createdLeads.length, 
+      imported: importedCount, 
       skipped: duplicates.length,
       duplicates: duplicates.length,
       errors: errors,
-      leads: createdLeads.slice(0, 10), // Return first 10 for preview
+      leads: leadsToCreate.slice(0, 10), // Return first 10 for preview
       duplicateDetails: duplicates.length > 0 ? duplicates.slice(0, 10) : undefined,
     });
   } catch (error: any) {
