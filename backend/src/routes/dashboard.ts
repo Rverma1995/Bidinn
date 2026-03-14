@@ -250,8 +250,14 @@ router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res
       where: { role: In([UserRole.SALES_REP, UserRole.TEAM_LEAD, UserRole.MANAGER]) },
     });
 
+    // Get admin users to identify "system" leads
+    const adminUsers = await userRepository().find({
+      where: { role: UserRole.ADMIN },
+    });
+    const adminIds = adminUsers.map(a => a.id);
+
     // If specific agent is selected, filter to that agent only
-    const usersToProcess = agent_id && agent_id !== 'all' 
+    const usersToProcess = agent_id && agent_id !== 'all' && agent_id !== 'system'
       ? allAgents.filter(u => u.id === agent_id)
       : allAgents;
 
@@ -325,19 +331,63 @@ router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res
       })
     );
 
-    // Calculate team summary
+    // Calculate "System" row for unassigned leads and leads assigned to admin/default
+    let systemLeadsQuery = leadRepository().createQueryBuilder("lead")
+      .where("(lead.assigned_to IS NULL OR lead.assigned_to IN (:...adminIds) OR lead.assigned_name = :defaultName)", 
+        { adminIds: adminIds.length > 0 ? adminIds : ['no-admin'], defaultName: 'Default' });
+    
+    if (start_date) {
+      systemLeadsQuery = systemLeadsQuery.andWhere("lead.created_at >= :start", { start: new Date(start_date as string) });
+    }
+    if (end_date) {
+      systemLeadsQuery = systemLeadsQuery.andWhere("lead.created_at <= :end", { end: new Date(end_date as string) });
+    }
+
+    const systemTotalLeads = await systemLeadsQuery.getCount();
+    const systemContacted = await systemLeadsQuery.clone()
+      .andWhere("lead.status != :newStatus", { newStatus: LeadStatus.NEW })
+      .getCount();
+    const systemNotContacted = systemTotalLeads - systemContacted;
+    const systemConverted = await systemLeadsQuery.clone()
+      .andWhere("lead.status = :wonStatus", { wonStatus: LeadStatus.WON })
+      .getCount();
+    const systemConversionRate = systemTotalLeads > 0 ? Math.round((systemConverted / systemTotalLeads) * 100) : 0;
+
+    const systemAgent = {
+      agent_id: 'system',
+      agent_name: 'System (Unassigned/Admin)',
+      agent_email: 'system@bidinn.com',
+      agent_role: 'system',
+      total_leads: systemTotalLeads,
+      contacted: systemContacted,
+      not_contacted: systemNotContacted,
+      converted: systemConverted,
+      conversion_rate: systemConversionRate,
+      calls_made: 0,
+      total_revenue: 0,
+    };
+
+    // Add system row to agents if showing all or specifically selected
+    const allAgentsWithSystem = agent_id === 'system' 
+      ? [systemAgent] 
+      : (agent_id && agent_id !== 'all' ? agents : [...agents, systemAgent]);
+
+    // Calculate team summary (including system leads)
     const teamSummary = {
-      total_leads: agents.reduce((sum, a) => sum + a.total_leads, 0),
-      contacted: agents.reduce((sum, a) => sum + a.contacted, 0),
-      not_contacted: agents.reduce((sum, a) => sum + a.not_contacted, 0),
-      converted: agents.reduce((sum, a) => sum + a.converted, 0),
+      total_leads: agents.reduce((sum, a) => sum + a.total_leads, 0) + systemTotalLeads,
+      contacted: agents.reduce((sum, a) => sum + a.contacted, 0) + systemContacted,
+      not_contacted: agents.reduce((sum, a) => sum + a.not_contacted, 0) + systemNotContacted,
+      converted: agents.reduce((sum, a) => sum + a.converted, 0) + systemConverted,
       total_revenue: agents.reduce((sum, a) => sum + a.total_revenue, 0),
     };
 
     res.json({
-      agents,
+      agents: allAgentsWithSystem,
       team_summary: teamSummary,
-      all_agents: allAgents.map(a => ({ id: a.id, name: a.name, role: a.role })),
+      all_agents: [
+        ...allAgents.map(a => ({ id: a.id, name: a.name, role: a.role })),
+        { id: 'system', name: 'System (Unassigned/Admin)', role: 'system' },
+      ],
     });
   } catch (error) {
     console.error("Get agent-performance error:", error);
