@@ -1105,8 +1105,8 @@ router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN]), async (r
   }
 });
 
-// Bulk delete leads (Admin only)
-router.post("/bulk-delete", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
+// Bulk delete leads (Admin and Manager)
+router.post("/bulk-delete", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
   try {
     const { lead_ids } = req.body;
 
