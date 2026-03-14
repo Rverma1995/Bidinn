@@ -682,11 +682,13 @@ export default function TeamPage() {
                             Edit Details
                           </DropdownMenuItem>
                           {isAdmin && user.id !== currentUser?.id && (
+                            <DropdownMenuItem onClick={() => openResetPasswordDialog(user)}>
+                              <KeyRound className="w-4 h-4 mr-2" />
+                              Reset Password
+                            </DropdownMenuItem>
+                          )}
+                          {canManageUsers && user.id !== currentUser?.id && !(isManager && user.role === 'admin') && (
                             <>
-                              <DropdownMenuItem onClick={() => openResetPasswordDialog(user)}>
-                                <KeyRound className="w-4 h-4 mr-2" />
-                                Reset Password
-                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onClick={() => setConfirmDeactivate(user)}
