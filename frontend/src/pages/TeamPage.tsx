@@ -519,7 +519,7 @@ export default function TeamPage() {
             Manage your team and track performance
           </p>
         </div>
-        {isManager && (
+        {canManageUsers && (
           <Button onClick={() => setCreateDialogOpen(true)} data-testid="add-team-member-btn">
             <Plus className="w-4 h-4 mr-2" />
             Add Team Member
