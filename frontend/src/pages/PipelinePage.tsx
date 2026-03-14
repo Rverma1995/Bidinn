@@ -566,8 +566,8 @@ function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, o
       </div>
 
       {/* Cards */}
-      <ScrollArea className="h-[calc(100vh-280px)] min-h-[500px]">
-        <div className="p-3 space-y-3 pb-6">
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-3 space-y-3 pb-8">
           {leads.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
               No leads in this stage
