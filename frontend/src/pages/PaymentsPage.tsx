@@ -201,8 +201,10 @@ export default function PaymentsPage() {
 
   const fetchPayments = async () => {
     try {
-      const response = await api.get('/payments');
-      setPayments(response.data);
+      const response = await api.get('/payments?limit=1000');
+      // Handle both paginated and non-paginated response formats
+      const paymentsData = response.data.payments || response.data;
+      setPayments(paymentsData);
     } catch (error) {
       toast.error('Failed to fetch payments');
     } finally {
@@ -212,8 +214,10 @@ export default function PaymentsPage() {
 
   const fetchBookings = async () => {
     try {
-      const response = await api.get('/bookings');
-      setBookings(response.data);
+      const response = await api.get('/bookings?limit=1000');
+      // Handle both paginated and non-paginated response formats
+      const bookingsData = response.data.bookings || response.data;
+      setBookings(bookingsData);
     } catch (error) {
       console.error('Failed to fetch bookings:', error);
     }
