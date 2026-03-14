@@ -615,7 +615,8 @@ export default function PipelinePage() {
   const fetchLeads = async () => {
     try {
       // Fetch all leads for pipeline view (need full dataset for kanban)
-      const response = await api.get('/leads?limit=1000');
+      // Use a high limit to get all leads - pagination not ideal for kanban view
+      const response = await api.get('/leads?limit=10000');
       // Handle both paginated and non-paginated response formats
       const leadsData = response.data.leads || response.data;
       setLeads(leadsData);
