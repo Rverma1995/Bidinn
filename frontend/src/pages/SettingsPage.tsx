@@ -581,50 +581,6 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Seed Demo Data</Label>
-                <p className="text-sm text-muted-foreground">
-                  Populate the database with sample data for demo purposes
-                </p>
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={handleSeedData}
-                disabled={seeding}
-                data-testid="seed-data-btn"
-              >
-                {seeding ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Database className="w-4 h-4 mr-2" />
-                )}
-                Seed Data
-              </Button>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Run 30-Day Auto Reset</Label>
-                <p className="text-sm text-muted-foreground">
-                  Manually trigger the 30-day inactivity reset job
-                </p>
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={handleAutoReset}
-                disabled={resetting}
-                data-testid="auto-reset-btn"
-              >
-                {resetting ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                )}
-                Run Reset
-              </Button>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
                 <Label>Export Database</Label>
                 <p className="text-sm text-muted-foreground">
                   Download all data as a JSON backup file
