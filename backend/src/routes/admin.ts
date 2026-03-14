@@ -77,4 +77,110 @@ router.get("/features", async (req, res: Response) => {
   });
 });
 
+// Export database (Admin only)
+router.get("/export-database", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
+  try {
+    console.log("Starting database export...");
+    
+    // Fetch all data
+    const [leads, bookings, payments, calls, activities, notifications, users] = await Promise.all([
+      leadRepository().find(),
+      bookingRepository().find(),
+      paymentRepository().find(),
+      callRepository().find(),
+      activityRepository().find(),
+      notificationRepository().find(),
+      userRepository().find({ select: ["id", "email", "name", "role", "is_active", "created_at"] }), // Exclude password_hash
+    ]);
+
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      exported_by: req.user?.email,
+      version: "1.0",
+      data: {
+        users: users.map(u => ({ ...u, password_hash: undefined })), // Ensure no passwords
+        leads,
+        bookings,
+        payments,
+        calls,
+        activities,
+        notifications,
+      },
+      counts: {
+        users: users.length,
+        leads: leads.length,
+        bookings: bookings.length,
+        payments: payments.length,
+        calls: calls.length,
+        activities: activities.length,
+        notifications: notifications.length,
+      },
+    };
+
+    console.log(`Database export complete: ${leads.length} leads, ${bookings.length} bookings, ${payments.length} payments`);
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename=bidinn-backup-${new Date().toISOString().split('T')[0]}.json`);
+    res.json(exportData);
+  } catch (error) {
+    console.error("Export database error:", error);
+    res.status(500).json({ detail: "Failed to export database" });
+  }
+});
+
+// Delete all data (Admin only) - DANGEROUS!
+router.delete("/delete-database", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
+  try {
+    console.log(`Database deletion initiated by ${req.user?.email}`);
+    
+    // Delete in order to respect foreign key constraints
+    // First delete dependent entities
+    const notificationsDeleted = await notificationRepository().delete({});
+    console.log(`Deleted ${notificationsDeleted.affected} notifications`);
+    
+    const activitiesDeleted = await activityRepository().delete({});
+    console.log(`Deleted ${activitiesDeleted.affected} activities`);
+    
+    const callsDeleted = await callRepository().delete({});
+    console.log(`Deleted ${callsDeleted.affected} calls`);
+    
+    const paymentsDeleted = await paymentRepository().delete({});
+    console.log(`Deleted ${paymentsDeleted.affected} payments`);
+    
+    const bookingsDeleted = await bookingRepository().delete({});
+    console.log(`Deleted ${bookingsDeleted.affected} bookings`);
+    
+    const leadsDeleted = await leadRepository().delete({});
+    console.log(`Deleted ${leadsDeleted.affected} leads`);
+    
+    // Log this action in activities (since we just deleted all activities, create a new one)
+    const deleteActivity = activityRepository().create({
+      id: uuidv4(),
+      user_id: req.user!.id,
+      user_name: req.user!.name,
+      action: "database_cleared",
+      target_id: "all",
+      target_type: "system",
+      target_name: "Database",
+      details: `All data deleted by ${req.user!.email}. Deleted: ${leadsDeleted.affected} leads, ${bookingsDeleted.affected} bookings, ${paymentsDeleted.affected} payments, ${callsDeleted.affected} calls.`,
+    });
+    await activityRepository().save(deleteActivity);
+
+    res.json({ 
+      message: "All data deleted successfully",
+      deleted: {
+        leads: leadsDeleted.affected,
+        bookings: bookingsDeleted.affected,
+        payments: paymentsDeleted.affected,
+        calls: callsDeleted.affected,
+        activities: activitiesDeleted.affected,
+        notifications: notificationsDeleted.affected,
+      }
+    });
+  } catch (error) {
+    console.error("Delete database error:", error);
+    res.status(500).json({ detail: "Failed to delete database" });
+  }
+});
+
 export default router;
