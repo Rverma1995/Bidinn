@@ -537,16 +537,16 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
     setLoading(true);
     setResult(null);
     
+    // Show progress toast for large files
+    const toastId = toast.loading('Importing leads... This may take a few minutes for large files.');
+    
     try {
       const formData = new FormData();
       formData.append('file', file);
       
-      // Show progress toast for large files
-      const toastId = toast.loading('Importing leads... This may take a few minutes for large files.');
-      
       const response = await api.post('/leads/import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 600000, // 10 minutes timeout for large imports
+        timeout: 120000, // 2 minutes - if it takes longer, proxy will timeout anyway
       });
       
       toast.dismiss(toastId);
@@ -562,6 +562,8 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
         toast.warning('No leads were imported. Check the errors below.');
       }
     } catch (error: any) {
+      toast.dismiss(toastId); // Always dismiss loading toast on error
+      
       // Handle specific error cases
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
         toast.info('Import is still processing on the server. Please refresh the page in a moment to see imported leads.', { duration: 8000 });
@@ -581,6 +583,7 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
         setResult({ error: error.response?.data?.detail || 'Import failed' });
       }
     } finally {
+      toast.dismiss(toastId); // Ensure toast is dismissed
       setLoading(false);
     }
   };
