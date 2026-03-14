@@ -156,30 +156,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSeedData = async () => {
-    setSeeding(true);
-    try {
-      const response = await api.post('/admin/seed-data');
-      toast.success(response.data.message);
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to seed data');
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  const handleAutoReset = async () => {
-    setResetting(true);
-    try {
-      const response = await api.post('/admin/run-auto-reset');
-      toast.success(response.data.message);
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to run auto-reset');
-    } finally {
-      setResetting(false);
-    }
-  };
-
   const handleExportDatabase = async () => {
     setExporting(true);
     try {
