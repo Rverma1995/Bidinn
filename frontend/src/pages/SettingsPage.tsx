@@ -182,6 +182,51 @@ export default function SettingsPage() {
     }
   };
 
+  const handleExportDatabase = async () => {
+    setExporting(true);
+    try {
+      const response = await api.get('/admin/export-database', {
+        responseType: 'blob',
+      });
+      
+      // Create download link
+      const blob = new Blob([response.data], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bidinn-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Database exported successfully!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to export database');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDeleteDatabase = async () => {
+    if (deleteConfirmText !== 'DELETE ALL DATA') {
+      toast.error('Please type "DELETE ALL DATA" to confirm');
+      return;
+    }
+    
+    setDeleting(true);
+    try {
+      const response = await api.delete('/admin/delete-database');
+      toast.success(response.data.message);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete database');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl" data-testid="settings-page">
       {/* Header */}
