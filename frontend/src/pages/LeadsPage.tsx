@@ -712,6 +712,11 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
                   <XCircle className="w-5 h-5" />
                   <span>{result.error}</span>
                 </div>
+              ) : result.warning ? (
+                <div className="flex items-start gap-2 text-blue-700 dark:text-blue-300">
+                  <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <span>{result.message}</span>
+                </div>
               ) : (
                 <>
                   <div className="flex items-center gap-4 mb-2">
