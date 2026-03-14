@@ -45,8 +45,6 @@ import {
 export default function SettingsPage() {
   const { user, api, isAdmin } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
-  const [seeding, setSeeding] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
