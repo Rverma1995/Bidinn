@@ -181,6 +181,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 5. **Fixed Pipeline, Bookings & Payments Pages** - Updated API response handling to work with paginated endpoints
 6. **Admin Database Management** - Added Export Database (JSON backup) and Delete All Data features in Admin Settings
 7. **Pipeline View Improved** - Increased scroll area height for better lead card visibility
+8. **Disabled Auto Features** - Removed 30-day auto-reset job and demo seed data functionality
 
 ---
 
