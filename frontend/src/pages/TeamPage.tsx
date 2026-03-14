@@ -432,6 +432,8 @@ export default function TeamPage() {
   const [confirmDeactivate, setConfirmDeactivate] = useState(null);
 
   const isAdmin = currentUser?.role === 'admin';
+  const isManager = currentUser?.role === 'manager';
+  const canManageUsers = isAdmin || isManager;
 
   useEffect(() => {
     fetchTeamData();
