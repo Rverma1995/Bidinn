@@ -687,7 +687,7 @@ export default function TeamPage() {
                               Reset Password
                             </DropdownMenuItem>
                           )}
-                          {canManageUsers && user.id !== currentUser?.id && !(isManager && user.role === 'admin') && (
+                          {canManageUsers && user.id !== currentUser?.id && !(isManagerRole && user.role === 'admin') && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
