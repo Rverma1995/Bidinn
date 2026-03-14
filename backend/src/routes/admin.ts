@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { AppDataSource } from "../config/data-source";
-import { User, UserRole, Lead, LeadStatus, Activity } from "../entities";
+import { User, UserRole, Lead, LeadStatus, Activity, Booking, Payment, Call, Notification } from "../entities";
 import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
 
@@ -8,6 +8,10 @@ const router = Router();
 const userRepository = () => AppDataSource.getRepository(User);
 const leadRepository = () => AppDataSource.getRepository(Lead);
 const activityRepository = () => AppDataSource.getRepository(Activity);
+const bookingRepository = () => AppDataSource.getRepository(Booking);
+const paymentRepository = () => AppDataSource.getRepository(Payment);
+const callRepository = () => AppDataSource.getRepository(Call);
+const notificationRepository = () => AppDataSource.getRepository(Notification);
 
 // Run auto-reset job
 router.post("/run-auto-reset", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
