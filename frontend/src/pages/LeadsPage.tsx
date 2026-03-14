@@ -701,9 +701,11 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
             <div className={`p-4 rounded-lg ${
               result.error 
                 ? 'bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800' 
-                : result.imported > 0 
-                  ? 'bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800'
-                  : 'bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800'
+                : result.warning
+                  ? 'bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800'
+                  : result.imported > 0 
+                    ? 'bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800'
+                    : 'bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800'
             }`}>
               {result.error ? (
                 <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
