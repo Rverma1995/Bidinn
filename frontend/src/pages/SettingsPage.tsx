@@ -622,9 +622,103 @@ export default function SettingsPage() {
                 Run Reset
               </Button>
             </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Export Database</Label>
+                <p className="text-sm text-muted-foreground">
+                  Download all data as a JSON backup file
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleExportDatabase}
+                disabled={exporting}
+                data-testid="export-database-btn"
+              >
+                {exporting ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                Export Data
+              </Button>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-red-600">Delete All Data</Label>
+                <p className="text-sm text-muted-foreground">
+                  Permanently delete all leads, bookings, payments, and activities
+                </p>
+              </div>
+              <Button 
+                variant="destructive" 
+                onClick={() => setShowDeleteConfirm(true)}
+                data-testid="delete-database-btn"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete All
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent data-testid="delete-database-confirm-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Delete All Data?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4">
+              <p>
+                This action will <strong>permanently delete</strong> all:
+              </p>
+              <ul className="list-disc list-inside text-sm space-y-1">
+                <li>Leads and their history</li>
+                <li>Bookings</li>
+                <li>Payments</li>
+                <li>Call logs</li>
+                <li>Activities</li>
+                <li>Notifications</li>
+              </ul>
+              <p className="text-red-600 font-medium">
+                This action cannot be undone! Make sure to export a backup first.
+              </p>
+              <div className="pt-2">
+                <Label htmlFor="delete-confirm">Type "DELETE ALL DATA" to confirm:</Label>
+                <Input
+                  id="delete-confirm"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="DELETE ALL DATA"
+                  className="mt-2"
+                  data-testid="delete-confirm-input"
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmText('')}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteDatabase}
+              disabled={deleting || deleteConfirmText !== 'DELETE ALL DATA'}
+              data-testid="confirm-delete-btn"
+            >
+              {deleting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Delete Everything
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Feature Flags */}
       <Card>
