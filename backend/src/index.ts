@@ -246,18 +246,35 @@ const scheduleIdleLeadEscalationJob = () => {
   console.log("Idle lead escalation job scheduled to run every 6 hours");
 };
 
-// Auto-seed database if empty - DISABLED
+// Auto-seed database if empty - Creates initial admin user
 const autoSeedIfEmpty = async () => {
-  // DISABLED: Auto-seed is disabled per user request
-  console.log("Auto-seed is DISABLED");
-  // try {
-  //   const userRepository = AppDataSource.getRepository(User);
-  //   const userCount = await userRepository.count();
-  //   if (userCount === 0) {
-  //     console.log("Database is empty, auto-seeding demo data...");
-  //     await seedDemoData();
-  //     console.log("Auto-seed completed successfully");
-  //   } else {
+  try {
+    const userRepository = AppDataSource.getRepository(User);
+    const userCount = await userRepository.count();
+
+    if (userCount === 0) {
+      console.log("Database is empty, creating admin user...");
+      const bcrypt = require("bcryptjs");
+      const { v4: uuidv4 } = require("uuid");
+      
+      // Create admin user
+      const adminUser = userRepository.create({
+        id: uuidv4(),
+        email: "alex@bidinn.com",
+        name: "Alex Admin",
+        password_hash: await bcrypt.hash("password123", 10),
+        role: UserRole.ADMIN,
+        is_active: true,
+      });
+      await userRepository.save(adminUser);
+      console.log("Admin user created: alex@bidinn.com / password123");
+    } else {
+      console.log(`Database has ${userCount} users`);
+    }
+  } catch (error) {
+    console.error("Auto-seed check error:", error);
+  }
+};
   //     console.log(`Database has ${userCount} users, skipping auto-seed`);
   //   }
   // } catch (error) {
