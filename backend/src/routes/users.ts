@@ -158,13 +158,18 @@ router.post("/:id/reset-password", authenticateToken, requireRole([UserRole.ADMI
   }
 });
 
-// Delete user (Admin only)
-router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
+// Delete/Deactivate user (Admin and Manager)
+router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.params.id as string;
     const user = await userRepository().findOne({ where: { id: userId } });
     if (!user) {
       return res.status(404).json({ detail: "User not found" });
+    }
+
+    // Managers cannot delete/deactivate admins
+    if (req.user?.role === UserRole.MANAGER && user.role === UserRole.ADMIN) {
+      return res.status(403).json({ detail: "Managers cannot deactivate admin users" });
     }
 
     await userRepository().remove(user);
