@@ -804,8 +804,8 @@ export default function PipelinePage() {
       </div>
 
       {/* Pipeline Kanban */}
-      <div className="overflow-x-auto pb-4">
-        <div className="flex gap-4 min-w-max">
+      <div className="overflow-x-auto pb-4" style={{ height: 'calc(100vh - 320px)', minHeight: '500px' }}>
+        <div className="flex gap-4 min-w-max h-full">
           {ACTIVE_PIPELINE_STATUSES.map((stage) => (
             <PipelineColumn
               key={stage.value}
