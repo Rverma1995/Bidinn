@@ -1058,13 +1058,21 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
       }
     }
 
-    // OPTIMIZATION: Bulk insert in batches of 100
-    const BATCH_SIZE = 100;
+    // OPTIMIZATION: Bulk insert in larger batches using query builder for speed
+    const BATCH_SIZE = 500;
     let importedCount = 0;
 
     for (let i = 0; i < leadsToCreate.length; i += BATCH_SIZE) {
       const batch = leadsToCreate.slice(i, i + BATCH_SIZE);
-      await leadRepository().save(batch);
+      
+      // Use insert instead of save for faster bulk inserts
+      await leadRepository()
+        .createQueryBuilder()
+        .insert()
+        .into(Lead)
+        .values(batch)
+        .execute();
+      
       importedCount += batch.length;
       console.log(`Imported batch ${Math.floor(i / BATCH_SIZE) + 1}: ${importedCount}/${leadsToCreate.length} leads`);
     }
