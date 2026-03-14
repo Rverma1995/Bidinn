@@ -135,21 +135,20 @@ const runAutoResetJob = async () => {
   }
 };
 
-// Schedule auto-reset job to run daily at midnight
+// Schedule auto-reset job to run daily at midnight - DISABLED
 const scheduleAutoResetJob = () => {
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setDate(midnight.getDate() + 1);
-  midnight.setHours(0, 0, 0, 0);
-
-  const msUntilMidnight = midnight.getTime() - now.getTime();
-
-  setTimeout(() => {
-    runAutoResetJob();
-    setInterval(runAutoResetJob, 24 * 60 * 60 * 1000);
-  }, msUntilMidnight);
-
-  console.log(`Auto-reset job scheduled. Next run in ${Math.round(msUntilMidnight / 1000 / 60)} minutes`);
+  // DISABLED: Auto-reset job is disabled per user request
+  console.log("Auto-reset job is DISABLED");
+  // const now = new Date();
+  // const midnight = new Date(now);
+  // midnight.setDate(midnight.getDate() + 1);
+  // midnight.setHours(0, 0, 0, 0);
+  // const msUntilMidnight = midnight.getTime() - now.getTime();
+  // setTimeout(() => {
+  //   runAutoResetJob();
+  //   setInterval(runAutoResetJob, 24 * 60 * 60 * 1000);
+  // }, msUntilMidnight);
+  // console.log(`Auto-reset job scheduled. Next run in ${Math.round(msUntilMidnight / 1000 / 60)} minutes`);
 };
 
 // Rule 4: Idle Lead Escalation Job - runs every 6 hours
