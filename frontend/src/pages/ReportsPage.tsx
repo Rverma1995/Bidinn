@@ -224,9 +224,11 @@ export default function ReportsPage() {
     <div className="space-y-6 animate-fade-in" data-testid="reports-page">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {isSalesRep ? 'My Reports' : 'Reports'}
+        </h1>
         <p className="text-muted-foreground">
-          Analytics and performance metrics
+          {isSalesRep ? 'Your personal analytics and performance' : 'Analytics and performance metrics'}
         </p>
       </div>
 
