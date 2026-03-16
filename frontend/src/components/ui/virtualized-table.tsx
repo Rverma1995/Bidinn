@@ -42,7 +42,15 @@ export function VirtualizedTable<T>({
   }, [columns]);
 
   const Row = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties }) => {
+    ({ index, style, ariaAttributes }: { 
+      index: number; 
+      style: React.CSSProperties;
+      ariaAttributes?: {
+        "aria-posinset": number;
+        "aria-setsize": number;
+        role: "listitem";
+      };
+    }) => {
       const item = data[index];
       return (
         <div
@@ -53,6 +61,7 @@ export function VirtualizedTable<T>({
           )}
           onClick={() => onRowClick?.(item)}
           data-testid={`row-${getRowKey(item)}`}
+          {...ariaAttributes}
         >
           {columns.map((col, colIndex) => (
             <div
