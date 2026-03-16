@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, BeforeInsert } from "typeorm";
+import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, BeforeInsert, Index } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { User } from "./User";
 import { Lead } from "./Lead";
@@ -10,6 +10,10 @@ export enum PaymentStatus {
 }
 
 @Entity("bookings")
+@Index("idx_bookings_lead_id", ["lead_id"])
+@Index("idx_bookings_payment_status", ["payment_status"])
+@Index("idx_bookings_created_at", ["created_at"])
+@Index("idx_bookings_created_by", ["created_by_id"])
 export class Booking {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;
