@@ -161,8 +161,8 @@ router.put("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANA
   }
 });
 
-// Delete booking
-router.delete("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
+// Delete booking (Admin and Manager only)
+router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
   try {
     const bookingId = req.params.id as string;
     const booking = await bookingRepository().findOne({ where: { id: bookingId } });
