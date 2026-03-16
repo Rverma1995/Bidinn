@@ -98,12 +98,16 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 | View All Leads | ✅ | ✅ | ✅ | Own only |
 | Create Leads | ✅ | ✅ | ✅ | ✅ |
 | Assign Leads | ✅ | ✅ | ✅ | ❌ |
-| Bulk Delete Leads | ✅ | ❌ | ❌ | ❌ |
+| Bulk Delete Leads | ✅ | ✅ | ❌ | ❌ |
 | Import Leads | ✅ | ✅ | ❌ | ❌ |
 | Analyze/Merge Duplicates | ✅ | ❌ | ❌ | ❌ |
-| Create Users | ✅ | ❌ | ❌ | ❌ |
+| Create Users | ✅ | ✅ | ❌ | ❌ |
 | Edit Users | ✅ | ✅ | ❌ | Self only |
-| Deactivate Users | ✅ | ❌ | ❌ | ❌ |
+| Deactivate Users | ✅ | ✅ | ❌ | ❌ |
+| View Reports | ✅ | ✅ | ✅ | Own only |
+| View All Agents in Reports | ✅ | ✅ | ✅ | ❌ |
+| View Team Page | ✅ | ✅ | ✅ | ❌ |
+| View Payments Page | ✅ | ✅ | ✅ | ❌ |
 
 ---
 
