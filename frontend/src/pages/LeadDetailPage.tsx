@@ -445,7 +445,7 @@ export default function LeadDetailPage() {
   const navigate = useNavigate();
   const { api, user, isTeamLead } = useAuth();
   const [lead, setLead] = useState<Lead | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
