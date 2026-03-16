@@ -126,13 +126,11 @@ export function VirtualizedTable<T>({
               ref={listRef}
               height={listHeight}
               width={width || 0}
-              itemCount={data.length}
-              itemSize={rowHeight}
+              rowCount={data.length}
+              rowHeight={rowHeight}
               overscanCount={5}
-              itemData={data}
-            >
-              {Row}
-            </List>
+              rowComponent={Row}
+            />
           )}
         />
       </div>
