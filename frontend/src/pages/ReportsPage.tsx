@@ -484,8 +484,8 @@ export default function ReportsPage() {
                 </div>
               )}
 
-              {/* Single Agent View */}
-              {selectedAgent !== 'all' && agentPerformance?.agents?.length > 0 && (
+              {/* Single Agent View - shows for specific agent selection or for sales reps viewing their own data */}
+              {(selectedAgent !== 'all' || isSalesRep) && agentPerformance?.agents?.length > 0 && (
                 <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                   <div className="flex items-center gap-4 mb-4">
                     <Avatar className="h-16 w-16">
