@@ -396,6 +396,7 @@ export default function PaymentsPage() {
                 <TableHead>Booking</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Notes</TableHead>
+                {canEditDelete && <TableHead className="w-[50px]">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -422,6 +423,38 @@ export default function PaymentsPage() {
                     <TableCell className="max-w-xs truncate">
                       {payment.notes || '-'}
                     </TableCell>
+                    {canEditDelete && (
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`payment-actions-${payment.id}`}>
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                setSelectedPayment(payment);
+                                setEditDialogOpen(true);
+                              }}
+                            >
+                              <Pencil className="w-4 h-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-red-600"
+                              onClick={() => {
+                                setSelectedPayment(payment);
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}
