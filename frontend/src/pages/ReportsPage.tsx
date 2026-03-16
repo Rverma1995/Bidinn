@@ -401,8 +401,8 @@ export default function ReportsPage() {
                 </Card>
               </div>
 
-              {/* Agent Details Table */}
-              {selectedAgent === 'all' && agentPerformance?.agents?.length > 0 && (
+              {/* Agent Details Table - Only shown for admin/manager/team lead when viewing all agents */}
+              {selectedAgent === 'all' && canViewAllAgents && agentPerformance?.agents?.length > 0 && (
                 <div className="overflow-x-auto">
                   <table className="w-full" data-testid="agent-performance-table">
                     <thead>
