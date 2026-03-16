@@ -28,9 +28,10 @@ export default [
       },
     },
     rules: {
-      // Disable problematic rules for TypeScript files
+      // Disable all problematic rules for TypeScript files
       'no-undef': 'off',
       'no-unused-vars': 'off',
+      'no-redeclare': 'off',
     },
   },
 ];
