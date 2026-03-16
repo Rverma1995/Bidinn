@@ -1,7 +1,7 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 13.0  
-**Last Updated:** March 13, 2026  
+**Version:** 14.0  
+**Last Updated:** December 16, 2025  
 **Product Name:** Bidinn  
 **Status:** PRODUCTION READY ✅
 
