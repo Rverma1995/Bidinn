@@ -109,6 +109,8 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 | View All Agents in Reports | ✅ | ✅ | ✅ | ❌ |
 | View Team Page | ✅ | ✅ | ✅ | ❌ |
 | View Payments Page | ✅ | ✅ | ✅ | ❌ |
+| Edit/Delete Bookings | ✅ | ✅ | ❌ | ❌ |
+| Edit/Delete Payments | ✅ | ✅ | ❌ | ❌ |
 
 ---
 
