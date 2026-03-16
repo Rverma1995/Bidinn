@@ -124,12 +124,12 @@ export function VirtualizedTable<T>({
           renderProp={({ width }) => (
             <List
               listRef={listRef}
-              height={listHeight}
-              width={width || 0}
+              style={{ height: listHeight, width: width || 0 }}
               rowCount={data.length}
               rowHeight={rowHeight}
               overscanCount={5}
               rowComponent={Row}
+              rowProps={{}}
             />
           )}
         />
