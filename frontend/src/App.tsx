@@ -103,7 +103,7 @@ function AppRoutes() {
         <Route
           path="reports"
           element={
-            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+            <ProtectedRoute allowedRoles={['admin', 'manager', 'team_lead', 'sales_rep']}>
               <ReportsPage />
             </ProtectedRoute>
           }
