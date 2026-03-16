@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, BeforeInsert } from "typeorm";
+import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, BeforeInsert, Index } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { User } from "./User";
 import { Call } from "./Call";
@@ -54,6 +54,13 @@ export const STAGES_REQUIRING_REASON: LeadStatus[] = [
 ];
 
 @Entity("leads")
+@Index("idx_leads_assigned_to", ["assigned_to"])
+@Index("idx_leads_status", ["status"])
+@Index("idx_leads_created_at", ["created_at"])
+@Index("idx_leads_phone", ["phone"])
+@Index("idx_leads_source", ["source"])
+@Index("idx_leads_assigned_status", ["assigned_to", "status"])
+@Index("idx_leads_status_created", ["status", "created_at"])
 export class Lead {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;
