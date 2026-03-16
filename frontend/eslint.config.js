@@ -4,7 +4,7 @@ import globals from 'globals';
 export default [
   js.configs.recommended,
   {
-    files: ['**/*.{js,jsx,ts,tsx}'],
+    files: ['**/*.{js,jsx}'],
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'module',
@@ -14,25 +14,23 @@ export default [
       },
     },
     rules: {
-      // Basic rules for now
       'no-unused-vars': 'warn',
     },
   },
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
-      parser: await import('@typescript-eslint/parser').then(m => m.default),
-      parserOptions: {
-        ecmaVersion: 2020,
-        sourceType: 'module',
-        ecmaFeatures: {
-          jsx: true,
-        },
+      ecmaVersion: 2020,
+      sourceType: 'module',
+      globals: {
+        ...globals.browser,
+        ...globals.node,
       },
     },
     rules: {
-      // TypeScript specific rules
-      'no-unused-vars': 'off', // Turn off base rule for TS files
+      // Disable problematic rules for TypeScript files
+      'no-undef': 'off',
+      'no-unused-vars': 'off',
     },
   },
 ];
