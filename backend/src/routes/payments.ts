@@ -106,4 +106,89 @@ router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
   }
 });
 
+// Update payment (Admin and Manager only)
+router.put("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
+  try {
+    const paymentId = req.params.id as string;
+    const { amount, notes } = req.body;
+    
+    const payment = await paymentRepository().findOne({ where: { id: paymentId } });
+    if (!payment) {
+      return res.status(404).json({ detail: "Payment not found" });
+    }
+
+    const oldAmount = parseFloat(String(payment.amount)) || 0;
+    const newAmount = amount !== undefined ? parseFloat(amount) : oldAmount;
+    const amountDiff = newAmount - oldAmount;
+
+    // Update payment
+    if (amount !== undefined) payment.amount = newAmount;
+    if (notes !== undefined) payment.notes = notes;
+    await paymentRepository().save(payment);
+
+    // Update booking payment amount if amount changed
+    if (amountDiff !== 0 && payment.booking_id) {
+      const booking = await bookingRepository().findOne({ where: { id: payment.booking_id } });
+      if (booking) {
+        const newPaymentAmount = (parseFloat(String(booking.payment_amount)) || 0) + amountDiff;
+        booking.payment_amount = Math.max(0, newPaymentAmount);
+        
+        // Recalculate payment status
+        if (booking.payment_amount >= parseFloat(String(booking.final_price))) {
+          booking.payment_status = PaymentStatus.PAID;
+        } else if (booking.payment_amount > 0) {
+          booking.payment_status = PaymentStatus.PARTIAL;
+        } else {
+          booking.payment_status = PaymentStatus.UNPAID;
+        }
+        await bookingRepository().save(booking);
+      }
+    }
+
+    res.json(payment);
+  } catch (error) {
+    console.error("Update payment error:", error);
+    res.status(500).json({ detail: "Failed to update payment" });
+  }
+});
+
+// Delete payment (Admin and Manager only)
+router.delete("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
+  try {
+    const paymentId = req.params.id as string;
+    const payment = await paymentRepository().findOne({ where: { id: paymentId } });
+
+    if (!payment) {
+      return res.status(404).json({ detail: "Payment not found" });
+    }
+
+    const paymentAmount = parseFloat(String(payment.amount)) || 0;
+
+    // Update booking payment amount
+    if (payment.booking_id) {
+      const booking = await bookingRepository().findOne({ where: { id: payment.booking_id } });
+      if (booking) {
+        const newPaymentAmount = Math.max(0, (parseFloat(String(booking.payment_amount)) || 0) - paymentAmount);
+        booking.payment_amount = newPaymentAmount;
+        
+        // Recalculate payment status
+        if (newPaymentAmount >= parseFloat(String(booking.final_price))) {
+          booking.payment_status = PaymentStatus.PAID;
+        } else if (newPaymentAmount > 0) {
+          booking.payment_status = PaymentStatus.PARTIAL;
+        } else {
+          booking.payment_status = PaymentStatus.UNPAID;
+        }
+        await bookingRepository().save(booking);
+      }
+    }
+
+    await paymentRepository().remove(payment);
+    res.json({ message: "Payment deleted successfully" });
+  } catch (error) {
+    console.error("Delete payment error:", error);
+    res.status(500).json({ detail: "Failed to delete payment" });
+  }
+});
+
 export default router;
