@@ -1,6 +1,6 @@
 # Bidinn Sales CRM - Product Requirements Document (PRD)
 
-**Version:** 14.0  
+**Version:** 15.0  
 **Last Updated:** December 16, 2025  
 **Product Name:** Bidinn  
 **Status:** PRODUCTION READY ✅
@@ -21,6 +21,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - **ORM:** TypeORM
 - **Database:** AWS RDS MySQL (External, Persistent)
 - **Authentication:** JWT (secure, no fallback secrets)
+- **Performance:** Database indexes on frequently queried columns
 
 ### Frontend
 - **Framework:** React 19
@@ -28,6 +29,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - **Styling:** Tailwind CSS + shadcn/ui
 - **Charts:** Recharts
 - **Currency:** Indian Rupees (₹)
+- **Performance:** Pagination (50 records/page), React.memo optimizations
 
 ---
 
