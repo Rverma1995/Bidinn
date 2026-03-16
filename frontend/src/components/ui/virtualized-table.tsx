@@ -123,7 +123,7 @@ export function VirtualizedTable<T>({
         <AutoSizer 
           renderProp={({ width }) => (
             <List
-              ref={listRef}
+              listRef={listRef}
               height={listHeight}
               width={width || 0}
               rowCount={data.length}
