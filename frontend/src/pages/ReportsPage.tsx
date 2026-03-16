@@ -80,18 +80,23 @@ interface PipelineStats {
 }
 
 export default function ReportsPage() {
-  const { api } = useAuth();
+  const { api, user } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [revenueData, setRevenueData] = useState<any[]>([]);
   const [pipelineStats, setPipelineStats] = useState<PipelineStats>({});
   const [sourceData, setSourceData] = useState<any[]>([]);
   const [agentPerformance, setAgentPerformance] = useState<any>(null);
-  const [selectedAgent, setSelectedAgent] = useState('all');
   const [datePreset, setDatePreset] = useState('all');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [agentLoading, setAgentLoading] = useState(false);
+  
+  // Sales reps can only see their own data
+  const isSalesRep = user?.role === 'sales_rep';
+  const isTeamLead = user?.role === 'team_lead';
+  const canViewAllAgents = !isSalesRep; // Admin, Manager, Team Lead can see all
+  const [selectedAgent, setSelectedAgent] = useState(isSalesRep ? user?.id || 'all' : 'all');
 
   useEffect(() => {
     fetchReportData();
