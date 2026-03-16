@@ -272,6 +272,7 @@ export default function BookingsPage() {
   useEffect(() => {
     fetchBookings();
     fetchLeads();
+    fetchBookingReasons();
   }, [statusFilter]);
 
   const fetchBookings = async () => {
@@ -298,6 +299,47 @@ export default function BookingsPage() {
       setLeads(leadsData);
     } catch (error) {
       console.error('Failed to fetch leads:', error);
+    }
+  };
+
+  const fetchBookingReasons = async () => {
+    try {
+      const response = await api.get('/bookings/reasons');
+      setBookingReasons(response.data);
+    } catch (error) {
+      console.error('Failed to fetch booking reasons:', error);
+    }
+  };
+
+  const handleEditBooking = async (formData) => {
+    if (!selectedBooking) return;
+    setEditLoading(true);
+    try {
+      await api.put(`/bookings/${selectedBooking.id}`, formData);
+      toast.success('Booking updated successfully');
+      setEditDialogOpen(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update booking');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeleteBooking = async () => {
+    if (!selectedBooking) return;
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/bookings/${selectedBooking.id}`);
+      toast.success('Booking deleted successfully');
+      setDeleteDialogOpen(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete booking');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
