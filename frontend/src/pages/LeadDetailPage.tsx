@@ -539,7 +539,7 @@ export default function LeadDetailPage() {
       setEditing(false);
       setEditData(response.data);
       toast.success('Lead updated successfully');
-      fetchActivities();
+      fetchTimeline();
     } catch (error: any) {
       const errorDetail = error.response?.data?.detail || 'Failed to update lead';
       const rule = error.response?.data?.rule;
@@ -582,7 +582,7 @@ export default function LeadDetailPage() {
       setClosedReason('');
       setClosedReasonNotes('');
       toast.success('Lead updated successfully');
-      fetchActivities();
+      fetchTimeline();
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to update lead');
     } finally {
@@ -595,7 +595,7 @@ export default function LeadDetailPage() {
       await api.post(`/leads/${id}/assign`, { assignee_id: userId });
       toast.success('Lead assigned successfully');
       fetchLead();
-      fetchActivities();
+      fetchTimeline();
     } catch (error) {
       toast.error('Failed to assign lead');
     }
