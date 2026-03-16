@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { AppDataSource } from "../config/data-source";
-import { Booking, PaymentStatus, Lead, Activity } from "../entities";
-import { authenticateToken, AuthRequest } from "../middleware/auth";
+import { Booking, PaymentStatus, Lead, Activity, UserRole } from "../entities";
+import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
