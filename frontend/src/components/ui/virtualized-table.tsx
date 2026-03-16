@@ -1,6 +1,6 @@
-import React, { useCallback, useRef, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { List } from 'react-window';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
+import AutoSizer from 'react-virtualized-auto-sizer';
 import { cn } from '../../lib/utils';
 
 interface Column<T> {
@@ -23,6 +23,53 @@ interface VirtualizedTableProps<T> {
   maxHeight?: number;
 }
 
+// Row component for react-window v2
+interface RowComponentProps<T> {
+  index: number;
+  style: React.CSSProperties;
+  data: T[];
+  columns: Column<T>[];
+  columnWidths: string[];
+  onRowClick?: (item: T) => void;
+  getRowKey: (item: T) => string;
+}
+
+function RowComponent<T>({ 
+  index, 
+  style, 
+  data, 
+  columns, 
+  columnWidths, 
+  onRowClick, 
+  getRowKey 
+}: RowComponentProps<T>) {
+  const item = data[index];
+  return (
+    <div
+      style={style}
+      className={cn(
+        'flex items-center border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors',
+        onRowClick && 'cursor-pointer'
+      )}
+      onClick={() => onRowClick?.(item)}
+      data-testid={`row-${getRowKey(item)}`}
+    >
+      {columns.map((col, colIndex) => (
+        <div
+          key={col.key}
+          style={{ width: columnWidths[colIndex], minWidth: columnWidths[colIndex] }}
+          className={cn(
+            'px-4 py-2 text-sm truncate',
+            col.className
+          )}
+        >
+          {col.render(item, index)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function VirtualizedTable<T>({
   data,
   columns,
@@ -34,52 +81,10 @@ export function VirtualizedTable<T>({
   emptyMessage = 'No data found',
   maxHeight = 600,
 }: VirtualizedTableProps<T>) {
-  const listRef = useRef<any>(null);
-
   // Calculate column widths based on number of columns
   const columnWidths = useMemo(() => {
     return columns.map(col => col.width || `${100 / columns.length}%`);
   }, [columns]);
-
-  const Row = useCallback(
-    ({ index, style, ariaAttributes }: { 
-      index: number; 
-      style: React.CSSProperties;
-      ariaAttributes?: {
-        "aria-posinset": number;
-        "aria-setsize": number;
-        role: "listitem";
-      };
-    }) => {
-      const item = data[index];
-      return (
-        <div
-          style={style}
-          className={cn(
-            'flex items-center border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors',
-            onRowClick && 'cursor-pointer'
-          )}
-          onClick={() => onRowClick?.(item)}
-          data-testid={`row-${getRowKey(item)}`}
-          {...ariaAttributes}
-        >
-          {columns.map((col, colIndex) => (
-            <div
-              key={col.key}
-              style={{ width: columnWidths[colIndex], minWidth: columnWidths[colIndex] }}
-              className={cn(
-                'px-4 py-2 text-sm truncate',
-                col.className
-              )}
-            >
-              {col.render(item, index)}
-            </div>
-          ))}
-        </div>
-      );
-    },
-    [data, columns, columnWidths, onRowClick, getRowKey]
-  );
 
   if (data.length === 0) {
     return (
@@ -129,19 +134,27 @@ export function VirtualizedTable<T>({
       
       {/* Virtualized Body */}
       <div style={{ height: listHeight }}>
-        <AutoSizer 
-          renderProp={({ width }) => (
-            <List<{}>
-              listRef={listRef}
-              style={{ height: listHeight, width: width || 0 }}
+        <AutoSizer disableHeight>
+          {({ width }: { width: number }) => (
+            <List
               rowCount={data.length}
               rowHeight={rowHeight}
               overscanCount={5}
-              rowComponent={Row}
-              rowProps={{}}
+              rowComponent={({ index, style }: { index: number; style: React.CSSProperties }) => (
+                <RowComponent
+                  index={index}
+                  style={style}
+                  data={data}
+                  columns={columns}
+                  columnWidths={columnWidths}
+                  onRowClick={onRowClick}
+                  getRowKey={getRowKey}
+                />
+              )}
+              style={{ width, height: listHeight }}
             />
           )}
-        />
+        </AutoSizer>
       </div>
     </div>
   );
