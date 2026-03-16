@@ -24,7 +24,7 @@ const navItems = [
   { path: '/pipeline', icon: Kanban, label: 'Pipeline', roles: ['admin', 'manager', 'team_lead', 'sales_rep'] },
   { path: '/bookings', icon: Calendar, label: 'Bookings', roles: ['admin', 'manager', 'team_lead', 'sales_rep'] },
   { path: '/payments', icon: CreditCard, label: 'Payments', roles: ['admin', 'manager', 'team_lead'] },
-  { path: '/reports', icon: BarChart3, label: 'Reports', roles: ['admin', 'manager'] },
+  { path: '/reports', icon: BarChart3, label: 'Reports', roles: ['admin', 'manager', 'team_lead', 'sales_rep'] },
   { path: '/team', icon: UserCog, label: 'Team', roles: ['admin', 'manager', 'team_lead'] },
 ];
 
