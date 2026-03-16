@@ -206,12 +206,21 @@ function RecordPaymentDialog({ open, onOpenChange, bookings, onSuccess }) {
 }
 
 export default function PaymentsPage() {
-  const { api, isTeamLead } = useAuth();
+  const { api, user, isTeamLead } = useAuth();
   const [payments, setPayments] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [recordDialogOpen, setRecordDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const isAdmin = user?.role === 'admin';
+  const isManager = user?.role === 'manager';
+  const canEditDelete = isAdmin || isManager;
 
   useEffect(() => {
     fetchPayments();
