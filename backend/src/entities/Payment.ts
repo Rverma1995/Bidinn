@@ -1,9 +1,12 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, BeforeInsert } from "typeorm";
+import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, BeforeInsert, Index } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { Booking } from "./Booking";
 import { User } from "./User";
 
 @Entity("payments")
+@Index("idx_payments_booking_id", ["booking_id"])
+@Index("idx_payments_created_at", ["created_at"])
+@Index("idx_payments_created_by", ["created_by"])
 export class Payment {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;
