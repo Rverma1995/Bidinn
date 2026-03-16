@@ -136,12 +136,15 @@ export default function ReportsPage() {
 
   const fetchReportData = async () => {
     try {
+      // For sales reps, we need to filter agent performance to their own data
+      const agentParam = isSalesRep && user?.id ? `?agent_id=${user.id}` : '';
+      
       const [statsRes, revenueRes, pipelineRes, sourceRes, agentRes] = await Promise.all([
         api.get('/dashboard/stats'),
         api.get('/dashboard/revenue-trend'),
         api.get('/dashboard/pipeline-stats'),
         api.get('/dashboard/source-performance'),
-        api.get('/dashboard/agent-performance'),
+        api.get(`/dashboard/agent-performance${agentParam}`),
       ]);
 
       setStats(statsRes.data);
@@ -160,7 +163,9 @@ export default function ReportsPage() {
     setAgentLoading(true);
     try {
       const params = new URLSearchParams();
-      if (selectedAgent !== 'all') params.append('agent_id', selectedAgent);
+      // Sales reps can only see their own data
+      const effectiveAgent = isSalesRep && user?.id ? user.id : selectedAgent;
+      if (effectiveAgent !== 'all') params.append('agent_id', effectiveAgent);
       if (startDate) params.append('start_date', format(startDate, 'yyyy-MM-dd'));
       if (endDate) params.append('end_date', format(endDate, 'yyyy-MM-dd'));
       
