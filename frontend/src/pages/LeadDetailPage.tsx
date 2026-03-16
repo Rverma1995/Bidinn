@@ -460,7 +460,7 @@ export default function LeadDetailPage() {
 
   useEffect(() => {
     fetchLead();
-    fetchActivities();
+    fetchTimeline();
     fetchCalls();
     fetchUsers();
   }, [id]);
@@ -478,12 +478,12 @@ export default function LeadDetailPage() {
     }
   };
 
-  const fetchActivities = async () => {
+  const fetchTimeline = async () => {
     try {
       const response = await api.get(`/activities?lead_id=${id}`);
-      setActivities(response.data);
+      setTimeline(response.data);
     } catch (error) {
-      console.error('Failed to fetch activities:', error);
+      console.error('Failed to fetch timeline:', error);
     }
   };
 
