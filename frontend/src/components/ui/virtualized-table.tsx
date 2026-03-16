@@ -138,7 +138,6 @@ export function VirtualizedTable<T>({
               rowHeight={rowHeight}
               overscanCount={5}
               rowComponent={Row}
-              rowProps={{}}
             />
           )}
         />
