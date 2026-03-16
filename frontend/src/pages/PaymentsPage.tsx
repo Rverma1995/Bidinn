@@ -256,6 +256,38 @@ export default function PaymentsPage() {
     fetchBookings();
   };
 
+  const handleEditPayment = async (formData) => {
+    if (!selectedPayment) return;
+    setEditLoading(true);
+    try {
+      await api.put(`/payments/${selectedPayment.id}`, formData);
+      toast.success('Payment updated successfully');
+      setEditDialogOpen(false);
+      setSelectedPayment(null);
+      handleSuccess();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update payment');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeletePayment = async () => {
+    if (!selectedPayment) return;
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/payments/${selectedPayment.id}`);
+      toast.success('Payment deleted successfully');
+      setDeleteDialogOpen(false);
+      setSelectedPayment(null);
+      handleSuccess();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete payment');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const totalCollected = payments.reduce((sum, p) => sum + p.amount, 0);
   const thisMonthPayments = payments.filter(p => {
     const paymentDate = new Date(p.created_at);
