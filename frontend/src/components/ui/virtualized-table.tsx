@@ -34,7 +34,7 @@ export function VirtualizedTable<T>({
   emptyMessage = 'No data found',
   maxHeight = 600,
 }: VirtualizedTableProps<T>) {
-  const listRef = useRef<List>(null);
+  const listRef = useRef<any>(null);
 
   // Calculate column widths based on number of columns
   const columnWidths = useMemo(() => {
