@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useMemo } from 'react';
 import { FixedSizeList as List } from 'react-window';
-import AutoSizer from 'react-virtualized-auto-sizer';
+import { AutoSizer } from 'react-virtualized-auto-sizer';
 import { cn } from '../../lib/utils';
 
 interface Column<T> {
