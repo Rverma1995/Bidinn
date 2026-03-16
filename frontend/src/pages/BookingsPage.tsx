@@ -466,6 +466,7 @@ export default function BookingsPage() {
                 <TableHead>Total Amount</TableHead>
                 <TableHead>Payment Received</TableHead>
                 <TableHead>Status</TableHead>
+                {canEditDelete && <TableHead className="w-[50px]">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -482,6 +483,38 @@ export default function BookingsPage() {
                       {booking.payment_status.charAt(0).toUpperCase() + booking.payment_status.slice(1)}
                     </Badge>
                   </TableCell>
+                  {canEditDelete && (
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`booking-actions-${booking.id}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              setSelectedBooking(booking);
+                              setEditDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="text-red-600"
+                            onClick={() => {
+                              setSelectedBooking(booking);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
