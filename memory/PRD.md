@@ -50,6 +50,7 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 - ✅ Bulk Lead Assignment
 - ✅ **Bulk Lead Delete (Admin only)**
 - ✅ Agent Performance Reports with Date Filters
+- ✅ **Sales Rep Self-Reports** - Sales reps can view their own performance on Reports page
 - ✅ **User Management: Create, Edit (including self-edit), Deactivate, Reset Password**
 - ✅ Meta Lead Ads Integration (Facebook/Instagram webhook)
 - ✅ **Duplicate Lead Merge** - Admin-only tool to analyze and merge duplicate leads
