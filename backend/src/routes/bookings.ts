@@ -130,8 +130,8 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Update booking
-router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
+// Update booking (Admin and Manager only)
+router.put("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
   try {
     const bookingId = req.params.id as string;
     const booking = await bookingRepository().findOne({ where: { id: bookingId } });
