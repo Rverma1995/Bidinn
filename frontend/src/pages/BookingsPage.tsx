@@ -251,13 +251,23 @@ function CreateBookingDialog({ open, onOpenChange, leads, onSuccess }) {
 }
 
 export default function BookingsPage() {
-  const { api } = useAuth();
+  const { api, user } = useAuth();
   const [bookings, setBookings] = useState([]);
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [bookingReasons, setBookingReasons] = useState([]);
+  const [editLoading, setEditLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const isAdmin = user?.role === 'admin';
+  const isManager = user?.role === 'manager';
+  const canEditDelete = isAdmin || isManager;
 
   useEffect(() => {
     fetchBookings();
