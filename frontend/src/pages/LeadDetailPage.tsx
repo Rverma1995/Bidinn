@@ -942,16 +942,17 @@ export default function LeadDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Activity Timeline</CardTitle>
+              <CardDescription>All activities, calls, bookings, and payments</CardDescription>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[400px] pr-4">
-                {activities.length === 0 ? (
+                {timeline.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">
                     No activity yet
                   </p>
                 ) : (
-                  activities.map((activity) => (
-                    <ActivityItem key={activity.id} activity={activity} />
+                  timeline.map((item) => (
+                    <ActivityItem key={`${item.type}-${item.id}`} activity={item} />
                   ))
                 )}
               </ScrollArea>
@@ -969,7 +970,7 @@ export default function LeadDetailPage() {
         isAssigned={!!lead?.assigned_to}
         onSuccess={() => {
           fetchLead();
-          fetchActivities();
+          fetchTimeline();
           fetchCalls();
         }}
       />
