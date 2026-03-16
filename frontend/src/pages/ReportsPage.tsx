@@ -238,23 +238,28 @@ export default function ReportsPage() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-primary" />
-                  Agent Performance Report
+                  {isSalesRep ? 'My Performance Report' : 'Agent Performance Report'}
                 </CardTitle>
-                <CardDescription>Performance metrics by sales representative</CardDescription>
+                <CardDescription>
+                  {isSalesRep ? 'Your personal performance metrics' : 'Performance metrics by sales representative'}
+                </CardDescription>
               </div>
-              <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-                <SelectTrigger className="w-[240px]" data-testid="agent-filter-dropdown">
-                  <SelectValue placeholder="Select Agent" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Agents (Team View)</SelectItem>
-                  {agentPerformance?.all_agents?.map((agent) => (
-                    <SelectItem key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Agent selector - hidden for sales reps */}
+              {canViewAllAgents && (
+                <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                  <SelectTrigger className="w-[240px]" data-testid="agent-filter-dropdown">
+                    <SelectValue placeholder="Select Agent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Agents (Team View)</SelectItem>
+                    {agentPerformance?.all_agents?.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             
             {/* Date Range Filter */}
