@@ -73,36 +73,84 @@ interface EditLeadData {
   closed_reason_notes?: string;
 }
 
+interface TimelineItem {
+  id: string;
+  type: 'activity' | 'call' | 'booking' | 'payment';
+  action: string;
+  details?: string;
+  user_name?: string;
+  created_at: string;
+  outcome?: string;
+  duration?: number;
+  amount?: number;
+  hotel_name?: string;
+  next_followup?: string;
+}
+
 interface ActivityItemProps {
-  activity: Activity;
+  activity: TimelineItem;
 }
 
 function ActivityItem({ activity }: ActivityItemProps) {
   const getIcon = () => {
-    if (activity.action.includes('Call')) return <PhoneCall className="w-4 h-4 text-blue-500" />;
+    // Check type first for specific icons
+    if (activity.type === 'call') return <PhoneCall className="w-4 h-4 text-blue-500" />;
+    if (activity.type === 'booking') return <Building className="w-4 h-4 text-amber-500" />;
+    if (activity.type === 'payment') return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+    
+    // Fallback to action-based icons for activities
+    if (activity.action.includes('Call') || activity.action.includes('call')) return <PhoneCall className="w-4 h-4 text-blue-500" />;
     if (activity.action.includes('assigned')) return <User className="w-4 h-4 text-purple-500" />;
     if (activity.action.includes('created')) return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-    if (activity.action.includes('Booking')) return <Building className="w-4 h-4 text-amber-500" />;
+    if (activity.action.includes('updated')) return <Edit className="w-4 h-4 text-orange-500" />;
+    if (activity.action.includes('Booking') || activity.action.includes('booking')) return <Building className="w-4 h-4 text-amber-500" />;
+    if (activity.action.includes('Payment') || activity.action.includes('payment')) return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+    if (activity.action.includes('merged')) return <User className="w-4 h-4 text-indigo-500" />;
     return <MessageSquare className="w-4 h-4 text-slate-500" />;
+  };
+
+  const getBackgroundColor = () => {
+    if (activity.type === 'call') return 'bg-blue-100 dark:bg-blue-900/30';
+    if (activity.type === 'booking') return 'bg-amber-100 dark:bg-amber-900/30';
+    if (activity.type === 'payment') return 'bg-emerald-100 dark:bg-emerald-900/30';
+    return 'bg-slate-100 dark:bg-slate-800';
+  };
+
+  const formatAction = (action: string) => {
+    // Format action labels for better readability
+    const actionMap: Record<string, string> = {
+      'logged_call': 'Call Logged',
+      'created_lead': 'Lead Created',
+      'updated_lead': 'Lead Updated',
+      'assigned_lead': 'Lead Assigned',
+      'created_booking': 'Booking Created',
+      'merged_leads': 'Leads Merged',
+    };
+    return actionMap[action] || action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };
 
   return (
     <div className="flex gap-3 pb-4 last:pb-0">
       <div className="flex flex-col items-center">
-        <div className="p-2 rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className={`p-2 rounded-full ${getBackgroundColor()}`}>
           {getIcon()}
         </div>
         <div className="w-px flex-1 bg-slate-200 dark:bg-slate-700 mt-2" />
       </div>
       <div className="flex-1 pb-4">
         <div className="flex items-start justify-between">
-          <div>
-            <p className="font-medium text-sm">{activity.action}</p>
+          <div className="flex-1">
+            <p className="font-medium text-sm">{formatAction(activity.action)}</p>
             {activity.details && (
               <p className="text-sm text-muted-foreground mt-1">{activity.details}</p>
             )}
+            {activity.next_followup && (
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Follow-up: {formatDate(activity.next_followup)}
+              </p>
+            )}
           </div>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
             {formatRelativeTime(activity.created_at)}
           </span>
         </div>
