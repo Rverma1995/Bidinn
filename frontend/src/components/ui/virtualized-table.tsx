@@ -121,15 +121,15 @@ export function VirtualizedTable<T>({
       {/* Virtualized Body */}
       <div style={{ height: listHeight }}>
         <AutoSizer 
-          disableHeight
           renderProp={({ width }) => (
             <List
               ref={listRef}
               height={listHeight}
-              width={width}
+              width={width || 0}
               itemCount={data.length}
               itemSize={rowHeight}
               overscanCount={5}
+              itemData={data}
             >
               {Row}
             </List>
