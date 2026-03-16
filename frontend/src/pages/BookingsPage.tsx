@@ -529,6 +529,137 @@ export default function BookingsPage() {
         leads={leads}
         onSuccess={fetchBookings}
       />
+
+      {/* Edit Booking Dialog */}
+      {selectedBooking && (
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Booking</DialogTitle>
+              <DialogDescription>Update booking details for {selectedBooking.lead_name}</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.target);
+              handleEditBooking({
+                hotel_name: formData.get('hotel_name'),
+                check_in: formData.get('check_in'),
+                check_out: formData.get('check_out'),
+                final_price: formData.get('final_price'),
+                bid_price: formData.get('final_price'),
+                notes: formData.get('notes'),
+                booking_reason: formData.get('booking_reason'),
+              });
+            }}>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit_hotel_name">Hotel/Property Name</Label>
+                  <Input
+                    id="edit_hotel_name"
+                    name="hotel_name"
+                    defaultValue={selectedBooking.hotel_name}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_check_in">Check-in Date</Label>
+                    <Input
+                      id="edit_check_in"
+                      name="check_in"
+                      type="date"
+                      defaultValue={selectedBooking.check_in?.split('T')[0]}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_check_out">Check-out Date</Label>
+                    <Input
+                      id="edit_check_out"
+                      name="check_out"
+                      type="date"
+                      defaultValue={selectedBooking.check_out?.split('T')[0]}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_final_price">Total Amount (INR)</Label>
+                  <div className="relative">
+                    <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="edit_final_price"
+                      name="final_price"
+                      type="number"
+                      min="0"
+                      defaultValue={selectedBooking.final_price}
+                      className="pl-9"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_booking_reason">Booking Reason</Label>
+                  <Select name="booking_reason" defaultValue={selectedBooking.booking_reason || ''}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select reason (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bookingReasons.map((reason) => (
+                        <SelectItem key={reason} value={reason}>
+                          {reason}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_notes">Notes</Label>
+                  <Textarea
+                    id="edit_notes"
+                    name="notes"
+                    defaultValue={selectedBooking.notes || ''}
+                    rows={2}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={editLoading}>
+                  {editLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Booking</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the booking for "{selectedBooking?.lead_name}" at {selectedBooking?.hotel_name}? 
+              This action cannot be undone and will also affect payment records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteBooking}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteLoading}
+            >
+              {deleteLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
