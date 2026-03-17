@@ -181,8 +181,24 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ---
 
-## 10. Recent Changes (March 13-14, 2026)
+## 10. Recent Changes (March 13-17, 2026)
 
+### March 17, 2026
+1. **Meta Integration Test Connection** - Implemented `/api/meta/test-connection` endpoint to verify Page Access Token by making a test call to Meta Graph API
+2. **Test Connection Button** - Added "Test Connection" button to the Meta Lead Ads Integration settings UI
+
+### March 16, 2026 (Previous Session)
+1. **Meta & Tata Documentation** - Created `docs/Meta_integration.md` and `docs/Tata_Telephone_Integration.md`
+2. **Role-Based Reports** - Sales Reps can now view their own personalized reports on the Reports page
+3. **Booking/Payment Management** - Admins and Managers can edit/delete bookings and payments
+4. **Performance Indexes** - Added database indexes to Lead, Booking, and Payment entities
+5. **Activity Timeline** - Comprehensive activity timeline on lead detail page
+6. **Lead Logic Update** - Removed stage-change restrictions; added "Not Interested" & "Lost" stages
+7. **Bulk Notes** - Added bulk notes update feature for leads
+8. **Data-Sync Fix** - Added no-cache headers to prevent data visibility delays
+9. **Meta Integration UI** - Refactored to single-step setup process
+
+### March 13-14, 2026
 1. **Fixed Import Error** - Increased frontend timeout to 10 minutes for large file uploads (~1000 leads)
 2. **Duplicate Lead Merge** - Added admin-only endpoints to analyze and merge duplicate leads
 3. **Cleaned Database** - Merged 684 duplicate groups, deleted 755 duplicate leads
