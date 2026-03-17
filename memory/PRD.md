@@ -218,7 +218,15 @@ Bidinn is a modern, high-tech, SaaS-style Sales CRM designed for internal sales 
 
 ## 12. Future Enhancements (Backlog)
 
-- **P2:** Google Sheets integration for lead import/export
+### P1 - High Priority
+- **Complete Meta Webhook Handler** - Enhance `POST /api/meta/webhook` to fetch full lead details from Meta Graph API using `leadgen_id` (currently creates placeholder leads)
+
+### P2 - Medium Priority
+- Google Sheets integration for lead import/export
+- Asynchronous Import Job with polling for large files
+- Redis caching for dashboard statistics
+
+### P3 - Lower Priority
 - Email/SMS notifications for overdue leads
 - Mobile app
 - WhatsApp integration
