@@ -691,55 +691,14 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
 
     const { name, phone, email, source, campaign, city, status, assigned_to, notes, next_followup, closed_reason, closed_reason_notes } = req.body;
 
-    // Handle status change validations
+    // Handle status change - require notes for any stage change
     if (status && status !== lead.status) {
-      const currentStatus = lead.status as LeadStatus;
-      const newStatus = status as LeadStatus;
-      
-      // Rule 5: Check if transition is allowed
-      const allowedTransitions = STAGE_TRANSITIONS[currentStatus];
-      if (allowedTransitions && !allowedTransitions.includes(newStatus)) {
-        // Special message for interested/followup -> not_interested transition
-        if ((currentStatus === LeadStatus.INTERESTED || currentStatus === LeadStatus.FOLLOWUP) && 
-            newStatus === LeadStatus.NOT_INTERESTED) {
-          return res.status(400).json({ 
-            detail: "Cannot move directly from Interested/Follow-up to Not Interested. Please mark as Won or Lost first.",
-            rule: "stage_transition_restriction"
-          });
-        }
+      // NEW RULE: Notes are required for any stage change
+      if (!notes && !lead.notes) {
         return res.status(400).json({ 
-          detail: `Invalid status transition from ${currentStatus} to ${newStatus}`,
-          rule: "stage_transition"
+          detail: "Notes are required when changing lead status. Please add notes before changing the stage.",
+          rule: "notes_required_for_stage_change"
         });
-      }
-
-      // Rule 1: Check assignment requirement
-      if (STAGES_REQUIRING_ASSIGNMENT.includes(newStatus)) {
-        const effectiveAssignedTo = assigned_to !== undefined ? assigned_to : lead.assigned_to;
-        if (!effectiveAssignedTo) {
-          return res.status(400).json({ 
-            detail: `Lead must be assigned to a salesperson before moving to ${newStatus} status`,
-            rule: "assignment_required"
-          });
-        }
-      }
-
-      // Rule 2: Check closed reason requirement
-      if (STAGES_REQUIRING_REASON.includes(newStatus)) {
-        if (!closed_reason) {
-          return res.status(400).json({ 
-            detail: `A reason must be provided when marking a lead as ${newStatus}`,
-            rule: "closed_reason_required",
-            available_reasons: Object.entries(CLOSED_REASON_LABELS).map(([value, label]) => ({ value, label }))
-          });
-        }
-        // Validate the closed reason value
-        if (!Object.keys(CLOSED_REASON_LABELS).includes(closed_reason)) {
-          return res.status(400).json({ 
-            detail: "Invalid closed reason provided",
-            rule: "invalid_closed_reason"
-          });
-        }
       }
     }
 
