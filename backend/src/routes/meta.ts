@@ -84,14 +84,14 @@ router.post("/test-connection", authenticateToken, requireRole([UserRole.ADMIN, 
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json() as { error?: { message?: string } };
       return res.status(400).json({ 
         success: false, 
         message: errorData.error?.message || "Invalid Page Access Token" 
       });
     }
 
-    const data = await response.json();
+    const data = await response.json() as { name?: string; id?: string };
     
     res.json({ 
       success: true, 
