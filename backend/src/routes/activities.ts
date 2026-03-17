@@ -59,7 +59,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
       // 3. Get all bookings for this lead
       const bookings = await bookingRepository().find({
         where: { lead_id: leadId },
-        relations: ["created_by"],
+        relations: ["createdBy"],
         order: { created_at: "DESC" },
       });
       
@@ -69,7 +69,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
           type: 'booking',
           action: `Booking Created - ${booking.hotel_name}`,
           details: `₹${booking.final_price?.toLocaleString('en-IN') || '0'} • ${formatDateRange(booking.check_in, booking.check_out)}`,
-          user_name: booking.created_by?.name || 'System',
+          user_name: booking.createdBy?.name || 'System',
           created_at: booking.created_at,
           booking_id: booking.id,
           hotel_name: booking.hotel_name,
