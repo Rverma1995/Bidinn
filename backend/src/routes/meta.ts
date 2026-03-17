@@ -127,6 +127,72 @@ router.get("/webhook", async (req: Request, res: Response) => {
   }
 });
 
+// Helper function to fetch lead details from Meta Graph API
+async function fetchLeadDetailsFromMeta(leadgenId: string, pageAccessToken: string): Promise<{
+  name: string;
+  email: string;
+  phone: string;
+  formName?: string;
+} | null> {
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${leadgenId}?access_token=${pageAccessToken}`
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json() as { error?: { message?: string } };
+      console.error(`Failed to fetch lead ${leadgenId}:`, errorData.error?.message);
+      return null;
+    }
+
+    const data = await response.json() as {
+      id: string;
+      field_data?: Array<{ name: string; values: string[] }>;
+      created_time?: string;
+    };
+
+    // Parse field_data to extract lead information
+    let name = "";
+    let email = "";
+    let phone = "";
+
+    if (data.field_data) {
+      for (const field of data.field_data) {
+        const fieldName = field.name.toLowerCase();
+        const value = field.values?.[0] || "";
+
+        if (fieldName.includes("name") || fieldName === "full_name") {
+          name = value;
+        } else if (fieldName.includes("email")) {
+          email = value;
+        } else if (fieldName.includes("phone") || fieldName.includes("mobile") || fieldName.includes("contact")) {
+          phone = value;
+        }
+      }
+    }
+
+    // If no name found, try to construct from first/last name
+    if (!name && data.field_data) {
+      let firstName = "";
+      let lastName = "";
+      for (const field of data.field_data) {
+        const fieldName = field.name.toLowerCase();
+        const value = field.values?.[0] || "";
+        if (fieldName === "first_name") firstName = value;
+        if (fieldName === "last_name") lastName = value;
+      }
+      if (firstName || lastName) {
+        name = `${firstName} ${lastName}`.trim();
+      }
+    }
+
+    return { name, email, phone };
+  } catch (error) {
+    console.error(`Error fetching lead ${leadgenId} from Meta:`, error);
+    return null;
+  }
+}
+
 // Webhook handler (POST)
 router.post("/webhook", async (req: Request, res: Response) => {
   try {
@@ -158,18 +224,40 @@ router.post("/webhook", async (req: Request, res: Response) => {
             const formId = change.value?.form_id;
             const pageId = change.value?.page_id;
 
+            console.log(`Received Meta lead webhook: leadgen_id=${leadgenId}, form_id=${formId}, page_id=${pageId}`);
+
             // Check if lead already exists
             const existingLead = await leadRepository().findOne({ where: { meta_leadgen_id: leadgenId } });
             if (existingLead) {
+              console.log(`Lead ${leadgenId} already exists, skipping`);
               continue;
             }
 
-            // Create new lead from webhook
+            // Fetch full lead details from Meta Graph API
+            let leadName = `Meta Lead ${leadgenId?.slice(-6) || "Unknown"}`;
+            let leadEmail = "";
+            let leadPhone = "";
+
+            if (config.page_access_token && leadgenId) {
+              const leadDetails = await fetchLeadDetailsFromMeta(leadgenId, config.page_access_token);
+              if (leadDetails) {
+                leadName = leadDetails.name || leadName;
+                leadEmail = leadDetails.email || "";
+                leadPhone = leadDetails.phone || "";
+                console.log(`Fetched lead details: name=${leadName}, email=${leadEmail}, phone=${leadPhone ? '***' : 'none'}`);
+              } else {
+                console.warn(`Could not fetch details for lead ${leadgenId}, creating with placeholder data`);
+              }
+            } else {
+              console.warn(`No page_access_token configured, creating lead with placeholder data`);
+            }
+
+            // Create new lead with fetched data
             const lead = leadRepository().create({
               id: uuidv4(),
-              name: `Meta Lead ${leadgenId?.slice(-6) || "Unknown"}`,
-              phone: "Pending fetch",
-              email: "",
+              name: leadName,
+              phone: leadPhone || "Not provided",
+              email: leadEmail,
               source: "Meta Lead Ads",
               campaign: `Form ${formId?.slice(-6) || "Unknown"}`,
               status: LeadStatus.NEW,
@@ -178,7 +266,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
             });
 
             await leadRepository().save(lead);
-            console.log(`Created lead from Meta webhook: ${lead.id}`);
+            console.log(`Created lead from Meta webhook: ${lead.id} - ${leadName}`);
           }
         }
       }
