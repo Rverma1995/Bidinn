@@ -520,15 +520,15 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Step 1: Page ID and App Secret */}
+                {/* Step 1: Page ID, App Secret, and Verify Token */}
                 {metaStep === 1 && (
                   <form onSubmit={handleSaveStep1} className="space-y-4">
                     <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                       <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                        Step 1: Enter your Page ID and App Secret
+                        Step 1: Enter your Meta App credentials
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Get these from <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">Meta for Developers <ExternalLink className="w-3 h-3" /></a>
+                        Get Page ID and App Secret from <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">Meta for Developers <ExternalLink className="w-3 h-3" /></a>
                       </p>
                     </div>
                     <div className="grid gap-4">
@@ -563,14 +563,28 @@ export default function SettingsPage() {
                           </button>
                         </div>
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="meta_verify_token">Verify Token *</Label>
+                        <Input
+                          id="meta_verify_token"
+                          type={showMetaSecrets ? 'text' : 'password'}
+                          placeholder="e.g., bidinncrm"
+                          value={metaForm.verify_token}
+                          onChange={(e) => setMetaForm({ ...metaForm, verify_token: e.target.value })}
+                          data-testid="meta-verify-token-input"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Create a unique token - you'll enter this same token in Meta Business Suite
+                        </p>
+                      </div>
                     </div>
                     <Button type="submit" disabled={metaLoading} className="w-full" data-testid="save-step1-btn">
                       {metaLoading ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       ) : (
-                        <ArrowRight className="w-4 h-4 mr-2" />
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
                       )}
-                      Save & Continue to Step 2
+                      Save Configuration
                     </Button>
                   </form>
                 )}
