@@ -484,6 +484,21 @@ export default function SettingsPage() {
                   <Button variant="outline" onClick={handleResetMetaConfig}>
                     Update Configuration
                   </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleTestMetaConnection}
+                    disabled={metaTesting}
+                    data-testid="meta-test-connection-btn"
+                  >
+                    {metaTesting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      'Test Connection'
+                    )}
+                  </Button>
                 </div>
                 <Separator />
                 <div className="space-y-2">
