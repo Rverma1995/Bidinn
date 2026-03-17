@@ -66,6 +66,46 @@ router.post("/config", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
   }
 });
 
+// Test Meta connection
+router.post("/test-connection", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
+  try {
+    const config = await metaConfigRepository().findOne({ where: {} });
+
+    if (!config || !config.page_access_token) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Page Access Token is not configured" 
+      });
+    }
+
+    // Make a test call to Meta Graph API to verify the token
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/me?access_token=${config.page_access_token}`
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(400).json({ 
+        success: false, 
+        message: errorData.error?.message || "Invalid Page Access Token" 
+      });
+    }
+
+    const data = await response.json();
+    
+    res.json({ 
+      success: true, 
+      message: `Connection successful! Connected to page: ${data.name || data.id}` 
+    });
+  } catch (error) {
+    console.error("Test connection error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to test connection" 
+    });
+  }
+});
+
 // Webhook verification (GET)
 router.get("/webhook", async (req: Request, res: Response) => {
   try {
