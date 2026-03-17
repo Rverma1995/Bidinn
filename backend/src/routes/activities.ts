@@ -82,7 +82,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
       if (bookingIds.length > 0) {
         const payments = await paymentRepository()
           .createQueryBuilder("payment")
-          .leftJoinAndSelect("payment.created_by_user", "user")
+          .leftJoinAndSelect("payment.creator", "user")
           .where("payment.booking_id IN (:...bookingIds)", { bookingIds })
           .orderBy("payment.created_at", "DESC")
           .getMany();
@@ -94,7 +94,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
             type: 'payment',
             action: `Payment Received - ₹${payment.amount?.toLocaleString('en-IN') || '0'}`,
             details: payment.notes || (booking ? `For: ${booking.hotel_name}` : ''),
-            user_name: payment.created_by_user?.name || 'System',
+            user_name: payment.creator?.name || 'System',
             created_at: payment.created_at,
             amount: payment.amount,
           });
