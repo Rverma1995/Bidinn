@@ -590,14 +590,18 @@ export default function SettingsPage() {
                   </form>
                 )}
 
-                {/* Step 2: Verify Token */}
+                {/* Step 2: Add Webhook in Meta */}
                 {metaStep === 2 && (
                   <div className="space-y-4">
-                    {/* Webhook URL - Show first so user can set it in Meta */}
-                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                      <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-2">
-                        Step 2a: Add Webhook URL in Meta Business Suite
+                    {/* Webhook URL - Show so user can set it in Meta */}
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-2">
+                        ✓ Configuration Saved! Now add the Webhook in Meta Business Suite
                       </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Webhook URL (Copy this)</Label>
                       <div className="flex gap-2">
                         <Input 
                           readOnly 
@@ -606,7 +610,6 @@ export default function SettingsPage() {
                         />
                         <Button 
                           variant="outline"
-                          size="sm"
                           onClick={() => {
                             navigator.clipboard.writeText(`${window.location.origin}/api/meta/webhook`);
                             toast.success('Webhook URL copied!');
@@ -615,50 +618,43 @@ export default function SettingsPage() {
                           Copy
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Go to Meta Business Suite → Integrations → Webhooks → Add this URL
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Your Verify Token</Label>
+                      <Input 
+                        readOnly 
+                        value={metaForm.verify_token || 'bidinncrm'}
+                        className="font-mono text-sm bg-slate-50 dark:bg-slate-800"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Use this exact token when setting up webhook in Meta
                       </p>
                     </div>
 
-                    <form onSubmit={handleSaveStep2} className="space-y-4">
-                      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                          Step 2b: Enter the Verify Token
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Create a unique token and enter the same in both Meta and here
-                        </p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="meta_verify_token">Verify Token *</Label>
-                        <Input
-                          id="meta_verify_token"
-                          type={showMetaSecrets ? 'text' : 'password'}
-                          placeholder="Create a unique verify token (e.g., bidinn_verify_2024)"
-                          value={metaForm.verify_token}
-                          onChange={(e) => setMetaForm({ ...metaForm, verify_token: e.target.value })}
-                          data-testid="meta-verify-token-input"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          This must match exactly what you enter in Meta Business Suite
-                        </p>
-                      </div>
+                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-2">
+                        Steps in Meta Business Suite:
+                      </p>
+                      <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                        <li>Go to your Meta App → Webhooks</li>
+                        <li>Click "Add Callback URL"</li>
+                        <li>Paste the Webhook URL above</li>
+                        <li>Enter Verify Token: <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded">bidinncrm</code></li>
+                        <li>Click "Verify and Save"</li>
+                        <li>Subscribe to "leadgen" field</li>
+                      </ol>
+                    </div>
 
-                      <div className="flex gap-2">
-                        <Button type="button" variant="outline" onClick={() => setMetaStep(1)}>
-                          Back to Step 1
-                        </Button>
-                        <Button type="submit" disabled={metaLoading} className="flex-1" data-testid="save-step2-btn">
-                          {metaLoading ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="w-4 h-4 mr-2" />
-                          )}
-                          Activate Integration
-                        </Button>
-                      </div>
-                    </form>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setMetaStep(1)}>
+                        Back to Edit
+                      </Button>
+                      <Button onClick={() => setMetaConfigured(true)} className="flex-1">
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        I've Added the Webhook
+                      </Button>
+                    </div>
 
                     {/* Status indicator */}
                     <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
@@ -667,6 +663,9 @@ export default function SettingsPage() {
                       </p>
                       <p className="text-sm text-muted-foreground">
                         <span className="font-medium">App Secret:</span> ✓ Saved
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium">Verify Token:</span> ✓ Saved
                       </p>
                     </div>
                   </div>
