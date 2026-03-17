@@ -815,10 +815,10 @@ router.post("/bulk-assign", authenticateToken, requireRole([UserRole.ADMIN, User
   }
 });
 
-// Bulk update status with rules validation
+// Bulk update status - simplified rules (only notes required)
 router.post("/bulk-status", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.TEAM_LEAD]), async (req: AuthRequest, res: Response) => {
   try {
-    const { lead_ids, status, closed_reason } = req.body;
+    const { lead_ids, status, notes } = req.body;
 
     if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
       return res.status(400).json({ detail: "lead_ids array is required" });
@@ -828,76 +828,33 @@ router.post("/bulk-status", authenticateToken, requireRole([UserRole.ADMIN, User
       return res.status(400).json({ detail: "status is required" });
     }
 
-    const newStatus = status as LeadStatus;
-
-    // Rule 2: Check if closed reason is required
-    if (STAGES_REQUIRING_REASON.includes(newStatus) && !closed_reason) {
+    // Notes are required for bulk status change
+    if (!notes) {
       return res.status(400).json({ 
-        detail: `A reason must be provided when marking leads as ${newStatus}`,
-        rule: "closed_reason_required",
-        available_reasons: Object.entries(CLOSED_REASON_LABELS).map(([value, label]) => ({ value, label }))
+        detail: "Notes are required when changing lead status in bulk",
+        rule: "notes_required_for_stage_change"
       });
     }
 
-    // Get all leads to validate transitions
-    const leads = await leadRepository().find({ where: { id: In(lead_ids) } });
-    
-    const invalidLeads: { id: string; name: string; currentStatus: string; reason: string }[] = [];
-    const validLeadIds: string[] = [];
+    const newStatus = status as LeadStatus;
 
-    for (const lead of leads) {
-      const currentStatus = lead.status as LeadStatus;
-      const allowedTransitions = STAGE_TRANSITIONS[currentStatus];
-      
-      // Rule 5: Check transition validity
-      if (allowedTransitions && !allowedTransitions.includes(newStatus)) {
-        invalidLeads.push({
-          id: lead.id,
-          name: lead.name,
-          currentStatus: lead.status,
-          reason: `Cannot transition from ${currentStatus} to ${newStatus}`,
-        });
-        continue;
-      }
+    // Update all leads - no stage transition restrictions
+    const updateData: Partial<Lead> = {
+      status: newStatus,
+      notes: notes,
+      last_activity: new Date(),
+    };
 
-      // Rule 1: Check assignment requirement
-      if (STAGES_REQUIRING_ASSIGNMENT.includes(newStatus) && !lead.assigned_to) {
-        invalidLeads.push({
-          id: lead.id,
-          name: lead.name,
-          currentStatus: lead.status,
-          reason: "Lead must be assigned before moving to this status",
-        });
-        continue;
-      }
-
-      validLeadIds.push(lead.id);
-    }
-
-    // Update valid leads
-    if (validLeadIds.length > 0) {
-      const updateData: Partial<Lead> = {
-        status: newStatus,
-        last_activity: new Date(),
-      };
-
-      if (closed_reason) {
-        updateData.closed_reason = closed_reason;
-      }
-
-      await leadRepository()
-        .createQueryBuilder()
-        .update(Lead)
-        .set(updateData)
-        .whereInIds(validLeadIds)
-        .execute();
-    }
+    await leadRepository()
+      .createQueryBuilder()
+      .update(Lead)
+      .set(updateData)
+      .whereInIds(lead_ids)
+      .execute();
 
     res.json({ 
-      message: `${validLeadIds.length} leads updated to ${status}`,
-      updated: validLeadIds.length,
-      failed: invalidLeads.length,
-      invalidLeads: invalidLeads.length > 0 ? invalidLeads : undefined,
+      message: `${lead_ids.length} leads updated to ${status}`,
+      updated: lead_ids.length,
     });
   } catch (error) {
     console.error("Bulk status error:", error);
