@@ -1093,18 +1093,21 @@ export default function LeadsPage() {
           {selectedLeads.length > 0 && (
             <>
               <Button variant="secondary" onClick={() => setBulkStatusDialogOpen(true)} data-testid="bulk-update-btn">
-                Update {selectedLeads.length} Lead(s)
+                Change Status ({selectedLeads.length})
+              </Button>
+              <Button variant="secondary" onClick={() => setBulkNotesDialogOpen(true)} data-testid="bulk-notes-btn">
+                Update Notes ({selectedLeads.length})
               </Button>
               {isTeamLead && (
                 <Button variant="secondary" onClick={() => setBulkAssignDialogOpen(true)} data-testid="bulk-assign-btn">
                   <User className="w-4 h-4 mr-2" />
-                  Assign {selectedLeads.length} Lead(s)
+                  Assign ({selectedLeads.length})
                 </Button>
               )}
               {canBulkDelete && (
                 <Button variant="destructive" onClick={() => setBulkDeleteDialogOpen(true)} data-testid="bulk-delete-btn">
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Delete {selectedLeads.length} Lead(s)
+                  Delete ({selectedLeads.length})
                 </Button>
               )}
             </>
