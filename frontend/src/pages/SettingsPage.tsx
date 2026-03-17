@@ -163,9 +163,13 @@ export default function SettingsPage() {
     setMetaTesting(true);
     try {
       const response = await api.post('/meta/test-connection');
-      toast.success(`Connected to Facebook Page: ${response.data.page_name}`);
+      if (response.data.success) {
+        toast.success(response.data.message);
+      } else {
+        toast.error(response.data.message || 'Connection test failed');
+      }
     } catch (error) {
-      toast.error(error.response?.data?.error || error.response?.data?.detail || 'Failed to connect to Meta');
+      toast.error(error.response?.data?.message || error.response?.data?.detail || 'Failed to connect to Meta');
     } finally {
       setMetaTesting(false);
     }
