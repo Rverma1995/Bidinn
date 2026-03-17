@@ -597,6 +597,30 @@ export default function SettingsPage() {
                           Create a unique token - you'll enter this same token in Meta Business Suite
                         </p>
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="meta_page_access_token">Page Access Token *</Label>
+                        <div className="relative">
+                          <Input
+                            id="meta_page_access_token"
+                            type={showMetaSecrets ? 'text' : 'password'}
+                            placeholder="Your Page Access Token from Meta"
+                            value={metaForm.page_access_token}
+                            onChange={(e) => setMetaForm({ ...metaForm, page_access_token: e.target.value })}
+                            className="pr-10"
+                            data-testid="meta-page-access-token-input"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowMetaSecrets(!showMetaSecrets)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showMetaSecrets ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Get this from Meta Business Suite → Your Page → Settings → Page Access Token
+                        </p>
+                      </div>
                     </div>
                     <Button type="submit" disabled={metaLoading} className="w-full" data-testid="save-step1-btn">
                       {metaLoading ? (
