@@ -549,6 +549,8 @@ export default function LeadDetailPage() {
         setClosedReasonDialogOpen(true);
       } else if (rule === 'assignment_required') {
         toast.error('Please assign this lead to a salesperson first');
+      } else if (rule === 'notes_required_for_stage_change') {
+        toast.error('Please add notes before changing the lead status');
       } else if (rule === 'stage_transition_restriction') {
         toast.error(errorDetail);
       } else {
