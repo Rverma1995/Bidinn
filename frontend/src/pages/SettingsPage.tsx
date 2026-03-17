@@ -106,12 +106,12 @@ export default function SettingsPage() {
     }
   };
 
-  // Step 1: Save Page ID and App Secret
+  // Step 1: Save Page ID, App Secret, and Verify Token
   const handleSaveStep1 = async (e) => {
     e.preventDefault();
     
-    if (!metaForm.page_id || !metaForm.app_secret) {
-      toast.error('Please fill in Page ID and App Secret');
+    if (!metaForm.page_id || !metaForm.app_secret || !metaForm.verify_token) {
+      toast.error('Please fill in all fields: Page ID, App Secret, and Verify Token');
       return;
     }
 
@@ -120,9 +120,10 @@ export default function SettingsPage() {
       await api.post('/meta/config', {
         page_id: metaForm.page_id,
         app_secret: metaForm.app_secret,
-        is_active: false, // Not active until verify token is set
+        verify_token: metaForm.verify_token,
+        is_active: true,
       });
-      toast.success('Step 1 Complete! Page ID and App Secret saved.');
+      toast.success('Meta configuration saved! Proceed to Step 2 to add the webhook in Meta.');
       setMetaAppSecretSaved(true);
       setMetaPageId(metaForm.page_id);
       setMetaStep(2);
