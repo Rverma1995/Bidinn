@@ -37,8 +37,16 @@ app.use(
   })
 );
 
-// Body parsing middleware
-app.use(express.json({ limit: "50mb" }));
+// Body parsing middleware with raw body capture for webhook signature verification
+app.use(express.json({ 
+  limit: "50mb",
+  verify: (req: any, res, buf) => {
+    // Store raw body for webhook signature verification
+    if (req.url === '/api/meta/webhook' || req.originalUrl === '/api/meta/webhook') {
+      req.rawBody = buf;
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Disable caching for all API responses to ensure fresh data
