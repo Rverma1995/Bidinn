@@ -19,7 +19,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
-  synchronize: true, // Auto-create tables (disable in production after initial setup)
+  synchronize: false, // Disabled to avoid index conflicts
   logging: false,
   entities: [User, Lead, Call, Booking, Activity, MetaConfig, Payment, Notification],
   migrations: [],
