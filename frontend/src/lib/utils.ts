@@ -161,6 +161,8 @@ export const ACTIVE_PIPELINE_STATUSES = [
   { value: 'not_answered', label: 'Not Answered', color: 'amber', icon: 'phone-missed' },
   { value: 'interested', label: 'Interested', color: 'emerald', icon: 'thumbs-up' },
   { value: 'followup', label: 'Follow-up', color: 'orange', icon: 'calendar' },
+  { value: 'not_interested', label: 'Not Interested', color: 'slate', icon: 'thumbs-down' },
+  { value: 'lost', label: 'Lost', color: 'red', icon: 'x-circle' },
 ];
 
 // Closed reason options for lost/not_interested leads
