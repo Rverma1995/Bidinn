@@ -1236,35 +1236,94 @@ export default function LeadsPage() {
 
       {/* Bulk Status Update Dialog */}
       <Dialog open={bulkStatusDialogOpen} onOpenChange={setBulkStatusDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]" data-testid="bulk-status-dialog">
+        <DialogContent className="sm:max-w-[450px]" data-testid="bulk-status-dialog">
           <DialogHeader>
             <DialogTitle>Bulk Status Update</DialogTitle>
             <DialogDescription>
-              Update status for {selectedLeads.length} selected lead(s)
+              Update status for {selectedLeads.length} selected lead(s). Notes are required.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="bulkStatus">New Status</Label>
-            <Select value={bulkStatus} onValueChange={setBulkStatus}>
-              <SelectTrigger data-testid="bulk-status-select">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                {LEAD_STATUSES.map((status) => (
-                  <SelectItem key={status.value} value={status.value}>
-                    {status.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="bulkStatus">New Status</Label>
+              <Select value={bulkStatus} onValueChange={setBulkStatus}>
+                <SelectTrigger data-testid="bulk-status-select">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEAD_STATUSES.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bulkStatusNotes">Notes (Required)</Label>
+              <Textarea
+                id="bulkStatusNotes"
+                placeholder="Add notes explaining the status change..."
+                value={bulkStatusNotes}
+                onChange={(e) => setBulkStatusNotes(e.target.value)}
+                rows={3}
+                data-testid="bulk-status-notes"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkStatusDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleBulkStatusUpdate} disabled={!bulkStatus || bulkLoading} data-testid="bulk-status-submit">
+            <Button onClick={handleBulkStatusUpdate} disabled={!bulkStatus || !bulkStatusNotes || bulkLoading} data-testid="bulk-status-submit">
               {bulkLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Update Leads
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Notes Update Dialog */}
+      <Dialog open={bulkNotesDialogOpen} onOpenChange={setBulkNotesDialogOpen}>
+        <DialogContent className="sm:max-w-[450px]" data-testid="bulk-notes-dialog">
+          <DialogHeader>
+            <DialogTitle>Bulk Notes Update</DialogTitle>
+            <DialogDescription>
+              Update notes for {selectedLeads.length} selected lead(s)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="bulkNotes">Notes</Label>
+              <Textarea
+                id="bulkNotes"
+                placeholder="Enter notes to add to selected leads..."
+                value={bulkNotes}
+                onChange={(e) => setBulkNotes(e.target.value)}
+                rows={4}
+                data-testid="bulk-notes-input"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="bulkNotesAppend"
+                checked={bulkNotesAppend}
+                onChange={(e) => setBulkNotesAppend(e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="bulkNotesAppend" className="text-sm font-normal">
+                Append to existing notes (uncheck to replace)
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkNotesDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkNotesUpdate} disabled={!bulkNotes || bulkLoading} data-testid="bulk-notes-submit">
+              {bulkLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {bulkNotesAppend ? 'Append Notes' : 'Replace Notes'}
             </Button>
           </DialogFooter>
         </DialogContent>
