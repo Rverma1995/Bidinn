@@ -451,7 +451,7 @@ export default function SettingsPage() {
               {metaConfigured && (
                 <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-600">
                   <CheckCircle2 className="w-3 h-3 mr-1" />
-                  Connected
+                  Active
                 </Badge>
               )}
             </CardTitle>
@@ -465,7 +465,7 @@ export default function SettingsPage() {
                 <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
                   <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                     <CheckCircle2 className="w-5 h-5" />
-                    <span className="font-medium">Meta Lead Ads is connected</span>
+                    <span className="font-medium">Meta Lead Ads is active</span>
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
                     Page ID: {metaPageId}
@@ -475,15 +475,7 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleTestMetaConnection} disabled={metaTesting}>
-                    {metaTesting ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                    )}
-                    Test Connection
-                  </Button>
-                  <Button variant="outline" onClick={() => setMetaConfigured(false)}>
+                  <Button variant="outline" onClick={handleResetMetaConfig}>
                     Update Configuration
                   </Button>
                 </div>
@@ -506,90 +498,164 @@ export default function SettingsPage() {
                       Copy
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Use this URL in Meta Business Suite → Integrations → Webhooks
-                  </p>
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSaveMetaConfig} className="space-y-4">
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <p className="text-sm text-blue-700 dark:text-blue-400">
-                    To set up Meta Lead Ads integration, you need:
-                  </p>
-                  <ul className="text-sm text-muted-foreground mt-2 list-disc list-inside space-y-1">
-                    <li>Meta App ID and App Secret from <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">Meta for Developers <ExternalLink className="w-3 h-3" /></a></li>
-                    <li>Page Access Token with leads_retrieval permission</li>
-                    <li>Your Facebook Page ID</li>
-                  </ul>
-                </div>
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="meta_page_id">Facebook Page ID *</Label>
-                    <Input
-                      id="meta_page_id"
-                      placeholder="e.g., 123456789012345"
-                      value={metaForm.page_id}
-                      onChange={(e) => setMetaForm({ ...metaForm, page_id: e.target.value })}
-                      data-testid="meta-page-id-input"
-                    />
+              <div className="space-y-6">
+                {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-4">
+                  <div className={`flex items-center gap-2 ${metaStep >= 1 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${metaStep >= 1 ? 'bg-blue-600 text-white' : 'bg-muted'}`}>
+                      {metaAppSecretSaved ? <CheckCircle2 className="w-5 h-5" /> : '1'}
+                    </div>
+                    <span className="text-sm font-medium">Page ID & App Secret</span>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="meta_app_secret">App Secret *</Label>
-                    <div className="relative">
-                      <Input
-                        id="meta_app_secret"
-                        type={showMetaSecrets ? 'text' : 'password'}
-                        placeholder="Your Meta App Secret"
-                        value={metaForm.app_secret}
-                        onChange={(e) => setMetaForm({ ...metaForm, app_secret: e.target.value })}
-                        className="pr-10"
-                        data-testid="meta-app-secret-input"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowMetaSecrets(!showMetaSecrets)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showMetaSecrets ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                  <div className={`w-12 h-0.5 ${metaStep >= 2 ? 'bg-blue-600' : 'bg-muted'}`} />
+                  <div className={`flex items-center gap-2 ${metaStep >= 2 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${metaStep >= 2 ? 'bg-blue-600 text-white' : 'bg-muted'}`}>
+                      {metaVerified ? <CheckCircle2 className="w-5 h-5" /> : '2'}
+                    </div>
+                    <span className="text-sm font-medium">Verify Token</span>
+                  </div>
+                </div>
+
+                {/* Step 1: Page ID and App Secret */}
+                {metaStep === 1 && (
+                  <form onSubmit={handleSaveStep1} className="space-y-4">
+                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                        Step 1: Enter your Page ID and App Secret
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Get these from <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">Meta for Developers <ExternalLink className="w-3 h-3" /></a>
+                      </p>
+                    </div>
+                    <div className="grid gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="meta_page_id">Facebook Page ID *</Label>
+                        <Input
+                          id="meta_page_id"
+                          placeholder="e.g., 110397928744165"
+                          value={metaForm.page_id}
+                          onChange={(e) => setMetaForm({ ...metaForm, page_id: e.target.value })}
+                          data-testid="meta-page-id-input"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="meta_app_secret">App Secret *</Label>
+                        <div className="relative">
+                          <Input
+                            id="meta_app_secret"
+                            type={showMetaSecrets ? 'text' : 'password'}
+                            placeholder="Your Meta App Secret"
+                            value={metaForm.app_secret}
+                            onChange={(e) => setMetaForm({ ...metaForm, app_secret: e.target.value })}
+                            className="pr-10"
+                            data-testid="meta-app-secret-input"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowMetaSecrets(!showMetaSecrets)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showMetaSecrets ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <Button type="submit" disabled={metaLoading} className="w-full" data-testid="save-step1-btn">
+                      {metaLoading ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <ArrowRight className="w-4 h-4 mr-2" />
+                      )}
+                      Save & Continue to Step 2
+                    </Button>
+                  </form>
+                )}
+
+                {/* Step 2: Verify Token */}
+                {metaStep === 2 && (
+                  <div className="space-y-4">
+                    {/* Webhook URL - Show first so user can set it in Meta */}
+                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-2">
+                        Step 2a: Add Webhook URL in Meta Business Suite
+                      </p>
+                      <div className="flex gap-2">
+                        <Input 
+                          readOnly 
+                          value={`${window.location.origin}/api/meta/webhook`}
+                          className="font-mono text-sm bg-white dark:bg-slate-900"
+                        />
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/api/meta/webhook`);
+                            toast.success('Webhook URL copied!');
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Go to Meta Business Suite → Integrations → Webhooks → Add this URL
+                      </p>
+                    </div>
+
+                    <form onSubmit={handleSaveStep2} className="space-y-4">
+                      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                          Step 2b: Enter the Verify Token
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Create a unique token and enter the same in both Meta and here
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="meta_verify_token">Verify Token *</Label>
+                        <Input
+                          id="meta_verify_token"
+                          type={showMetaSecrets ? 'text' : 'password'}
+                          placeholder="Create a unique verify token (e.g., bidinn_verify_2024)"
+                          value={metaForm.verify_token}
+                          onChange={(e) => setMetaForm({ ...metaForm, verify_token: e.target.value })}
+                          data-testid="meta-verify-token-input"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          This must match exactly what you enter in Meta Business Suite
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" onClick={() => setMetaStep(1)}>
+                          Back to Step 1
+                        </Button>
+                        <Button type="submit" disabled={metaLoading} className="flex-1" data-testid="save-step2-btn">
+                          {metaLoading ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                          )}
+                          Activate Integration
+                        </Button>
+                      </div>
+                    </form>
+
+                    {/* Status indicator */}
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium">Page ID:</span> {metaPageId}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium">App Secret:</span> ✓ Saved
+                      </p>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="meta_verify_token">Verify Token *</Label>
-                    <Input
-                      id="meta_verify_token"
-                      type={showMetaSecrets ? 'text' : 'password'}
-                      placeholder="Create a custom verify token (any string)"
-                      value={metaForm.verify_token}
-                      onChange={(e) => setMetaForm({ ...metaForm, verify_token: e.target.value })}
-                      data-testid="meta-verify-token-input"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Create any unique string - you'll enter this same token in Meta Business Suite
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="meta_page_token">Page Access Token *</Label>
-                    <Input
-                      id="meta_page_token"
-                      type={showMetaSecrets ? 'text' : 'password'}
-                      placeholder="Your Page Access Token"
-                      value={metaForm.page_access_token}
-                      onChange={(e) => setMetaForm({ ...metaForm, page_access_token: e.target.value })}
-                      data-testid="meta-token-input"
-                    />
-                  </div>
-                </div>
-                <Button type="submit" disabled={metaLoading} className="w-full" data-testid="save-meta-config-btn">
-                  {metaLoading ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Facebook className="w-4 h-4 mr-2" />
-                  )}
-                  Save Meta Configuration
-                </Button>
-              </form>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
