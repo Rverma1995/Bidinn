@@ -58,7 +58,10 @@ export default function SettingsPage() {
   
   // Meta Lead Ads state
   const [metaConfigured, setMetaConfigured] = useState(false);
+  const [metaStep, setMetaStep] = useState(1); // 1 = Page ID & App Secret, 2 = Verify Token
   const [metaPageId, setMetaPageId] = useState('');
+  const [metaAppSecretSaved, setMetaAppSecretSaved] = useState(false);
+  const [metaVerified, setMetaVerified] = useState(false);
   const [metaLoading, setMetaLoading] = useState(false);
   const [metaTesting, setMetaTesting] = useState(false);
   const [showMetaSecrets, setShowMetaSecrets] = useState(false);
@@ -78,32 +81,77 @@ export default function SettingsPage() {
   const fetchMetaConfig = async () => {
     try {
       const response = await api.get('/meta/config');
-      setMetaConfigured(response.data.configured);
-      if (response.data.page_id) {
-        setMetaPageId(response.data.page_id);
+      const config = response.data;
+      
+      if (config.page_id) {
+        setMetaPageId(config.page_id);
+        setMetaForm(prev => ({ ...prev, page_id: config.page_id }));
+      }
+      
+      if (config.app_secret === '***configured***') {
+        setMetaAppSecretSaved(true);
+        setMetaStep(2); // Move to step 2 if App Secret is already saved
+      }
+      
+      if (config.verify_token) {
+        setMetaVerified(true);
+      }
+      
+      if (config.is_active && config.verify_token) {
+        setMetaConfigured(true);
       }
     } catch (error) {
       console.error('Failed to fetch Meta config:', error);
     }
   };
 
-  const handleSaveMetaConfig = async (e) => {
+  // Step 1: Save Page ID and App Secret
+  const handleSaveStep1 = async (e) => {
     e.preventDefault();
     
-    if (!metaForm.app_secret || !metaForm.verify_token || !metaForm.page_access_token || !metaForm.page_id) {
-      toast.error('Please fill in all Meta configuration fields');
+    if (!metaForm.page_id || !metaForm.app_secret) {
+      toast.error('Please fill in Page ID and App Secret');
       return;
     }
 
     setMetaLoading(true);
     try {
-      await api.post('/meta/config', metaForm);
-      toast.success('Meta Lead Ads configuration saved successfully!');
-      setMetaConfigured(true);
+      await api.post('/meta/config', {
+        page_id: metaForm.page_id,
+        app_secret: metaForm.app_secret,
+        is_active: false, // Not active until verify token is set
+      });
+      toast.success('Step 1 Complete! Page ID and App Secret saved.');
+      setMetaAppSecretSaved(true);
       setMetaPageId(metaForm.page_id);
-      setMetaForm({ app_secret: '', verify_token: '', page_access_token: '', page_id: '' });
+      setMetaStep(2);
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to save Meta configuration');
+      toast.error(error.response?.data?.detail || 'Failed to save configuration');
+    } finally {
+      setMetaLoading(false);
+    }
+  };
+
+  // Step 2: Save Verify Token (after Meta verification)
+  const handleSaveStep2 = async (e) => {
+    e.preventDefault();
+    
+    if (!metaForm.verify_token) {
+      toast.error('Please enter the Verify Token');
+      return;
+    }
+
+    setMetaLoading(true);
+    try {
+      await api.post('/meta/config', {
+        verify_token: metaForm.verify_token,
+        is_active: true, // Now activate the integration
+      });
+      toast.success('Meta Lead Ads integration is now active!');
+      setMetaConfigured(true);
+      setMetaVerified(true);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save verify token');
     } finally {
       setMetaLoading(false);
     }
@@ -119,6 +167,13 @@ export default function SettingsPage() {
     } finally {
       setMetaTesting(false);
     }
+  };
+
+  const handleResetMetaConfig = () => {
+    setMetaStep(1);
+    setMetaAppSecretSaved(false);
+    setMetaVerified(false);
+    setMetaConfigured(false);
   };
 
   const handleChangePassword = async (e) => {
