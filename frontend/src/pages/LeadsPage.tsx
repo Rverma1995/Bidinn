@@ -830,8 +830,12 @@ export default function LeadsPage() {
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
   const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkNotesDialogOpen, setBulkNotesDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkStatusNotes, setBulkStatusNotes] = useState('');
+  const [bulkNotes, setBulkNotes] = useState('');
+  const [bulkNotesAppend, setBulkNotesAppend] = useState(true);
   const [bulkAssignee, setBulkAssignee] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
