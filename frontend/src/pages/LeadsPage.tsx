@@ -957,20 +957,43 @@ export default function LeadsPage() {
   };
 
   const handleBulkStatusUpdate = async () => {
-    if (!bulkStatus || selectedLeads.length === 0) return;
+    if (!bulkStatus || !bulkStatusNotes || selectedLeads.length === 0) return;
     setBulkLoading(true);
     try {
-      await api.post('/leads/bulk-update-status', {
+      await api.post('/leads/bulk-status', {
         lead_ids: selectedLeads,
-        status: bulkStatus
+        status: bulkStatus,
+        notes: bulkStatusNotes
       });
       toast.success(`Updated ${selectedLeads.length} lead(s) to ${getStatusLabel(bulkStatus)}`);
       setSelectedLeads([]);
       setBulkStatusDialogOpen(false);
       setBulkStatus('');
+      setBulkStatusNotes('');
       fetchLeads();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to update leads');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkNotesUpdate = async () => {
+    if (!bulkNotes || selectedLeads.length === 0) return;
+    setBulkLoading(true);
+    try {
+      await api.post('/leads/bulk-notes', {
+        lead_ids: selectedLeads,
+        notes: bulkNotes,
+        append: bulkNotesAppend
+      });
+      toast.success(`Notes ${bulkNotesAppend ? 'appended to' : 'updated for'} ${selectedLeads.length} lead(s)`);
+      setSelectedLeads([]);
+      setBulkNotesDialogOpen(false);
+      setBulkNotes('');
+      fetchLeads();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update notes');
     } finally {
       setBulkLoading(false);
     }
