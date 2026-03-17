@@ -862,6 +862,52 @@ router.post("/bulk-status", authenticateToken, requireRole([UserRole.ADMIN, User
   }
 });
 
+
+// Bulk update notes
+router.post("/bulk-notes", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.TEAM_LEAD]), async (req: AuthRequest, res: Response) => {
+  try {
+    const { lead_ids, notes, append } = req.body;
+
+    if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
+      return res.status(400).json({ detail: "lead_ids array is required" });
+    }
+
+    if (!notes) {
+      return res.status(400).json({ detail: "notes is required" });
+    }
+
+    if (append) {
+      // Append to existing notes
+      const leads = await leadRepository().find({ where: { id: In(lead_ids) } });
+      for (const lead of leads) {
+        lead.notes = lead.notes ? `${lead.notes}\n\n${notes}` : notes;
+        lead.last_activity = new Date();
+      }
+      await leadRepository().save(leads);
+    } else {
+      // Replace notes
+      await leadRepository()
+        .createQueryBuilder()
+        .update(Lead)
+        .set({
+          notes: notes,
+          last_activity: new Date(),
+        })
+        .whereInIds(lead_ids)
+        .execute();
+    }
+
+    res.json({ 
+      message: `Notes ${append ? 'appended to' : 'updated for'} ${lead_ids.length} leads`,
+      updated: lead_ids.length,
+    });
+  } catch (error) {
+    console.error("Bulk notes error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+
 // Bulk import leads with duplicate detection (supports file upload)
 router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
