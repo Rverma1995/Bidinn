@@ -59,6 +59,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
       // 3. Get all bookings for this lead
       const bookings = await bookingRepository().find({
         where: { lead_id: leadId },
+        relations: ["created_by"],
         order: { created_at: "DESC" },
       });
       
@@ -68,7 +69,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
           type: 'booking',
           action: `Booking Created - ${booking.hotel_name}`,
           details: `₹${booking.final_price?.toLocaleString('en-IN') || '0'} • ${formatDateRange(booking.check_in, booking.check_out)}`,
-          user_name: booking.created_by_name,
+          user_name: booking.created_by?.name || 'System',
           created_at: booking.created_at,
           booking_id: booking.id,
           hotel_name: booking.hotel_name,
@@ -81,6 +82,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
       if (bookingIds.length > 0) {
         const payments = await paymentRepository()
           .createQueryBuilder("payment")
+          .leftJoinAndSelect("payment.created_by_user", "user")
           .where("payment.booking_id IN (:...bookingIds)", { bookingIds })
           .orderBy("payment.created_at", "DESC")
           .getMany();
@@ -92,7 +94,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
             type: 'payment',
             action: `Payment Received - ₹${payment.amount?.toLocaleString('en-IN') || '0'}`,
             details: payment.notes || (booking ? `For: ${booking.hotel_name}` : ''),
-            user_name: payment.created_by_name,
+            user_name: payment.created_by_user?.name || 'System',
             created_at: payment.created_at,
             amount: payment.amount,
           });
