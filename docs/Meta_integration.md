@@ -280,7 +280,7 @@ meta_leadgen_id: string;
 ```
 https://{your-bidinn-domain}/api/meta/webhook
 ```
-Example: `https://bidinn.preview.emergentagent.com/api/meta/webhook`
+Example: `https://bidinn-sales-crm-1.preview.emergentagent.com/api/meta/webhook`
 
 ---
 

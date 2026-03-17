@@ -1,89 +1,92 @@
 <analysis>**original_problem_statement:**
 The user wants to build a modern, high-tech, SaaS-style responsive Sales CRM called Bidinn for an internal team of 15 sales reps.
 
-A major architectural change was previously implemented: The backend was migrated from raw SQL queries to using the TypeORM ORM, and the database was migrated from a local MariaDB instance to an external AWS RDS (MySQL) database.
+The initial request involved migrating from MariaDB to an external AWS RDS (MySQL) database, fixing various bugs (lead import, character encoding), implementing new features (database export/delete, System category in reports), adjusting user role permissions, and documenting the Meta (Facebook) integration.
 
-**PRODUCT REQUIREMENTS:**
-- Fix various bugs related to lead import errors, unreadable Hindi characters in lead names, and UI/UX issues.
-- Implement new features including database export/delete functionality for admins, and a System category in reports for unassigned leads.
-- Adjust user role permissions, specifically for the Manager role.
-- Improve the visibility of lead cards in the Pipeline view.
-- Disable Auto 30-day reset and Seed demo data features.
-- Document the existing Meta (Facebook) integration.
+Throughout the session, the user requested further enhancements, including:
+- Granting sales reps access to a personalized Reports page.
+- Allowing Admins and Managers to edit/delete bookings and payments.
+- Implementing performance optimizations.
+- Creating a comprehensive activity timeline for leads.
+- Removing lead stage change restrictions while requiring notes for any change.
+- Adding Not Interested and Lost stages to the pipeline.
+- Enhancing bulk lead updates with a notes feature.
+- Investigating and fixing data visibility delays between users.
+- Refactoring the Meta integration setup UI to match Meta's required flow.
 
 **User's preferred language**: English
 
 **what currently exists?**
 The application is a full-stack Sales CRM with a React/TypeScript frontend and a Node.js/Express.js backend. The backend uses TypeORM and is connected to a persistent external AWS RDS (MySQL) database. Core functionalities like authentication, lead management, bookings, payments, and dashboards are implemented.
 
-In this session, significant progress was made:
-- The lead import functionality was heavily optimized to handle large files quickly, bypassing previous timeout issues.
-- A script was created and executed to merge and clean up over 700 duplicate leads from the database.
-- Numerous UI bugs were fixed, including infinite loading on the Pipeline, Bookings, and Payments pages.
-- New admin features for database management (export/delete) were added.
-- Manager role permissions were expanded as per user request.
+In this session, the following were accomplished:
+- Documentation for the Meta and a proposed Tata Telephony integration was created.
+- Sales reps were given access to a personalized reports page showing only their data.
+- Admins and Managers can now edit and delete bookings and payments.
+- Database indexes were added to key tables (, , ) to improve query performance.
+- A comprehensive activity timeline was added to the lead detail page, showing all associated events (updates, calls, bookings, etc.).
+- Lead management logic was updated to remove stage-change rules (but require notes) and add new pipeline stages (Not Interested, Lost).
+- A bulk notes update feature was added for leads.
+- Server-side cache-control headers were added to mitigate data visibility delays.
+- The Meta integration UI in the Settings page was refactored to a single-step process, and the user's credentials were successfully saved.
 
 **Last working item**:
-    - Last item agent was working: The user requested that all work related to the Meta (Facebook) integration be documented in a motherdoc. The agent had just started exploring the codebase to find all relevant files (, , etc.) to gather information for this document.
-    - Status: NOT STARTED
-    - Agent Testing Done: N
-    - Which testing method agent to use? NA
+    - Last item agent was working: The user requested to combine the Meta integration setup into a single step, collecting Page ID, App Secret, and Verify Token at once. The agent updated the UI in , modified the backend logic to save all credentials, and successfully saved the configuration provided by the user. The agent was in the process of taking a final screenshot to show the user the updated UI.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y
+    - Which testing method agent to use? screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: (P1) Existing Hindi lead data is unreadable (mojibake).
+  - Issue 1: (P1) The Meta integration Test Connection button is non-functional.
   
   Issues Detail:
   - Issue 1: 
-     - **Description**: Existing leads in the database with Hindi characters in their names are displayed as garbled text (e.g., ). While UTF-8 support was added for *new* imports, the old data remains corrupted.
-     - **Attempted fixes**: The database connection () was updated to use . This successfully handles new data but does not fix existing records.
+     - **Description**: The Test Connection button on the Meta integration settings page calls the  endpoint, which is not yet implemented on the backend.
+     - **Attempted fixes**: None.
      - **Next debug checklist**: 
-        1. Formulate a clear data cleanup plan to present to the user.
-        2. Advise the user that the garbled leads cannot be programmatically recovered and should be deleted.
-        3. Guide the user to re-import the original source file containing the Hindi leads to repopulate the data correctly.
-     - **Why fix this issue and what will be achieved with the fix?** To ensure data integrity and proper display of international characters throughout the application.
-     - **Status:**  BLOCKED
-     - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** both
-     - **Blocked on other issue:** User confirmation is needed to delete corrupted data.
+        1. Implement the  endpoint in .
+        2. The endpoint should use the saved Page Access Token to make a simple API call to the Meta Graph API (e.g., fetching the page name) to verify the token is valid.
+        3. Return a success or error message to the frontend.
+     - **Why fix this issue and what will be achieved with the fix?** To provide users with a way to confirm their Meta credentials are correct directly from the UI, improving the integration setup experience.
+     - **Status:**  NOT STARTED
+     - **Is recurring issue?** N
+     - **Should Test frontend/backend/both after fix?** backend
+     - **Blocked on other issue:** None.
 
 **In progress Task List**:
-  - Task 1: (P0) Create Meta Integration Documentation.
+  - Task 1: (P0) Finalize and verify the Meta Integration UI update.
   
  Task Detail:
   - Task 1: 
-     - **Description**: The user wants a comprehensive document detailing all aspects of the Meta (Facebook) Lead Ads integration.
-     - **Where to resume**: The agent has already started searching for relevant files. The next step is to analyze these files (, , etc.) and compile the information into a markdown file named  inside . The document should cover frontend UI components, backend API endpoints, webhook handling, and any environment variables related to the integration.
-     - **What will be achieved with this?** A clear, centralized document explaining the Meta integration for future reference and development.
-     - **Status:**  IN PROGRESS
+     - **Where to resume**: The agent's last attempt to take a screenshot was obscured by a development-only ESLint overlay. The next step is to take a clean screenshot of the  page, scrolled down to the Meta integration section, to confirm for the user that the UI correctly reflects a single-step setup and that their details are saved.
+     - **What will be achieved with this?** User confirmation of the completed UI change for the Meta integration setup.
+     - **Status:**  USER VERIFICATION PENDING
      - **Should Test frontend/backend/both after fix?** NA
      - **Blocked on something:** None.
 
 **Upcoming and Future Tasks**
+**Upcoming Tasks:**
+- **P1: Enhance Meta Webhook to Fetch Full Lead Details**: The current webhook () only creates placeholder leads. It needs to be updated to use the  from the webhook payload to make a subsequent call to the Meta Graph API to fetch the full lead details (name, email, phone) and populate the lead record correctly. (Files: ).
+
 **Future Tasks:**
-- **P2: Google Sheets Integration:** Integrate directly with Google Sheets for lead import/export. This was previously deprioritized by the user.
-- **P2: Asynchronous Import Job with Polling:** Refactor the lead import to be a true background job. The frontend would initiate the upload and then poll a status endpoint to get real-time progress, providing a seamless UX for large files without being affected by the 60-second proxy timeout.
+- **P2: Google Sheets Integration:** Integrate directly with Google Sheets for lead import/export.
+- **P2: Asynchronous Import Job with Polling:** Refactor the lead import to be a true background job to provide a better UX for large files and bypass proxy timeouts.
+- **P2: Redis Caching:** Implement a Redis caching layer for frequently accessed data, like dashboard statistics, to provide instantaneous loads.
 
 **Completed work in this session**
-- **Lead Import Overhaul:**
-  - Optimized the backend lead import logic () to use bulk inserts, reducing import time for ~800 leads from >60s to ~4s.
-  - Improved the frontend import dialog () to provide a detailed summary of imported, duplicate, and errored leads.
-  - Added a warning message to the UI to inform users that the import continues on the backend even if the request times out.
-- **Data Cleanup:**
-  - Created and executed a backend script () that identified and merged **755** duplicate lead records based on user-defined logic.
-- **Bug Fixes:**
-  - Resolved infinite loading issues on the Pipeline, Bookings, and Payments pages by correctly handling paginated API responses.
-  - Fixed an issue where lead cards in the Pipeline view () were being cut off by adjusting the CSS and scroll area height.
-  - Fixed a bug in the Delete All Data feature () that was causing a TypeORM error.
-- **Feature Enhancements & Permissions:**
-  - **Admin Settings:** Added Export Database and Delete All Data features in the admin settings page () with corresponding backend endpoints ().
-  - **Manager Role:** Updated permissions to allow Managers to create/deactivate users and perform bulk lead deletion.
-  - **Reports:** Modified the Agent Performance report ( and ) to include a System row for unassigned, admin, and default leads.
-- **Feature Disabling:**
-  - Disabled the Auto 30-day reset and Seed demo data features from the backend () and removed the corresponding buttons from the UI.
+- **Meta & Tata Documentation**: Created  and .
+- **Role-Based Reports**: Implemented a personalized My Reports view for Sales Reps. ().
+- **CRUD for Bookings/Payments**: Added Edit/Delete functionality for Admins/Managers. (, , , ).
+- **Performance Tuning**: Added database indexes to , , and  entities. ().
+- **Comprehensive Activity Timeline**: Created a unified timeline on the lead detail page. (, ).
+- **Lead Logic Update**: Removed stage-change restrictions, required notes for changes, and added Not Interested & Lost pipeline stages. (, ).
+- **Bulk Notes Feature**: Added functionality to update notes for multiple leads at once. (, ).
+- **Data-Sync Fix**: Added  headers to all API responses to prevent caching issues. ().
+- **Meta Integration UI Refactor**: Updated the settings UI to a single-step process and saved user credentials. ().
 
 **Earlier issues found/mentioned but not fixed**
-   - The issue of cleaning up existing garbled Hindi data is still pending user confirmation to delete and re-import.
+- The Meta webhook handler () is incomplete; it creates placeholder leads instead of fetching full details from the Graph API. This is captured in Upcoming Tasks.
 
 **Known issue recurrence from previous fork**
   - **Issue:** MariaDB not persisting data across environment restarts.
@@ -94,72 +97,75 @@ In this session, significant progress was made:
 
 
 **Key Technical Concepts**
-- **Backend:** Express.js, TypeScript, **TypeORM**, JWT, , .
+- **Backend:** Express.js, TypeScript, **TypeORM**, JWT.
 - **Frontend:** React, TypeScript, TailwindCSS, Shadcn/UI, Recharts.
 - **Database:** **External AWS RDS (MySQL)**.
-- **Deployment:** The Node.js application is launched via a Python wrapper () for compatibility with the Emergent deployment environment.
 
 **key DB schema**
-- **User**: 
-- **Lead**: 
-- **Notification**: 
-- All other entities (, , , ) are managed via TypeORM in .
+- **Lead**:  (Indexes on: status, assigned_to, created_at, phone)
+- **Booking**:  (Indexes on: status, lead_id, created_at)
+- **Payment**:  (Indexes on: status, booking_id, created_at)
+- **Activity**: 
+- **MetaConfig**: 
 
 **changes in tech stack**
-- No changes to the core tech stack in this session.
+- No changes.  was temporarily added and then removed.
 
 **All files of reference**
-- : Major optimizations for import and new endpoints for duplicate merging.
-- : Overhauled the import UI and error/timeout handling.
-- : New file for database export and delete endpoints.
-- : UI for new admin features and removal of disabled features.
-- : Fixes for pagination and layout to ensure all lead cards are visible.
-- : Logic updated for Agent Performance report.
-- : UI updated for Agent Performance report.
-- : Updated permissions for the Manager role.
-- : UI updated for new Manager permissions.
+- : Modified extensively for the Meta integration UI refactor.
+- : Modified to add the comprehensive activity timeline.
+- : Logic updated for stage changes and bulk notes.
+- : New file to serve the activity timeline.
+- , , : Updated with  decorators for performance.
+- , : Updated to add role-protected PUT/DELETE endpoints.
+- : Modified for the personalized sales rep view.
+- : New documentation file.
+- : New documentation file.
 
 **Areas that need refactoring**:
-- The lead import process, while fast, is still a synchronous API call that can be interrupted by the 60-second proxy timeout. A more robust solution would be to convert it into an asynchronous background job where the frontend polls for completion status.
+- The Meta webhook handler in  is incomplete and only creates placeholder leads.
+- The lead import process, while functional, is still a synchronous API call. It could be improved by converting it to an asynchronous background job.
 
 **key api endpoints**
-- : Heavily optimized to handle bulk inserts of ~800 records in under 5 seconds.
-- : Exports all tables to a JSON file.
-- : Truncates all major data tables (Leads, Bookings, etc.).
-- : Updated to include a System summary for unassigned/admin leads.
-- : Endpoint permission updated to allow managers to create new users.
-- : Endpoint permission updated to allow managers to bulk delete leads.
+- : Fetches all activities for a lead.
+- : New endpoint to add notes to multiple leads.
+- , : New endpoints for managing bookings.
+- , : New endpoints for managing payments.
+- : Saves Meta integration credentials.
+- : Handles Meta webhook verification.
+- : Handles incoming leadgen events (partially implemented).
 
 **Critical Info for New Agent**
-- **Your immediate task is to create a markdown document for the Meta integration.** Search the codebase for all related files and summarize the functionality.
-- The lead import timeout issue has been addressed with significant backend optimization and a frontend warning. The 60-second ingress timeout is a platform limitation, and the current solution is the best approach without moving to a full background job architecture.
-- **Manager role permissions have been expanded.** Managers can now create/deactivate users and bulk delete leads.
-- You still need to address the corrupted Hindi data. The proposed solution is to get user consent to delete the garbled entries and have them re-import the source file.
+- Your immediate task is to provide the user with a clean screenshot of the updated Meta integration section on the Settings page to confirm the UI changes are complete.
+- The user has confirmed the corrupted Hindi data issue is resolved; they have cleaned and re-uploaded the data themselves.
+- The two highest-priority performance tasks (DB indexing) are complete. The attempt to add table virtualization was reverted as existing pagination was deemed sufficient.
+- The next logical feature to implement is completing the Meta integration by enhancing the webhook to fetch full lead details from the Graph API.
 
 **documents and test reports created in this job**
--  (updated multiple times)
+- 
+- 
+-  (updated)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1.  **User:** Requests documentation for the Meta integration. (In progress)
-2.  **User:** Asks why the lead import is still showing a may take a few mins message. (Resolved by optimizing import speed and fixing toast dismissal)
-3.  **User:** Asks to update Manager permissions and fix the Pipeline lead card view. (Resolved)
-4.  **User:** Asks for clarification on user roles and why the Pipeline lead count was incorrect. (Answered, and lead count issue was fixed)
-5.  **User:** Requests a System row in the agent performance report for unassigned leads. (Resolved)
-6.  **User:** Requests a detailed import summary (imported, duplicates, errors). (Resolved)
-7.  **User:** Reports the lead upload is still an issue and asks about DB capacity. (Resolved, capacity explained)
-8.  **User:** Reports failed to delete database error. (Resolved)
-9.  **User:** Asks to disable auto-reset and demo-seed features. (Resolved)
-10. **User:** Asks for export and delete database features in admin settings and a fix for Pipeline card visibility. (Resolved)
+1.  **User:** Requests to update Meta integration with Page ID, App Secret, and Verify Token, all in Step 1.
+2.  **User:** Asks if the app UI is sufficient to complete the Meta integration and what the webhook verification API is.
+3.  **User:** Reports a 3-4 minute data visibility delay for newly imported leads between different users.
+4.  **User:** Requests several changes: remove lead stage restrictions (but require notes), add bulk notes update, and add Not Interested & Lost stages to the pipeline.
+5.  **User:** Asks for the activity timeline to show all activities related to a lead.
+6.  **User:** Points out a deployment agent warning about MySQL vs. MongoDB.
+7.  **User:** Asks for documentation on a potential Tata Telephony integration.
+8.  **User:** Asks to execute high-priority performance optimization tasks.
+9.  **User:** Asks for ways to make the entire app faster.
+10. **User:** Reports that the Reports tab is not visible for sales reps.
 
 **Project Health Check:**
-- **Broken:** None.
-- **Mocked:** None.
+- **Broken:** The Test Connection button for the Meta integration in Settings is non-functional as its backend endpoint () is not implemented.
+- **Mocked:** The Meta webhook handler () creates placeholder leads and does not yet fetch full lead details from the Meta Graph API.
 
 **3rd Party Integrations**
 - **AWS RDS (MySQL):** The primary database for the application.
-- **TypeORM:** The ORM used to manage database connections, schema, and queries.
-- **Meta (Facebook) Marketing API:** Integrated for webhook-based lead import.
-- **Multer & XLSX:** Node.js libraries used for server-side parsing of uploaded Excel/CSV files.
+- **TypeORM:** The ORM used to manage database connections and schema.
+- **Meta (Facebook) Marketing API:** Integrated for webhook-based lead import. Configuration is saved, but the handler is incomplete.
 
 **Testing status**
   - Testing agent used after significant changes: NO
@@ -170,6 +176,8 @@ In this session, significant progress was made:
 **Credentials to test flow:**
 - **Admin:**  / 
 - **Manager:**  / 
+- **Sales Rep:**  / 
 
 **What agent forgot to execute**
-- The agent has not yet created the  document as requested by the user in the last message. This is the immediate next step.</analysis>
+- The agent has not implemented the  endpoint for the Test Connection button on the settings page.
+- The agent has not completed the  handler to fetch real lead data from Meta's Graph API, which is a critical part of the integration.</analysis>
