@@ -263,16 +263,29 @@ router.post("/webhook", async (req: Request & { rawBody?: Buffer }, res: Respons
             let leadName = `Meta Lead ${leadgenId?.slice(-6) || "Unknown"}`;
             let leadEmail = "";
             let leadPhone = "";
+            let campaignName = `Form ${formId?.slice(-6) || "Unknown"}`;
 
-            if (config.page_access_token && leadgenId) {
-              const leadDetails = await fetchLeadDetailsFromMeta(leadgenId, config.page_access_token);
-              if (leadDetails) {
-                leadName = leadDetails.name || leadName;
-                leadEmail = leadDetails.email || "";
-                leadPhone = leadDetails.phone || "";
-                console.log(`Fetched lead details: name=${leadName}, email=${leadEmail}, phone=${leadPhone ? '***' : 'none'}`);
-              } else {
-                console.warn(`Could not fetch details for lead ${leadgenId}, creating with placeholder data`);
+            if (config.page_access_token) {
+              // Fetch lead details
+              if (leadgenId) {
+                const leadDetails = await fetchLeadDetailsFromMeta(leadgenId, config.page_access_token);
+                if (leadDetails) {
+                  leadName = leadDetails.name || leadName;
+                  leadEmail = leadDetails.email || "";
+                  leadPhone = leadDetails.phone || "";
+                  console.log(`Fetched lead details: name=${leadName}, email=${leadEmail}, phone=${leadPhone ? '***' : 'none'}`);
+                } else {
+                  console.warn(`Could not fetch details for lead ${leadgenId}, creating with placeholder data`);
+                }
+              }
+              
+              // Fetch form/campaign name
+              if (formId) {
+                const formName = await fetchFormNameFromMeta(formId, config.page_access_token);
+                if (formName) {
+                  campaignName = formName;
+                  console.log(`Fetched form name: ${formName}`);
+                }
               }
             } else {
               console.warn(`No page_access_token configured, creating lead with placeholder data`);
@@ -285,7 +298,7 @@ router.post("/webhook", async (req: Request & { rawBody?: Buffer }, res: Respons
               phone: leadPhone || "Not provided",
               email: leadEmail,
               source: "Meta Lead Ads",
-              campaign: `Form ${formId?.slice(-6) || "Unknown"}`,
+              campaign: campaignName,
               status: LeadStatus.NEW,
               meta_leadgen_id: leadgenId,
               attempt_count: 0,
