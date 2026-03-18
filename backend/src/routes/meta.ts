@@ -127,6 +127,27 @@ router.get("/webhook", async (req: Request, res: Response) => {
   }
 });
 
+// Helper function to fetch form name from Meta Graph API
+async function fetchFormNameFromMeta(formId: string, pageAccessToken: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${formId}?fields=name&access_token=${pageAccessToken}`
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json() as { error?: { message?: string } };
+      console.error(`Failed to fetch form ${formId}:`, errorData.error?.message);
+      return null;
+    }
+
+    const data = await response.json() as { id: string; name?: string };
+    return data.name || null;
+  } catch (error) {
+    console.error(`Error fetching form ${formId} from Meta:`, error);
+    return null;
+  }
+}
+
 // Helper function to fetch lead details from Meta Graph API
 async function fetchLeadDetailsFromMeta(leadgenId: string, pageAccessToken: string): Promise<{
   name: string;
