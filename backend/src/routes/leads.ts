@@ -105,12 +105,40 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const skip = (page - 1) * limit;
+    
+    // Filter parameters
+    const status = req.query.status as string;
+    const source = req.query.source as string;
+    const assigned_to = req.query.assigned_to as string;
+    const search = req.query.search as string;
 
     let queryBuilder = leadRepository().createQueryBuilder("lead");
 
     // Sales reps only see their assigned leads
     if (user.role === UserRole.SALES_REP) {
       queryBuilder = queryBuilder.where("lead.assigned_to = :userId", { userId: user.id });
+    }
+    
+    // Apply filters
+    if (status && status !== 'all') {
+      queryBuilder = queryBuilder.andWhere("lead.status = :status", { status });
+    }
+    
+    if (source && source !== 'all') {
+      queryBuilder = queryBuilder.andWhere("lead.source = :source", { source });
+    }
+    
+    if (assigned_to && assigned_to !== 'all') {
+      queryBuilder = queryBuilder.andWhere("lead.assigned_to = :assigned_to", { assigned_to });
+    }
+    
+    // Search by name, phone, or email
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      queryBuilder = queryBuilder.andWhere(
+        "(lead.name LIKE :search OR lead.phone LIKE :search OR lead.email LIKE :search)",
+        { search: searchTerm }
+      );
     }
 
     // Get total count for pagination
