@@ -783,6 +783,17 @@ export default function LeadDetailPage() {
                       <p className="font-medium">{lead.source}</p>
                     </div>
                   </div>
+                  {lead.campaign && (
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
+                        <MessageSquare className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Campaign</p>
+                        <p className="font-medium">{lead.campaign}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
