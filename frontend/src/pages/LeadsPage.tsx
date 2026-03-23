@@ -877,6 +877,56 @@ export default function LeadsPage() {
     setCurrentPage(1);
   }, [filters, showUncontactedOnly]);
 
+  // Smart polling - check for new leads every 5 minutes
+  useEffect(() => {
+    const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+    
+    const checkForNewLeads = async () => {
+      try {
+        // Only check if we have a baseline and no filters applied
+        if (lastKnownTotal === null || filters.search || filters.status !== 'all' || filters.source !== 'all') {
+          return;
+        }
+        
+        const response = await api.get('/leads?page=1&limit=1');
+        const currentTotal = response.data.pagination?.total || 0;
+        
+        if (currentTotal > lastKnownTotal) {
+          const newCount = currentTotal - lastKnownTotal;
+          setNewLeadsCount(newCount);
+          setNewLeadsAvailable(true);
+          
+          // Show toast notification
+          toast.info(`${newCount} new lead${newCount > 1 ? 's' : ''} available`, {
+            description: 'Click "Refresh" to load new leads',
+            duration: 10000,
+            action: {
+              label: 'Refresh Now',
+              onClick: () => handleRefresh(),
+            },
+          });
+        }
+      } catch (error) {
+        console.error('Error checking for new leads:', error);
+      }
+    };
+
+    const intervalId = setInterval(checkForNewLeads, POLL_INTERVAL);
+    
+    return () => clearInterval(intervalId);
+  }, [lastKnownTotal, filters]);
+
+  // Manual refresh handler
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    setNewLeadsAvailable(false);
+    setNewLeadsCount(0);
+    await fetchLeads();
+    setLastRefreshTime(new Date());
+    setIsRefreshing(false);
+    toast.success('Leads refreshed');
+  };
+
   const fetchLeads = async () => {
     setLoading(true);
     try {
@@ -910,8 +960,14 @@ export default function LeadsPage() {
         // Handle both old array format and new paginated format
         if (response.data.leads) {
           setLeads(response.data.leads);
-          setTotalLeads(response.data.pagination?.total || response.data.leads.length);
+          const total = response.data.pagination?.total || response.data.leads.length;
+          setTotalLeads(total);
           setTotalPages(response.data.pagination?.totalPages || 1);
+          
+          // Update baseline for polling (only when no filters applied)
+          if (!filters.search && filters.status === 'all' && filters.source === 'all' && filters.assigned_to === 'all') {
+            setLastKnownTotal(total);
+          }
         } else {
           // Fallback for old format
           setLeads(response.data);
@@ -919,6 +975,7 @@ export default function LeadsPage() {
           setTotalPages(1);
         }
       }
+      setLastRefreshTime(new Date());
     } catch (error) {
       toast.error('Failed to fetch leads');
     } finally {
