@@ -1178,6 +1178,25 @@ export default function LeadsPage() {
               )}
             </>
           )}
+          {/* Refresh Button with New Leads Indicator */}
+          <div className="relative">
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className={newLeadsAvailable ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''}
+              data-testid="refresh-leads-btn"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {newLeadsAvailable ? `${newLeadsCount} New` : 'Refresh'}
+            </Button>
+            {newLeadsAvailable && (
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+              </span>
+            )}
+          </div>
           <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-leads-btn">
             <Upload className="w-4 h-4 mr-2" />
             Import
