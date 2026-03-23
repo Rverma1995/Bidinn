@@ -74,6 +74,8 @@ import {
   Square,
   Trash2,
   Info,
+  RefreshCw,
+  Bell,
 } from 'lucide-react';
 import { Checkbox } from '../components/ui/checkbox';
 
