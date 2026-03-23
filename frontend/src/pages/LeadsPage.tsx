@@ -1673,8 +1673,13 @@ export default function LeadsPage() {
           {/* Pagination Controls */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t">
-              <div className="text-sm text-muted-foreground">
-                Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalLeads)} of {totalLeads} leads
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">
+                  Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalLeads)} of {totalLeads} leads
+                </span>
+                <span className="text-xs text-muted-foreground/60">
+                  Last updated: {lastRefreshTime.toLocaleTimeString()}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Button
