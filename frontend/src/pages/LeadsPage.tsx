@@ -856,6 +856,13 @@ export default function LeadsPage() {
     search: '',
   });
 
+  // Smart polling state
+  const [newLeadsAvailable, setNewLeadsAvailable] = useState(false);
+  const [newLeadsCount, setNewLeadsCount] = useState(0);
+  const [lastKnownTotal, setLastKnownTotal] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager';
   const canBulkDelete = isAdmin || isManager;
