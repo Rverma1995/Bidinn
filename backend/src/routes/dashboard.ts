@@ -350,9 +350,9 @@ router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res
           total_revenue: totalRevenue,
           // Lead stages
           stage_new: stageNew,
+          stage_not_answered: stageNotAnswered,
           stage_interested: stageInterested,
           stage_followup: stageFollowup,
-          stage_negotiation: stageNegotiation,
           stage_won: stageWon,
           stage_lost: stageLost,
           stage_not_interested: stageNotInterested,
