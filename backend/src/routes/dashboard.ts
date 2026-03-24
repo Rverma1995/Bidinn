@@ -288,6 +288,27 @@ router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res
           .andWhere("lead.status = :wonStatus", { wonStatus: LeadStatus.WON })
           .getCount();
 
+        // Get counts for all lead stages
+        const stageNew = await leadsQuery.clone()
+          .andWhere("lead.status = :status", { status: LeadStatus.NEW })
+          .getCount();
+        const stageInterested = await leadsQuery.clone()
+          .andWhere("lead.status = :status", { status: LeadStatus.INTERESTED })
+          .getCount();
+        const stageFollowup = await leadsQuery.clone()
+          .andWhere("lead.status = :status", { status: LeadStatus.FOLLOWUP })
+          .getCount();
+        const stageNegotiation = await leadsQuery.clone()
+          .andWhere("lead.status = :status", { status: LeadStatus.NEGOTIATION })
+          .getCount();
+        const stageWon = converted;
+        const stageLost = await leadsQuery.clone()
+          .andWhere("lead.status = :status", { status: LeadStatus.LOST })
+          .getCount();
+        const stageNotInterested = await leadsQuery.clone()
+          .andWhere("lead.status = :status", { status: LeadStatus.NOT_INTERESTED })
+          .getCount();
+
         // Get calls made
         let callsQuery = callRepository().createQueryBuilder("call").where("call.user_id = :userId", { userId: user.id });
         if (start_date) {
@@ -327,6 +348,14 @@ router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res
           conversion_rate: conversionRate,
           calls_made: callsMade,
           total_revenue: totalRevenue,
+          // Lead stages
+          stage_new: stageNew,
+          stage_interested: stageInterested,
+          stage_followup: stageFollowup,
+          stage_negotiation: stageNegotiation,
+          stage_won: stageWon,
+          stage_lost: stageLost,
+          stage_not_interested: stageNotInterested,
         };
       })
     );
