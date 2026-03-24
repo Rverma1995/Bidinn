@@ -292,14 +292,14 @@ router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res
         const stageNew = await leadsQuery.clone()
           .andWhere("lead.status = :status", { status: LeadStatus.NEW })
           .getCount();
+        const stageNotAnswered = await leadsQuery.clone()
+          .andWhere("lead.status = :status", { status: LeadStatus.NOT_ANSWERED })
+          .getCount();
         const stageInterested = await leadsQuery.clone()
           .andWhere("lead.status = :status", { status: LeadStatus.INTERESTED })
           .getCount();
         const stageFollowup = await leadsQuery.clone()
           .andWhere("lead.status = :status", { status: LeadStatus.FOLLOWUP })
-          .getCount();
-        const stageNegotiation = await leadsQuery.clone()
-          .andWhere("lead.status = :status", { status: LeadStatus.NEGOTIATION })
           .getCount();
         const stageWon = converted;
         const stageLost = await leadsQuery.clone()
