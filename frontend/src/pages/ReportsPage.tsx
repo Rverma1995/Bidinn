@@ -410,12 +410,12 @@ export default function ReportsPage() {
                         <th className="text-left p-3 font-medium sticky left-0 bg-slate-50 dark:bg-slate-800/50">Agent</th>
                         <th className="text-right p-2 font-medium text-xs">Total</th>
                         <th className="text-right p-2 font-medium text-xs text-blue-600">New</th>
+                        <th className="text-right p-2 font-medium text-xs text-slate-500">Not Answered</th>
                         <th className="text-right p-2 font-medium text-xs text-cyan-600">Interested</th>
                         <th className="text-right p-2 font-medium text-xs text-amber-600">Follow-up</th>
-                        <th className="text-right p-2 font-medium text-xs text-purple-600">Negotiation</th>
                         <th className="text-right p-2 font-medium text-xs text-green-600">Won</th>
                         <th className="text-right p-2 font-medium text-xs text-red-600">Lost</th>
-                        <th className="text-right p-2 font-medium text-xs text-slate-500">Not Interested</th>
+                        <th className="text-right p-2 font-medium text-xs text-gray-500">Not Interested</th>
                         <th className="text-right p-2 font-medium text-xs">Conv %</th>
                         <th className="text-right p-2 font-medium text-xs">Revenue</th>
                         <th className="text-right p-2 font-medium text-xs">Calls</th>
@@ -452,12 +452,12 @@ export default function ReportsPage() {
                           </td>
                           <td className="p-2 text-right font-semibold">{agent.total_leads}</td>
                           <td className="p-2 text-right text-blue-600">{agent.stage_new || 0}</td>
+                          <td className="p-2 text-right text-slate-500">{agent.stage_not_answered || 0}</td>
                           <td className="p-2 text-right text-cyan-600">{agent.stage_interested || 0}</td>
                           <td className="p-2 text-right text-amber-600">{agent.stage_followup || 0}</td>
-                          <td className="p-2 text-right text-purple-600">{agent.stage_negotiation || 0}</td>
                           <td className="p-2 text-right text-green-600 font-medium">{agent.stage_won || 0}</td>
                           <td className="p-2 text-right text-red-600">{agent.stage_lost || 0}</td>
-                          <td className="p-2 text-right text-slate-500">{agent.stage_not_interested || 0}</td>
+                          <td className="p-2 text-right text-gray-500">{agent.stage_not_interested || 0}</td>
                           <td className="p-2 text-right">
                             <Badge variant={agent.conversion_rate > 20 ? 'default' : agent.conversion_rate > 10 ? 'secondary' : 'outline'} className="text-xs">
                               {agent.conversion_rate}%
