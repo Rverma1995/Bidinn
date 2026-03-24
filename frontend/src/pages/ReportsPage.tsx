@@ -407,14 +407,18 @@ export default function ReportsPage() {
                   <table className="w-full" data-testid="agent-performance-table">
                     <thead>
                       <tr className="border-b bg-slate-50 dark:bg-slate-800/50">
-                        <th className="text-left p-3 font-medium">Agent</th>
-                        <th className="text-right p-3 font-medium">Leads Assigned</th>
-                        <th className="text-right p-3 font-medium">Contacted</th>
-                        <th className="text-right p-3 font-medium">Not Contacted</th>
-                        <th className="text-right p-3 font-medium">Converted</th>
-                        <th className="text-right p-3 font-medium">Conversion Rate</th>
-                        <th className="text-right p-3 font-medium">Revenue (₹)</th>
-                        <th className="text-right p-3 font-medium">Calls Made</th>
+                        <th className="text-left p-3 font-medium sticky left-0 bg-slate-50 dark:bg-slate-800/50">Agent</th>
+                        <th className="text-right p-2 font-medium text-xs">Total</th>
+                        <th className="text-right p-2 font-medium text-xs text-blue-600">New</th>
+                        <th className="text-right p-2 font-medium text-xs text-cyan-600">Interested</th>
+                        <th className="text-right p-2 font-medium text-xs text-amber-600">Follow-up</th>
+                        <th className="text-right p-2 font-medium text-xs text-purple-600">Negotiation</th>
+                        <th className="text-right p-2 font-medium text-xs text-green-600">Won</th>
+                        <th className="text-right p-2 font-medium text-xs text-red-600">Lost</th>
+                        <th className="text-right p-2 font-medium text-xs text-slate-500">Not Interested</th>
+                        <th className="text-right p-2 font-medium text-xs">Conv %</th>
+                        <th className="text-right p-2 font-medium text-xs">Revenue</th>
+                        <th className="text-right p-2 font-medium text-xs">Calls</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -425,9 +429,9 @@ export default function ReportsPage() {
                             agent.agent_role === 'system' ? 'bg-slate-100 dark:bg-slate-800/80 font-medium' : ''
                           }`}
                         >
-                          <td className="p-3">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-8 w-8">
+                          <td className="p-3 sticky left-0 bg-white dark:bg-slate-900">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-7 w-7">
                                 {agent.agent_role === 'system' ? (
                                   <AvatarFallback className="text-xs bg-slate-300 dark:bg-slate-600">
                                     SYS
@@ -442,32 +446,27 @@ export default function ReportsPage() {
                                 )}
                               </Avatar>
                               <div>
-                                <p className="font-medium text-sm">{agent.agent_name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {agent.agent_role === 'system' ? 'Unassigned / Admin / Default' : agent.agent_email}
-                                </p>
+                                <p className="font-medium text-sm truncate max-w-[120px]">{agent.agent_name}</p>
                               </div>
                             </div>
                           </td>
-                          <td className="p-3 text-right font-medium">{agent.total_leads}</td>
-                          <td className="p-3 text-right">
-                            <span className="text-emerald-600">{agent.contacted}</span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <span className="text-amber-600">{agent.not_contacted}</span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <span className="text-purple-600 font-medium">{agent.converted}</span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <Badge variant={agent.conversion_rate > 20 ? 'default' : agent.conversion_rate > 10 ? 'secondary' : 'outline'}>
+                          <td className="p-2 text-right font-semibold">{agent.total_leads}</td>
+                          <td className="p-2 text-right text-blue-600">{agent.stage_new || 0}</td>
+                          <td className="p-2 text-right text-cyan-600">{agent.stage_interested || 0}</td>
+                          <td className="p-2 text-right text-amber-600">{agent.stage_followup || 0}</td>
+                          <td className="p-2 text-right text-purple-600">{agent.stage_negotiation || 0}</td>
+                          <td className="p-2 text-right text-green-600 font-medium">{agent.stage_won || 0}</td>
+                          <td className="p-2 text-right text-red-600">{agent.stage_lost || 0}</td>
+                          <td className="p-2 text-right text-slate-500">{agent.stage_not_interested || 0}</td>
+                          <td className="p-2 text-right">
+                            <Badge variant={agent.conversion_rate > 20 ? 'default' : agent.conversion_rate > 10 ? 'secondary' : 'outline'} className="text-xs">
                               {agent.conversion_rate}%
                             </Badge>
                           </td>
-                          <td className="p-3 text-right font-semibold text-green-600">
+                          <td className="p-2 text-right font-semibold text-green-600 text-sm">
                             {formatINR(agent.total_revenue)}
                           </td>
-                          <td className="p-3 text-right">
+                          <td className="p-2 text-right text-sm">
                             {agent.agent_role === 'system' ? (
                               <span className="text-muted-foreground">-</span>
                             ) : (
