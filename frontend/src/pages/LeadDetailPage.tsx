@@ -155,9 +155,12 @@ function ActivityItem({ activity }: ActivityItemProps) {
           </span>
         </div>
         {activity.user_name && (
-          <p className="text-xs text-muted-foreground mt-1">
-            by {activity.user_name}
-          </p>
+          <div className="flex items-center gap-1 mt-1">
+            <User className="w-3 h-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground font-medium">
+              {activity.user_name}
+            </span>
+          </div>
         )}
       </div>
     </div>
