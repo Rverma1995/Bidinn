@@ -7,8 +7,8 @@ export class Activity {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;
 
-  @Column({ type: "varchar", length: 36 })
-  user_id: string;
+  @Column({ type: "varchar", length: 36, nullable: true })
+  user_id: string | null;
 
   @Column({ type: "varchar", length: 255 })
   user_name: string;
@@ -31,9 +31,9 @@ export class Activity {
   @CreateDateColumn()
   created_at: Date;
 
-  @ManyToOne(() => User, (user) => user.activities, { onDelete: "CASCADE" })
+  @ManyToOne(() => User, (user) => user.activities, { onDelete: "CASCADE", nullable: true })
   @JoinColumn({ name: "user_id" })
-  user: User;
+  user: User | null;
 
   @BeforeInsert()
   generateId() {
