@@ -1156,17 +1156,19 @@ export default function LeadsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {showUncontactedOnly ? 'Uncontacted Leads (>1hr)' : 'Leads'}
+            {showOverdueOnly ? 'Overdue Follow-ups' : showUncontactedOnly ? 'Uncontacted Leads (>1hr)' : 'Leads'}
           </h1>
           <p className="text-muted-foreground">
-            {showUncontactedOnly 
+            {showOverdueOnly
+              ? 'Leads with past-due follow-up dates'
+              : showUncontactedOnly 
               ? 'Leads that need immediate attention' 
               : 'Manage and track your sales leads'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {showUncontactedOnly && (
-            <Button variant="outline" onClick={() => setShowUncontactedOnly(false)}>
+          {(showUncontactedOnly || showOverdueOnly) && (
+            <Button variant="outline" onClick={() => { setShowUncontactedOnly(false); setShowOverdueOnly(false); }}>
               Show All Leads
             </Button>
           )}
