@@ -931,8 +931,21 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     setLoading(true);
     try {
+      // If showing overdue leads only, use the overdue-followups endpoint
+      if (showOverdueOnly) {
+        try {
+          const response = await api.get('/dashboard/overdue-followups');
+          setLeads(response.data);
+          setTotalLeads(response.data.length);
+          setTotalPages(1);
+        } catch (error) {
+          console.error('Failed to fetch overdue leads:', error);
+          setLeads([]);
+          setTotalLeads(0);
+          setTotalPages(1);
+        }
       // If showing uncontacted leads only, use the special endpoint
-      if (showUncontactedOnly) {
+      } else if (showUncontactedOnly) {
         try {
           const response = await api.get('/leads/uncontacted');
           setLeads(response.data);
