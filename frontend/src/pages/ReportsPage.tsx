@@ -188,6 +188,23 @@ export default function ReportsPage() {
     }
   };
 
+  const fetchLeadTrends = async () => {
+    setTrendLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('group_by', trendGroupBy);
+      if (startDate) params.append('start_date', format(startDate, 'yyyy-MM-dd'));
+      if (endDate) params.append('end_date', format(endDate, 'yyyy-MM-dd'));
+      
+      const res = await api.get(`/dashboard/lead-counts?${params.toString()}`);
+      setLeadTrends(res.data);
+    } catch (error) {
+      console.error('Failed to fetch lead trends:', error);
+    } finally {
+      setTrendLoading(false);
+    }
+  };
+
   const clearDateFilter = () => {
     setDatePreset('all');
     setStartDate(null);
