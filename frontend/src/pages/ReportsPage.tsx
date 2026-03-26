@@ -790,6 +790,120 @@ export default function ReportsPage() {
         </Card>
       </div>
 
+      {/* Lead Trends Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle>Lead Trends</CardTitle>
+              <CardDescription>New leads over time</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={trendGroupBy} onValueChange={setTrendGroupBy}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue placeholder="Group by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {trendLoading ? (
+            <div className="h-[300px] flex items-center justify-center">
+              <Skeleton className="w-full h-full" />
+            </div>
+          ) : leadTrends?.data?.length > 0 ? (
+            <>
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                  <p className="text-sm text-muted-foreground">Total New Leads</p>
+                  <p className="text-2xl font-bold text-blue-600">{leadTrends.totals?.total_leads || 0}</p>
+                </div>
+                <div className="p-4 rounded-lg bg-cyan-50 dark:bg-cyan-900/20">
+                  <p className="text-sm text-muted-foreground">Interested</p>
+                  <p className="text-2xl font-bold text-cyan-600">{leadTrends.totals?.total_interested || 0}</p>
+                </div>
+                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
+                  <p className="text-sm text-muted-foreground">Won</p>
+                  <p className="text-2xl font-bold text-green-600">{leadTrends.totals?.total_won || 0}</p>
+                </div>
+                <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20">
+                  <p className="text-sm text-muted-foreground">Lost</p>
+                  <p className="text-2xl font-bold text-red-600">{leadTrends.totals?.total_lost || 0}</p>
+                </div>
+              </div>
+              
+              {/* Chart */}
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={leadTrends.data}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis 
+                      dataKey="label" 
+                      tick={{ fontSize: 11 }}
+                      stroke="hsl(var(--muted-foreground))"
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 12 }}
+                      stroke="hsl(var(--muted-foreground))"
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--background))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                      formatter={(value, name) => [value, name === 'count' ? 'New Leads' : name]}
+                    />
+                    <Bar dataKey="count" fill="#4F46E5" name="New Leads" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Data Table */}
+              <div className="mt-6 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-slate-50 dark:bg-slate-800/50">
+                      <th className="text-left p-2 font-medium">Period</th>
+                      <th className="text-right p-2 font-medium">New Leads</th>
+                      <th className="text-right p-2 font-medium text-cyan-600">Interested</th>
+                      <th className="text-right p-2 font-medium text-green-600">Won</th>
+                      <th className="text-right p-2 font-medium text-red-600">Lost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leadTrends.data.slice().reverse().slice(0, 10).map((row, idx) => (
+                      <tr key={idx} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="p-2 font-medium">{row.label}</td>
+                        <td className="p-2 text-right">{row.count}</td>
+                        <td className="p-2 text-right text-cyan-600">{row.interested}</td>
+                        <td className="p-2 text-right text-green-600">{row.won}</td>
+                        <td className="p-2 text-right text-red-600">{row.lost}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              No data available for the selected period
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Source Conversion Table */}
       <Card>
         <CardHeader>
