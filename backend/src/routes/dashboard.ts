@@ -470,4 +470,93 @@ router.get("/source-performance", authenticateToken, async (req: AuthRequest, re
   }
 });
 
+// Get daily lead counts for a date range
+router.get("/lead-counts", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { start_date, end_date, group_by } = req.query;
+    
+    // Default to last 30 days if no dates provided
+    const endDate = end_date ? new Date(end_date as string) : new Date();
+    const startDate = start_date ? new Date(start_date as string) : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    // Determine grouping format based on group_by parameter
+    let dateFormat = '%Y-%m-%d'; // daily by default
+    let groupLabel = 'day';
+    
+    if (group_by === 'weekly') {
+      dateFormat = '%Y-%u'; // Year-Week number
+      groupLabel = 'week';
+    } else if (group_by === 'monthly') {
+      dateFormat = '%Y-%m';
+      groupLabel = 'month';
+    } else if (group_by === 'yearly') {
+      dateFormat = '%Y';
+      groupLabel = 'year';
+    }
+    
+    const results = await leadRepository()
+      .createQueryBuilder("lead")
+      .select(`DATE_FORMAT(lead.created_at, '${dateFormat}')`, "period")
+      .addSelect("COUNT(*)", "count")
+      .addSelect("SUM(CASE WHEN lead.status = 'won' THEN 1 ELSE 0 END)", "won")
+      .addSelect("SUM(CASE WHEN lead.status = 'lost' THEN 1 ELSE 0 END)", "lost")
+      .addSelect("SUM(CASE WHEN lead.status = 'interested' THEN 1 ELSE 0 END)", "interested")
+      .addSelect("SUM(CASE WHEN lead.status = 'new' THEN 1 ELSE 0 END)", "new_status")
+      .where("lead.created_at >= :startDate", { startDate })
+      .andWhere("lead.created_at <= :endDate", { endDate })
+      .groupBy("period")
+      .orderBy("period", "ASC")
+      .getRawMany();
+    
+    // Format results with proper date labels
+    const formattedResults = results.map(r => {
+      let label = r.period;
+      
+      if (group_by === 'weekly') {
+        const [year, week] = r.period.split('-');
+        label = `Week ${week}, ${year}`;
+      } else if (group_by === 'monthly') {
+        const [year, month] = r.period.split('-');
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        label = `${monthNames[parseInt(month) - 1]} ${year}`;
+      } else if (group_by === 'yearly') {
+        label = r.period;
+      } else {
+        // Daily - format as readable date
+        const date = new Date(r.period);
+        label = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      }
+      
+      return {
+        period: r.period,
+        label,
+        count: parseInt(r.count),
+        won: parseInt(r.won || 0),
+        lost: parseInt(r.lost || 0),
+        interested: parseInt(r.interested || 0),
+        new_status: parseInt(r.new_status || 0),
+      };
+    });
+    
+    // Calculate totals
+    const totals = formattedResults.reduce((acc, r) => ({
+      total_leads: acc.total_leads + r.count,
+      total_won: acc.total_won + r.won,
+      total_lost: acc.total_lost + r.lost,
+      total_interested: acc.total_interested + r.interested,
+    }), { total_leads: 0, total_won: 0, total_lost: 0, total_interested: 0 });
+    
+    res.json({
+      group_by: group_by || 'daily',
+      start_date: startDate.toISOString(),
+      end_date: endDate.toISOString(),
+      data: formattedResults,
+      totals,
+    });
+  } catch (error) {
+    console.error("Get lead-counts error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 export default router;
