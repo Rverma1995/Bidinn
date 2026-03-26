@@ -828,6 +828,7 @@ export default function LeadsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [showUncontactedOnly, setShowUncontactedOnly] = useState(searchParams.get('filter') === 'uncontacted');
+  const [showOverdueOnly, setShowOverdueOnly] = useState(searchParams.get('filter') === 'overdue');
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
   const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
