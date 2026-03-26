@@ -237,10 +237,10 @@ const runIdleLeadEscalationJob = async () => {
     // Log activity for tracking (use null for user_id for system activities)
     const activity = activityRepository.create({
       id: uuidv4(),
-      user_id: null,
+      user_id: null as any,
       user_name: "System",
       action: "idle_lead_escalation",
-      target_id: null,
+      target_id: null as any,
       target_type: "escalation",
       target_name: "Idle Lead Check",
       details: `Detected ${idleLeads.length} idle leads and notified ${managersAndAdmins.length} managers/admins`,
