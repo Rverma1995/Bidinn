@@ -871,12 +871,12 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
     fetchUsers();
-  }, [filters, showUncontactedOnly, currentPage]);
+  }, [filters, showUncontactedOnly, showOverdueOnly, currentPage]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, showUncontactedOnly]);
+  }, [filters, showUncontactedOnly, showOverdueOnly]);
 
   // Smart polling - check for new leads every 5 minutes
   useEffect(() => {
