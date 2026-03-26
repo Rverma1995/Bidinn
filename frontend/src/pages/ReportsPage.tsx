@@ -112,6 +112,10 @@ export default function ReportsPage() {
   }, [selectedAgent, startDate, endDate]);
 
   useEffect(() => {
+    fetchLeadTrends();
+  }, [trendGroupBy, startDate, endDate]);
+
+  useEffect(() => {
     // Apply date preset
     const now = new Date();
     switch (datePreset) {
