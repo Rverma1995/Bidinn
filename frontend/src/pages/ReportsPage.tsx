@@ -92,6 +92,11 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [agentLoading, setAgentLoading] = useState(false);
   
+  // Lead trends state
+  const [leadTrends, setLeadTrends] = useState<any>(null);
+  const [trendGroupBy, setTrendGroupBy] = useState('daily');
+  const [trendLoading, setTrendLoading] = useState(false);
+  
   // Sales reps can only see their own data
   const isSalesRep = user?.role === 'sales_rep';
   const isTeamLead = user?.role === 'team_lead';
