@@ -3,7 +3,10 @@ import axios from 'axios';
 
 const AuthContext = createContext(null);
 
-const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// Use REACT_APP_BACKEND_URL if set, otherwise use relative URL for production
+const API_URL = process.env.REACT_APP_BACKEND_URL 
+  ? `${process.env.REACT_APP_BACKEND_URL}/api`
+  : '/api';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
