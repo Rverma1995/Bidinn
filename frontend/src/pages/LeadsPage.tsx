@@ -853,8 +853,8 @@ export default function LeadsPage() {
   const [filters, setFilters] = useState({
     status: searchParams.get('status') || 'all',
     source: searchParams.get('source') || 'all',
-    assigned_to: 'all',
-    search: '',
+    assigned_to: searchParams.get('assigned_to') || 'all',
+    search: searchParams.get('search') || '',
   });
 
   // Smart polling state
@@ -867,6 +867,30 @@ export default function LeadsPage() {
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager';
   const canBulkDelete = isAdmin || isManager;
+
+  // Sync filters to URL when they change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    
+    if (showUncontactedOnly) {
+      params.set('filter', 'uncontacted');
+    } else if (showOverdueOnly) {
+      params.set('filter', 'overdue');
+    } else {
+      if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+      if (filters.source && filters.source !== 'all') params.set('source', filters.source);
+      if (filters.assigned_to && filters.assigned_to !== 'all') params.set('assigned_to', filters.assigned_to);
+      if (filters.search) params.set('search', filters.search);
+    }
+    
+    const newSearch = params.toString();
+    const currentSearch = searchParams.toString();
+    
+    // Only update if different to avoid infinite loops
+    if (newSearch !== currentSearch) {
+      setSearchParams(params, { replace: true });
+    }
+  }, [filters, showUncontactedOnly, showOverdueOnly]);
 
   useEffect(() => {
     fetchLeads();
