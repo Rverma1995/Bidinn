@@ -820,7 +820,7 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
 export default function LeadsPage() {
   const { api, user, isTeamLead } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
