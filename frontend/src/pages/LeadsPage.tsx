@@ -883,6 +883,8 @@ export default function LeadsPage() {
       if (filters.search) params.set('search', filters.search);
     }
     
+    if (currentPage > 1) params.set('page', currentPage.toString());
+    
     const newSearch = params.toString();
     const currentSearch = searchParams.toString();
     
@@ -890,7 +892,7 @@ export default function LeadsPage() {
     if (newSearch !== currentSearch) {
       setSearchParams(params, { replace: true });
     }
-  }, [filters, showUncontactedOnly, showOverdueOnly]);
+  }, [filters, showUncontactedOnly, showOverdueOnly, currentPage]);
 
   useEffect(() => {
     fetchLeads();
