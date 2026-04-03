@@ -841,7 +841,7 @@ export default function LeadsPage() {
   const [bulkNotesAppend, setBulkNotesAppend] = useState(true);
   const [bulkAssignee, setBulkAssignee] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1'));
   const [totalPages, setTotalPages] = useState(1);
   const [totalLeads, setTotalLeads] = useState(0);
   const [pageSize] = useState(50);
