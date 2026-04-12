@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
 class BidinnAPITester:
-    def __init__(self, base_url="https://bidinn-sales-crm-1.preview.emergentagent.com"):
+    def __init__(self, base_url="https://crm-deploy-8.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.current_user = None
