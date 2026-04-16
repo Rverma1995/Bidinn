@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -132,11 +132,11 @@ interface LeadCardProps {
 
 function LeadCard({ lead, onClick, onLogCall }: LeadCardProps) {
   return (
+    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
     <Card 
       className={`card-hover cursor-pointer pipeline-${lead.status} ${
         lead.is_overdue ? 'ring-2 ring-red-500' : ''
       }`}
-      onClick={() => onClick(lead)}
     >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2 mb-3">
@@ -194,6 +194,7 @@ function LeadCard({ lead, onClick, onLogCall }: LeadCardProps) {
         )}
       </CardContent>
     </Card>
+    </Link>
   );
 }
 
@@ -1646,25 +1647,33 @@ export default function LeadsPage() {
                       data-testid={`lead-checkbox-${lead.id}`}
                     />
                   </TableCell>
-                  <TableCell onClick={() => handleLeadClick(lead)}>
-                    <div className="flex items-center gap-2">
+                  <TableCell>
+                    <Link to={`/leads/${lead.id}`} className="flex items-center gap-2 no-underline text-inherit">
                       {lead.is_overdue && (
                         <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                       )}
                       <span className="font-medium">{lead.name}</span>
-                    </div>
+                    </Link>
                   </TableCell>
-                  <TableCell onClick={() => handleLeadClick(lead)}>
+                  <TableCell>
+                    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
                     <span className="text-sm">{lead.phone || '-'}</span>
+                    </Link>
                   </TableCell>
-                  <TableCell onClick={() => handleLeadClick(lead)}>
+                  <TableCell>
+                    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
                     <span className="text-sm text-muted-foreground">{lead.email || '-'}</span>
+                    </Link>
                   </TableCell>
-                  <TableCell onClick={() => handleLeadClick(lead)}>
+                  <TableCell>
+                    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
                     <span className="text-sm">{lead.campaign || '-'}</span>
+                    </Link>
                   </TableCell>
-                  <TableCell onClick={() => handleLeadClick(lead)}>
+                  <TableCell>
+                    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
                     <span className="text-sm">{lead.source || '-'}</span>
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -1694,8 +1703,10 @@ export default function LeadsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleLeadClick(lead); }}>
-                          View Details
+                        <DropdownMenuItem asChild>
+                          <Link to={`/leads/${lead.id}`} className="no-underline text-inherit">
+                            View Details
+                          </Link>
                         </DropdownMenuItem>
                         {isTeamLead && (
                           <>

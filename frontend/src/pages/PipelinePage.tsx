@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -435,11 +435,11 @@ function LeadCard({ lead, onCallClick, onCardClick }) {
   }, [lead.created_at, showCountdown]);
 
   return (
-    <div
-      className={`group p-4 rounded-xl border bg-white dark:bg-slate-900 transition-all hover:shadow-lg cursor-pointer ${
+    <Link
+      to={`/leads/${lead.id}`}
+      className={`group block p-4 rounded-xl border bg-white dark:bg-slate-900 transition-all hover:shadow-lg cursor-pointer no-underline text-inherit ${
         lead.is_overdue ? 'border-red-300 dark:border-red-700 ring-1 ring-red-200 dark:ring-red-800' : 'border-slate-200 dark:border-slate-700 hover:border-primary/50'
       }`}
-      onClick={() => onCardClick(lead)}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -507,6 +507,7 @@ function LeadCard({ lead, onCallClick, onCardClick }) {
           className="opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
+            e.preventDefault();
             onCallClick(lead);
           }}
         >
@@ -514,7 +515,7 @@ function LeadCard({ lead, onCallClick, onCardClick }) {
           Log Call
         </Button>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -839,10 +840,10 @@ export default function PipelinePage() {
               ) : (
                 <div className="space-y-2">
                   {wonLeads.slice(0, 10).map((lead) => (
-                    <div
+                    <Link
+                      to={`/leads/${lead.id}`}
                       key={lead.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/10 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/20"
-                      onClick={() => handleCardClick(lead)}
+                      className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/10 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/20 no-underline text-inherit"
                     >
                       <div className="flex items-center gap-3">
                         <CheckCircle2 className="w-4 h-4 text-green-600" />
@@ -852,7 +853,7 @@ export default function PipelinePage() {
                         </div>
                       </div>
                       <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}
@@ -875,10 +876,10 @@ export default function PipelinePage() {
               ) : (
                 <div className="space-y-2">
                   {lostLeads.slice(0, 10).map((lead) => (
-                    <div
+                    <Link
+                      to={`/leads/${lead.id}`}
                       key={lead.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/10 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/20"
-                      onClick={() => handleCardClick(lead)}
+                      className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/10 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/20 no-underline text-inherit"
                     >
                       <div className="flex items-center gap-3">
                         <XCircle className="w-4 h-4 text-red-600" />
@@ -888,7 +889,7 @@ export default function PipelinePage() {
                         </div>
                       </div>
                       <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}
