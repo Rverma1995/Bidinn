@@ -30,17 +30,24 @@ import {
   Settings,
   Menu,
   X,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export function Header({ onMenuClick, showMobileMenu }) {
   const { user, logout, api } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchNotifications();
+    // Poll every 60 seconds for new notifications
+    const interval = setInterval(fetchNotifications, 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchNotifications = async () => {
@@ -83,6 +90,19 @@ export function Header({ onMenuClick, showMobileMenu }) {
     } catch (error) {
       console.error('Failed to mark all as read:', error);
     }
+  };
+
+  const handleNotificationClick = (notification) => {
+    markAsRead(notification.id);
+    if (notification.target_id && notification.target_type === 'lead') {
+      navigate(`/leads/${notification.target_id}`);
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    if (type === 'followup_upcoming') return <Clock className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />;
+    if (type === 'followup_missed') return <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />;
+    return null;
   };
 
   return (
@@ -167,18 +187,24 @@ export function Header({ onMenuClick, showMobileMenu }) {
                       key={notification.id}
                       className={`p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
                         !notification.is_read ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
-                      }`}
-                      onClick={() => markAsRead(notification.id)}
+                      } ${notification.type === 'followup_missed' ? 'border-l-2 border-l-red-500' : ''} ${notification.type === 'followup_upcoming' ? 'border-l-2 border-l-amber-500' : ''}`}
+                      onClick={() => handleNotificationClick(notification)}
+                      data-testid={`notification-item-${notification.id}`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                          !notification.is_read ? 'bg-blue-500' : 'bg-transparent'
-                        }`} />
+                        {getNotificationIcon(notification.type) || (
+                          <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                            !notification.is_read ? 'bg-blue-500' : 'bg-transparent'
+                          }`} />
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{notification.title}</p>
-                          <p className="text-sm text-muted-foreground truncate">
+                          <p className="text-sm text-muted-foreground line-clamp-2">
                             {notification.message}
                           </p>
+                          {notification.target_id && notification.target_type === 'lead' && (
+                            <p className="text-xs text-primary mt-1 font-medium">Click to view lead</p>
+                          )}
                           <p className="text-xs text-muted-foreground mt-1">
                             {formatRelativeTime(notification.created_at)}
                           </p>

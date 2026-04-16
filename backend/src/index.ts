@@ -265,6 +265,149 @@ const scheduleIdleLeadEscalationJob = () => {
   console.log("Idle lead escalation job scheduled to run every 6 hours");
 };
 
+// ============ FOLLOWUP REMINDER JOB ============
+
+const runFollowupReminderJob = async () => {
+  try {
+    const leadRepository = AppDataSource.getRepository(Lead);
+    const userRepository = AppDataSource.getRepository(User);
+    const notificationRepository = AppDataSource.getRepository(Notification);
+
+    const now = new Date();
+    const thirtyMinsFromNow = new Date(now.getTime() + 30 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // --- UPCOMING FOLLOWUPS (within the next 30 minutes) ---
+    const upcomingLeads = await leadRepository
+      .createQueryBuilder("lead")
+      .where("lead.next_followup > :now", { now: now.toISOString() })
+      .andWhere("lead.next_followup <= :soon", { soon: thirtyMinsFromNow.toISOString() })
+      .andWhere("lead.status NOT IN (:...exclude)", { exclude: ["won", "lost"] })
+      .getMany();
+
+    // --- MISSED FOLLOWUPS (past due, within last 24 hours to avoid old spam) ---
+    const missedLeads = await leadRepository
+      .createQueryBuilder("lead")
+      .where("lead.next_followup < :now", { now: now.toISOString() })
+      .andWhere("lead.next_followup > :cutoff", { cutoff: twentyFourHoursAgo.toISOString() })
+      .andWhere("lead.status NOT IN (:...exclude)", { exclude: ["won", "lost"] })
+      .getMany();
+
+    if (upcomingLeads.length === 0 && missedLeads.length === 0) {
+      console.log("Followup reminder job: No upcoming or missed followups found");
+      return;
+    }
+
+    // Get all admins
+    const admins = await userRepository.find({
+      where: [
+        { role: UserRole.ADMIN, is_active: true },
+        { role: UserRole.MANAGER, is_active: true },
+      ],
+    });
+    const adminIds = new Set(admins.map(a => a.id));
+
+    // Helper: check if a recent notification already exists for this lead + type + user
+    const alreadyNotified = async (userId: string, type: string, leadId: string): Promise<boolean> => {
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const existing = await notificationRepository
+        .createQueryBuilder("n")
+        .where("n.user_id = :userId", { userId })
+        .andWhere("n.type = :type", { type })
+        .andWhere("n.target_id = :leadId", { leadId })
+        .andWhere("n.created_at > :since", { since: twoHoursAgo.toISOString() })
+        .getCount();
+      return existing > 0;
+    };
+
+    let createdCount = 0;
+
+    // --- Create UPCOMING followup notifications ---
+    for (const lead of upcomingLeads) {
+      const recipientIds: string[] = [];
+      if (lead.assigned_to) recipientIds.push(lead.assigned_to);
+      admins.forEach(a => { if (!recipientIds.includes(a.id)) recipientIds.push(a.id); });
+
+      const followupTime = new Date(lead.next_followup!);
+      const minsUntil = Math.round((followupTime.getTime() - now.getTime()) / 60000);
+
+      for (const userId of recipientIds) {
+        if (await alreadyNotified(userId, NotificationType.FOLLOWUP_UPCOMING, lead.id)) continue;
+
+        const isAssignedUser = userId === lead.assigned_to;
+        const notification = notificationRepository.create({
+          id: uuidv4(),
+          user_id: userId,
+          type: NotificationType.FOLLOWUP_UPCOMING,
+          priority: NotificationPriority.HIGH,
+          title: `Upcoming Follow-up in ${minsUntil} min`,
+          message: `${lead.name} (${lead.phone})${!isAssignedUser && lead.assigned_name ? ` — Assigned to ${lead.assigned_name}` : ''} has a follow-up scheduled at ${followupTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`,
+          target_id: lead.id,
+          target_type: "lead",
+          metadata: {
+            lead_name: lead.name,
+            lead_phone: lead.phone,
+            followup_time: lead.next_followup,
+            assigned_to: lead.assigned_name,
+          },
+        });
+        await notificationRepository.save(notification);
+        createdCount++;
+      }
+    }
+
+    // --- Create MISSED followup notifications ---
+    for (const lead of missedLeads) {
+      const recipientIds: string[] = [];
+      if (lead.assigned_to) recipientIds.push(lead.assigned_to);
+      admins.forEach(a => { if (!recipientIds.includes(a.id)) recipientIds.push(a.id); });
+
+      const followupTime = new Date(lead.next_followup!);
+      const minsOverdue = Math.round((now.getTime() - followupTime.getTime()) / 60000);
+      const overdueLabel = minsOverdue >= 60 ? `${Math.round(minsOverdue / 60)}h` : `${minsOverdue}m`;
+
+      for (const userId of recipientIds) {
+        if (await alreadyNotified(userId, NotificationType.FOLLOWUP_MISSED, lead.id)) continue;
+
+        const isAssignedUser = userId === lead.assigned_to;
+        const notification = notificationRepository.create({
+          id: uuidv4(),
+          user_id: userId,
+          type: NotificationType.FOLLOWUP_MISSED,
+          priority: NotificationPriority.HIGH,
+          title: `Missed Follow-up (${overdueLabel} overdue)`,
+          message: `${lead.name} (${lead.phone})${!isAssignedUser && lead.assigned_name ? ` — Assigned to ${lead.assigned_name}` : ''} had a follow-up at ${followupTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} that was missed.`,
+          target_id: lead.id,
+          target_type: "lead",
+          metadata: {
+            lead_name: lead.name,
+            lead_phone: lead.phone,
+            followup_time: lead.next_followup,
+            assigned_to: lead.assigned_name,
+            overdue_minutes: minsOverdue,
+          },
+        });
+        await notificationRepository.save(notification);
+        createdCount++;
+      }
+    }
+
+    console.log(`Followup reminder job: ${upcomingLeads.length} upcoming, ${missedLeads.length} missed, ${createdCount} notifications created`);
+  } catch (error) {
+    console.error("Followup reminder job error:", error);
+  }
+};
+
+// Schedule followup reminder job to run every 15 minutes
+const scheduleFollowupReminderJob = () => {
+  setTimeout(() => {
+    runFollowupReminderJob();
+  }, 15000); // 15 seconds after startup
+
+  setInterval(runFollowupReminderJob, 15 * 60 * 1000); // every 15 minutes
+  console.log("Followup reminder job scheduled to run every 15 minutes");
+};
+
 // Auto-seed database if empty - Creates initial admin user
 const autoSeedIfEmpty = async () => {
   try {
@@ -417,6 +560,9 @@ const startServer = async () => {
 
     // Schedule the idle lead escalation job (Rule 4)
     scheduleIdleLeadEscalationJob();
+
+    // Schedule the followup reminder job
+    scheduleFollowupReminderJob();
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Bidinn CRM API server running on http://0.0.0.0:${PORT}`);

@@ -7,6 +7,8 @@ export enum NotificationType {
   DUPLICATE_LEAD = "duplicate_lead",
   LEAD_MERGED = "lead_merged",
   LEAD_ASSIGNMENT = "lead_assignment",
+  FOLLOWUP_UPCOMING = "followup_upcoming",
+  FOLLOWUP_MISSED = "followup_missed",
   SYSTEM = "system",
 }
 
