@@ -84,11 +84,8 @@ const webpackConfig = {
 };
 
 // Only add babel metadata plugin during dev server
-if (config.enableVisualEdits && babelMetadataPlugin) {
-  webpackConfig.babel = {
-    plugins: [babelMetadataPlugin],
-  };
-}
+// Disabled: babel-metadata-plugin causes intermittent crashes on large TSX files
+// if (config.enableVisualEdits && babelMetadataPlugin) { ... }
 
 webpackConfig.devServer = (devServerConfig) => {
   // Apply visual edits dev server setup only if enabled

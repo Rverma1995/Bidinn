@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../ui/button';
@@ -34,6 +34,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 export function Header({ onMenuClick, showMobileMenu }) {
   const { user, logout, api } = useAuth();
@@ -42,33 +43,61 @@ export function Header({ onMenuClick, showMobileMenu }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const seenNotifIds = useRef(new Set());
+  const isFirstFetch = useRef(true);
 
-  useEffect(() => {
-    fetchNotifications();
-    // Poll every 60 seconds for new notifications
-    const interval = setInterval(fetchNotifications, 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const showFollowupToast = useCallback((notification) => {
+    const isMissed = notification.type === 'followup_missed';
+    toast(notification.title, {
+      description: notification.message,
+      duration: 10000,
+      icon: isMissed ? '🔴' : '🟡',
+      action: notification.target_id ? {
+        label: 'View Lead',
+        onClick: () => navigate(`/leads/${notification.target_id}`),
+      } : undefined,
+    });
+  }, [navigate]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const response = await api.get('/notifications');
-      // API returns { notifications: [...], unread_count: N }
       const data = response.data;
-      if (data.notifications) {
-        setNotifications(data.notifications);
-        setUnreadCount(data.unread_count || 0);
+      const notifList = data.notifications || (Array.isArray(data) ? data : []);
+      const count = data.unread_count ?? notifList.filter(n => !n.is_read).length;
+
+      // On first fetch, just seed the seen IDs — don't pop toasts for old ones
+      if (isFirstFetch.current) {
+        notifList.forEach(n => seenNotifIds.current.add(n.id));
+        isFirstFetch.current = false;
       } else {
-        // Fallback for old format
-        setNotifications(Array.isArray(data) ? data : []);
-        setUnreadCount(Array.isArray(data) ? data.filter(n => !n.is_read).length : 0);
+        // Show pop-up toasts for NEW followup notifications we haven't seen
+        notifList.forEach(n => {
+          if (
+            !seenNotifIds.current.has(n.id) &&
+            !n.is_read &&
+            (n.type === 'followup_upcoming' || n.type === 'followup_missed')
+          ) {
+            showFollowupToast(n);
+          }
+          seenNotifIds.current.add(n.id);
+        });
       }
+
+      setNotifications(notifList);
+      setUnreadCount(count);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
       setNotifications([]);
       setUnreadCount(0);
     }
-  };
+  }, [api, showFollowupToast]);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
 
   const markAsRead = async (notificationId) => {
     try {
