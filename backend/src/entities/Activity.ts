@@ -1,8 +1,9 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, BeforeInsert } from "typeorm";
+import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, BeforeInsert, Index } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { User } from "./User";
 
 @Entity("activities")
+@Index("idx_activities_created_at", ["created_at"])
 export class Activity {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;

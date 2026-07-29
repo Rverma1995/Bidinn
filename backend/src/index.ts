@@ -103,9 +103,18 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ detail: "Internal server error" });
 });
 
-// 404 handler
-app.use((req: Request, res: Response) => {
+// 404 handler for API routes
+app.use("/api/*", (req: Request, res: Response) => {
   res.status(404).json({ detail: "Not found" });
+});
+
+// Serve frontend static files in production
+const frontendPath = path.join(__dirname, "../../frontend/build");
+app.use(express.static(frontendPath));
+
+// Catch-all route to serve React app for non-API requests
+app.get("*", (req: Request, res: Response) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
 });
 
 // Auto-reset job function (runs daily)

@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, BeforeInsert } from "typeorm";
+import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, BeforeInsert, Index } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { User } from "./User";
 
@@ -19,6 +19,8 @@ export enum NotificationPriority {
 }
 
 @Entity("notifications")
+@Index("idx_notifications_user_id", ["user_id"])
+@Index("idx_notifications_is_read", ["is_read"])
 export class Notification {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;

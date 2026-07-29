@@ -13,6 +13,7 @@ export enum PaymentStatus {
 @Index("idx_bookings_lead_id", ["lead_id"])
 @Index("idx_bookings_payment_status", ["payment_status"])
 @Index("idx_bookings_created_at", ["created_at"])
+@Index("idx_bookings_created_by_id", ["created_by_id"])
 export class Booking {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;

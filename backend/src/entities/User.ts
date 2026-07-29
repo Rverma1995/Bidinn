@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, OneToMany, BeforeInsert } from "typeorm";
+import { Entity, PrimaryColumn, Column, CreateDateColumn, OneToMany, BeforeInsert, Index } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { Lead } from "./Lead";
 import { Call } from "./Call";
@@ -13,6 +13,7 @@ export enum UserRole {
 }
 
 @Entity("users")
+@Index("idx_users_role", ["role"])
 export class User {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;
