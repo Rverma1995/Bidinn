@@ -7,7 +7,7 @@ echo "Building Bidinn CRM for Render..."
 echo "1/2: Building Frontend..."
 cd frontend
 yarn install
-FAST_REFRESH=false yarn build
+DISABLE_ESLINT_PLUGIN=true FAST_REFRESH=false yarn build
 cd ..
 
 echo "2/2: Building Backend..."
