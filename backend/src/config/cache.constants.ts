@@ -1,7 +1,7 @@
 export const CACHE_TTL = {
-  SHORT: 60, // 1 minute
-  MEDIUM: 300, // 5 minutes
-  LONG: 3600, // 1 hour
+  SHORT: 3600, // 1 hour (increased from 1m since invalidation handles updates)
+  MEDIUM: 86400, // 1 day
+  LONG: 604800, // 1 week
   DAY: 86400, // 1 day
 };
 

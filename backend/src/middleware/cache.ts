@@ -23,7 +23,9 @@ export const cacheMiddleware = (baseKey: string, ttlSeconds: number) => {
       // Stringify query params to ensure distinct cache entries for different filters/pagination
       const queryStr = Object.keys(req.query).length ? JSON.stringify(req.query) : 'no_query';
       
-      const cacheKey = `${baseKey}:${userId}:${queryStr}`;
+      // Include req.baseUrl and req.path to differentiate between routes sharing the same baseKey
+      const pathStr = (req.baseUrl || '') + (req.path || '');
+      const cacheKey = `${baseKey}:${pathStr}:${userId}:${queryStr}`;
 
       const cachedData = await cacheService.get(cacheKey);
 
