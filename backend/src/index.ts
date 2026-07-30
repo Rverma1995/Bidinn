@@ -286,21 +286,25 @@ const runFollowupReminderJob = async () => {
     const notificationRepository = AppDataSource.getRepository(Notification);
 
     const now = new Date();
-    const thirtyMinsFromNow = new Date(now.getTime() + 30 * 60 * 1000);
+    // Hourly schedule, so upcoming is within the next 60 minutes
+    const sixtyMinsFromNow = new Date(now.getTime() + 60 * 60 * 1000);
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // Get all admins
-    const admins = await userRepository.find({
-      where: [
-        { role: UserRole.ADMIN, is_active: true },
-        { role: UserRole.MANAGER, is_active: true },
-      ],
-    });
+    // Get all admins using QueryBuilder (optimized by selecting only required fields)
+    const admins = await userRepository
+      .createQueryBuilder("user")
+      .select(["user.id"])
+      .where("user.is_active = :isActive", { isActive: true })
+      .andWhere("user.role IN (:...roles)", { roles: [UserRole.ADMIN, UserRole.MANAGER] })
+      .getMany();
     
     let createdCount = 0;
     const CHUNK_SIZE = 100;
     
-    // --- Helper function for processing chunks ---
+    // --- Helper function to yield to event loop ---
+    const yieldToEventLoop = () => new Promise(resolve => setImmediate(resolve));
+
+    // --- Helper function for processing chunks non-blocking ---
     const processLeads = async (queryBuilder: any, type: string) => {
       let skip = 0;
       let hasMore = true;
@@ -308,19 +312,27 @@ const runFollowupReminderJob = async () => {
       
       while (hasMore) {
         try {
-          const leads = await queryBuilder.skip(skip).take(CHUNK_SIZE).getMany();
+          // Select only necessary fields to save RAM
+          const leads = await queryBuilder
+            .select(["lead.id", "lead.name", "lead.phone", "lead.assigned_to", "lead.assigned_name", "lead.next_followup"])
+            .orderBy("lead.id", "ASC")
+            .skip(skip)
+            .take(CHUNK_SIZE)
+            .getMany();
           
           if (leads.length === 0) {
             hasMore = false;
             break;
           }
           
-          // Get existing notifications for this chunk of leads to avoid N+1 queries
+          // Get existing notifications for this chunk of leads to avoid duplicates
           const leadIds = leads.map((l: any) => l.id);
           const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
           
+          // Optimize check by selecting only necessary fields
           const existingNotifications = await notificationRepository
             .createQueryBuilder("n")
+            .select(["n.user_id", "n.target_id"])
             .where("n.type = :type", { type })
             .andWhere("n.target_id IN (:...leadIds)", { leadIds })
             .andWhere("n.created_at > :since", { since: twoHoursAgo.toISOString() })
@@ -395,6 +407,9 @@ const runFollowupReminderJob = async () => {
           }
           
           skip += CHUNK_SIZE;
+
+          // Yield to event loop to avoid blocking the main thread!
+          await yieldToEventLoop();
         } catch (chunkError) {
           console.error(`Error processing chunk in followup reminder job (${type}):`, chunkError);
           break;
@@ -403,11 +418,11 @@ const runFollowupReminderJob = async () => {
       return localCount;
     };
 
-    // --- UPCOMING FOLLOWUPS (within the next 30 minutes) ---
+    // --- UPCOMING FOLLOWUPS (within the next 60 minutes) ---
     const upcomingQuery = leadRepository
       .createQueryBuilder("lead")
       .where("lead.next_followup > :now", { now: now.toISOString() })
-      .andWhere("lead.next_followup <= :soon", { soon: thirtyMinsFromNow.toISOString() })
+      .andWhere("lead.next_followup <= :soon", { soon: sixtyMinsFromNow.toISOString() })
       .andWhere("lead.status NOT IN (:...exclude)", { exclude: ["won", "lost"] });
       
     const upcomingCount = await processLeads(upcomingQuery, NotificationType.FOLLOWUP_UPCOMING);
@@ -432,14 +447,14 @@ const runFollowupReminderJob = async () => {
   }
 };
 
-// Schedule followup reminder job to run every 15 minutes
+// Schedule followup reminder job to run every 1 hour
 const scheduleFollowupReminderJob = () => {
   setTimeout(() => {
     runFollowupReminderJob();
   }, 15000); // 15 seconds after startup
 
-  setInterval(runFollowupReminderJob, 15 * 60 * 1000); // every 15 minutes
-  console.log("Followup reminder job scheduled to run every 15 minutes");
+  setInterval(runFollowupReminderJob, 60 * 60 * 1000); // every 1 hour
+  console.log("Followup reminder job scheduled to run every 1 hour");
 };
 
 // Auto-seed database if empty - Creates initial admin user
