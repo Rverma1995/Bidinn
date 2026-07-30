@@ -9,7 +9,7 @@ import { AuthRequest } from './auth';
  * @param baseKey The base key prefix from CACHE_KEYS (e.g. 'leads:list')
  * @param ttlSeconds Time to live in seconds
  */
-export const cacheMiddleware = (baseKey: string, ttlSeconds: number) => {
+export const cacheMiddleware = (baseKey: string, ttlSeconds: number, isUserSpecific: boolean = true) => {
   return async (req: AuthRequest | Request, res: Response, next: NextFunction) => {
     if (req.method !== 'GET') {
       return next();
@@ -25,7 +25,9 @@ export const cacheMiddleware = (baseKey: string, ttlSeconds: number) => {
       
       // Include req.baseUrl and req.path to differentiate between routes sharing the same baseKey
       const pathStr = (req.baseUrl || '') + (req.path || '');
-      const cacheKey = `${baseKey}:${pathStr}:${userId}:${queryStr}`;
+      
+      const finalUserId = isUserSpecific ? userId : 'global';
+      const cacheKey = `${baseKey}:${pathStr}:${finalUserId}:${queryStr}`;
 
       const cachedData = await cacheService.get(cacheKey);
 

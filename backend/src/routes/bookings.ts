@@ -16,7 +16,7 @@ const leadRepository = () => AppDataSource.getRepository(Lead);
 const activityRepository = () => AppDataSource.getRepository(Activity);
 
 // Get booking reasons - MUST be before /:id route
-router.get("/reasons", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/reasons", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CACHE_TTL.SHORT, false), async (req: AuthRequest, res: Response) => {
   try {
     const reasons = [
       "Flight Ticket",
@@ -43,7 +43,7 @@ router.get("/reasons", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LI
 });
 
 // Get all bookings with pagination
-router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CACHE_TTL.SHORT, false), async (req: AuthRequest, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 100;
@@ -66,7 +66,7 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CAC
 });
 
 // Get booking by ID
-router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CACHE_TTL.SHORT, false), async (req: AuthRequest, res: Response) => {
   try {
     const bookingId = req.params.id as string;
     const booking = await bookingRepository().findOne({

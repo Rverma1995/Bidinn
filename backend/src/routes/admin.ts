@@ -77,14 +77,14 @@ router.post("/seed-data", authenticateToken, requireRole([UserRole.ADMIN]), asyn
 });
 
 // Get feature flags
-router.get("/features", cacheMiddleware(CACHE_KEYS.ADMIN_STATS, CACHE_TTL.SHORT), async (req, res: Response) => {
+router.get("/features", cacheMiddleware(CACHE_KEYS.ADMIN_STATS, CACHE_TTL.SHORT, false), async (req, res: Response) => {
   res.json({
     telephony_enabled: process.env.TELEPHONY_ENABLED === "true",
   });
 });
 
 // Export database (Admin only)
-router.get("/export-database", authenticateToken, requireRole([UserRole.ADMIN]), cacheMiddleware(CACHE_KEYS.ADMIN_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/export-database", authenticateToken, requireRole([UserRole.ADMIN]), cacheMiddleware(CACHE_KEYS.ADMIN_STATS, CACHE_TTL.SHORT, false), async (req: AuthRequest, res: Response) => {
   try {
     console.log("Starting database export...");
     

@@ -15,7 +15,7 @@ router.use(invalidateCacheMiddleware([CACHE_KEYS.USERS_LIST]));
 const userRepository = () => AppDataSource.getRepository(User);
 
 // Get all users (with limit for safety)
-router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CACHE_TTL.SHORT, false), async (req: AuthRequest, res: Response) => {
   try {
     const users = await userRepository().find({
       order: { created_at: "DESC" },
@@ -30,7 +30,7 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CACHE_
 });
 
 // Get user by ID
-router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CACHE_TTL.SHORT, false), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.params.id as string;
     const user = await userRepository().findOne({
