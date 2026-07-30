@@ -22,6 +22,7 @@ import metaRoutes from "./routes/meta";
 import paymentRoutes from "./routes/payments";
 import adminRoutes from "./routes/admin";
 import notificationRoutes from "./routes/notifications";
+import { cacheService } from "./services/cache.service";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "8001");
@@ -560,6 +561,8 @@ const startServer = async () => {
   try {
     await initializeDatabase();
     console.log("TypeORM database connection established");
+
+    await cacheService.connect();
 
     // Auto-seed if database is empty
     await autoSeedIfEmpty();

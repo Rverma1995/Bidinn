@@ -1,13 +1,19 @@
 import { Router, Response } from "express";
+import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
 import { Notification, UserRole } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
 
 const router = Router();
+
+// Automatically invalidate caches on any successful mutation in this router
+router.use(invalidateCacheMiddleware([CACHE_KEYS.NOTIFICATIONS_LIST]));
+
 const notificationRepository = () => AppDataSource.getRepository(Notification);
 
 // Get notifications for current user
-router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.NOTIFICATIONS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
     const { unread_only, limit = "50" } = req.query;

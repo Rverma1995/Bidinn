@@ -1,16 +1,22 @@
 import { Router, Response } from "express";
+import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
 import { Activity, Call, Booking, Payment } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
 
 const router = Router();
+
+// Automatically invalidate caches on any successful mutation in this router
+router.use(invalidateCacheMiddleware([CACHE_KEYS.ACTIVITIES_LIST]));
+
 const activityRepository = () => AppDataSource.getRepository(Activity);
 const callRepository = () => AppDataSource.getRepository(Call);
 const bookingRepository = () => AppDataSource.getRepository(Booking);
 const paymentRepository = () => AppDataSource.getRepository(Payment);
 
 // Get all activities (optionally filtered by lead_id for timeline)
-router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.ACTIVITIES_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
     const leadId = req.query.lead_id as string;
@@ -142,7 +148,7 @@ function formatDateRange(checkIn: Date | string | null, checkOut: Date | string 
 }
 
 // Get activities for a specific target (limited to prevent performance issues)
-router.get("/target/:targetId", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/target/:targetId", authenticateToken, cacheMiddleware(CACHE_KEYS.ACTIVITIES_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const targetId = req.params.targetId as string;
     const activities = await activityRepository().find({

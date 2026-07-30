@@ -1,4 +1,6 @@
 import { Router, Response } from "express";
+import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import bcrypt from "bcryptjs";
 import { AppDataSource } from "../config/data-source";
 import { User, UserRole } from "../entities";
@@ -6,10 +8,14 @@ import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth"
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
+
+// Automatically invalidate caches on any successful mutation in this router
+router.use(invalidateCacheMiddleware([CACHE_KEYS.USERS_LIST]));
+
 const userRepository = () => AppDataSource.getRepository(User);
 
 // Get all users (with limit for safety)
-router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const users = await userRepository().find({
       order: { created_at: "DESC" },
@@ -24,7 +30,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 });
 
 // Get user by ID
-router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.params.id as string;
     const user = await userRepository().findOne({

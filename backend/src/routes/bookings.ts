@@ -1,16 +1,22 @@
 import { Router, Response } from "express";
+import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
 import { Booking, PaymentStatus, Lead, Activity, UserRole } from "../entities";
 import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
+
+// Automatically invalidate caches on any successful mutation in this router
+router.use(invalidateCacheMiddleware([CACHE_KEYS.BOOKINGS_LIST, CACHE_KEYS.DASHBOARD_STATS]));
+
 const bookingRepository = () => AppDataSource.getRepository(Booking);
 const leadRepository = () => AppDataSource.getRepository(Lead);
 const activityRepository = () => AppDataSource.getRepository(Activity);
 
 // Get booking reasons - MUST be before /:id route
-router.get("/reasons", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/reasons", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const reasons = [
       "Flight Ticket",
@@ -37,7 +43,7 @@ router.get("/reasons", authenticateToken, async (req: AuthRequest, res: Response
 });
 
 // Get all bookings with pagination
-router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 100;
@@ -60,7 +66,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 });
 
 // Get booking by ID
-router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const bookingId = req.params.id as string;
     const booking = await bookingRepository().findOne({

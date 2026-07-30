@@ -1,10 +1,16 @@
 import { Router, Response } from "express";
+import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
 import { Payment, Booking, PaymentStatus, Activity, UserRole } from "../entities";
 import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
+
+// Automatically invalidate caches on any successful mutation in this router
+router.use(invalidateCacheMiddleware([CACHE_KEYS.PAYMENTS_LIST, CACHE_KEYS.DASHBOARD_STATS]));
+
 const paymentRepository = () => AppDataSource.getRepository(Payment);
 const bookingRepository = () => AppDataSource.getRepository(Booking);
 const activityRepository = () => AppDataSource.getRepository(Activity);
@@ -69,7 +75,7 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 });
 
 // Get payments
-router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.PAYMENTS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const { booking_id } = req.query;
 
@@ -90,7 +96,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 });
 
 // Get payment by ID
-router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.PAYMENTS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const paymentId = req.params.id as string;
     const payment = await paymentRepository().findOne({ where: { id: paymentId } });

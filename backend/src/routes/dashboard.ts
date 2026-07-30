@@ -1,4 +1,6 @@
 import { Router, Response } from "express";
+import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
 import { Lead, LeadStatus, Booking, PaymentStatus, Call, User, UserRole } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
@@ -11,7 +13,7 @@ const callRepository = () => AppDataSource.getRepository(Call);
 const userRepository = () => AppDataSource.getRepository(User);
 
 // Get dashboard stats
-router.get("/stats", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/stats", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
     const now = new Date();
@@ -120,7 +122,7 @@ router.get("/stats", authenticateToken, async (req: AuthRequest, res: Response) 
 });
 
 // Get leaderboard
-router.get("/leaderboard", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/leaderboard", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const users = await userRepository().find({
       where: { role: In([UserRole.SALES_REP, UserRole.TEAM_LEAD]) },
@@ -174,7 +176,7 @@ router.get("/leaderboard", authenticateToken, async (req: AuthRequest, res: Resp
 });
 
 // Get recent activities
-router.get("/activities", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/activities", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const activities = await AppDataSource.getRepository("Activity").find({
       order: { created_at: "DESC" },
@@ -188,7 +190,7 @@ router.get("/activities", authenticateToken, async (req: AuthRequest, res: Respo
 });
 
 // Get pipeline stats
-router.get("/pipeline", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/pipeline", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const statuses = Object.values(LeadStatus);
     const pipeline: Record<string, number> = {};
@@ -205,7 +207,7 @@ router.get("/pipeline", authenticateToken, async (req: AuthRequest, res: Respons
 });
 
 // Get pipeline stats (alternate endpoint)
-router.get("/pipeline-stats", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/pipeline-stats", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const statuses = Object.values(LeadStatus);
     const pipeline: Record<string, number> = {};
@@ -222,7 +224,7 @@ router.get("/pipeline-stats", authenticateToken, async (req: AuthRequest, res: R
 });
 
 // Get overdue followups
-router.get("/overdue-followups", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/overdue-followups", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const now = new Date();
     const leads = await leadRepository()
@@ -241,7 +243,7 @@ router.get("/overdue-followups", authenticateToken, async (req: AuthRequest, res
 });
 
 // Get agent performance
-router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/agent-performance", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const { agent_id, start_date, end_date } = req.query;
 
@@ -425,7 +427,7 @@ router.get("/agent-performance", authenticateToken, async (req: AuthRequest, res
 });
 
 // Get revenue trend
-router.get("/revenue-trend", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/revenue-trend", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     // Get last 30 days revenue by day
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -448,7 +450,7 @@ router.get("/revenue-trend", authenticateToken, async (req: AuthRequest, res: Re
 });
 
 // Get source performance
-router.get("/source-performance", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/source-performance", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const result = await leadRepository()
       .createQueryBuilder("lead")
@@ -471,7 +473,7 @@ router.get("/source-performance", authenticateToken, async (req: AuthRequest, re
 });
 
 // Get daily lead counts for a date range
-router.get("/lead-counts", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/lead-counts", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const { start_date, end_date, group_by } = req.query;
     

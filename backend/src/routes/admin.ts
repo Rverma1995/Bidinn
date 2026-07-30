@@ -1,10 +1,16 @@
 import { Router, Response } from "express";
+import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
 import { User, UserRole, Lead, LeadStatus, Activity, Booking, Payment, Call, Notification } from "../entities";
 import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
+
+// Automatically invalidate caches on any successful mutation in this router
+router.use(invalidateCacheMiddleware([CACHE_KEYS.ADMIN_STATS, CACHE_KEYS.DASHBOARD_STATS]));
+
 const userRepository = () => AppDataSource.getRepository(User);
 const leadRepository = () => AppDataSource.getRepository(Lead);
 const activityRepository = () => AppDataSource.getRepository(Activity);
@@ -71,14 +77,14 @@ router.post("/seed-data", authenticateToken, requireRole([UserRole.ADMIN]), asyn
 });
 
 // Get feature flags
-router.get("/features", async (req, res: Response) => {
+router.get("/features", cacheMiddleware(CACHE_KEYS.ADMIN_STATS, CACHE_TTL.SHORT), async (req, res: Response) => {
   res.json({
     telephony_enabled: process.env.TELEPHONY_ENABLED === "true",
   });
 });
 
 // Export database (Admin only)
-router.get("/export-database", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
+router.get("/export-database", authenticateToken, requireRole([UserRole.ADMIN]), cacheMiddleware(CACHE_KEYS.ADMIN_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     console.log("Starting database export...");
     

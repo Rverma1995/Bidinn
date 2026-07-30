@@ -1,4 +1,6 @@
 import { Router, Response } from "express";
+import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
 import { 
   Lead, LeadStatus, ClosedReason, 
@@ -30,6 +32,10 @@ const upload = multer({
 });
 
 const router = Router();
+
+// Automatically invalidate caches on any successful mutation in this router
+router.use(invalidateCacheMiddleware([CACHE_KEYS.LEADS_LIST, CACHE_KEYS.DASHBOARD_STATS]));
+
 const leadRepository = () => AppDataSource.getRepository(Lead);
 const userRepository = () => AppDataSource.getRepository(User);
 const activityRepository = () => AppDataSource.getRepository(Activity);
@@ -90,7 +96,7 @@ const notifyManagersAndAdmins = async (type: NotificationType, title: string, me
 };
 
 // Get closed reasons list
-router.get("/closed-reasons", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/closed-reasons", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   const reasons = Object.entries(CLOSED_REASON_LABELS).map(([value, label]) => ({
     value,
     label,
@@ -99,7 +105,7 @@ router.get("/closed-reasons", authenticateToken, async (req: AuthRequest, res: R
 });
 
 // Get all leads with pagination
-router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
     const page = parseInt(req.query.page as string) || 1;
@@ -185,7 +191,7 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 });
 
 // Get uncontacted leads - MUST be before /:id route
-router.get("/uncontacted", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/uncontacted", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
@@ -209,7 +215,7 @@ router.get("/uncontacted", authenticateToken, async (req: AuthRequest, res: Resp
 });
 
 // Export leads as CSV - MUST be before /:id route
-router.get("/export/csv", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/export/csv", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
     let queryBuilder = leadRepository().createQueryBuilder("lead");
@@ -377,7 +383,7 @@ router.post("/merge", authenticateToken, requireRole([UserRole.ADMIN, UserRole.M
 });
 
 // Get duplicate leads analysis (Admin only) - MUST be before /:id route
-router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN]), async (req: AuthRequest, res: Response) => {
+router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN]), cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     console.log("Starting duplicate analysis...");
     
@@ -607,7 +613,7 @@ router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.AD
 });
 
 // Get lead by ID
-router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const leadId = req.params.id as string;
     const lead = await leadRepository().findOne({
