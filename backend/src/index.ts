@@ -193,19 +193,22 @@ const runIdleLeadEscalationJob = async () => {
     const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
 
     // Get idle leads that are in active statuses (not won, lost, or not_interested)
-    const idleLeads = await leadRepository
+    const queryBuilder = leadRepository
       .createQueryBuilder("lead")
       .where("lead.status NOT IN (:...statuses)", { 
         statuses: [LeadStatus.WON, LeadStatus.LOST, LeadStatus.NOT_INTERESTED] 
       })
       .andWhere("(lead.last_activity < :fiveDaysAgo OR lead.last_activity IS NULL)", { fiveDaysAgo })
-      .andWhere("lead.created_at < :fiveDaysAgo", { fiveDaysAgo })
-      .getMany();
+      .andWhere("lead.created_at < :fiveDaysAgo", { fiveDaysAgo });
 
-    if (idleLeads.length === 0) {
+    const idleLeadCount = await queryBuilder.getCount();
+
+    if (idleLeadCount === 0) {
       console.log("No idle leads found.");
       return;
     }
+
+    const idleLeadsSample = await queryBuilder.take(20).getMany();
 
     // Get all managers and admins
     const managersAndAdmins = await userRepository.find({
@@ -223,15 +226,14 @@ const runIdleLeadEscalationJob = async () => {
         user_id: user.id,
         type: NotificationType.IDLE_LEAD,
         priority: NotificationPriority.HIGH,
-        title: `${idleLeads.length} Idle Lead${idleLeads.length > 1 ? 's' : ''} Detected`,
-        message: `The following lead${idleLeads.length > 1 ? 's have' : ' has'} had no activity for 5+ days:\n${idleLeads
+        title: `${idleLeadCount} Idle Lead${idleLeadCount > 1 ? 's' : ''} Detected`,
+        message: `The following lead${idleLeadCount > 1 ? 's have' : ' has'} had no activity for 5+ days:\n${idleLeadsSample
           .slice(0, 10)
           .map(l => `• ${l.name} (${l.phone}) - ${l.assigned_name || 'Unassigned'} - Status: ${l.status}`)
-          .join('\n')}${idleLeads.length > 10 ? `\n...and ${idleLeads.length - 10} more` : ''}`,
+          .join('\n')}${idleLeadCount > 10 ? `\n...and ${idleLeadCount - 10} more` : ''}`,
         metadata: {
-          idle_lead_ids: idleLeads.map(l => l.id),
-          idle_lead_count: idleLeads.length,
-          lead_details: idleLeads.slice(0, 20).map(l => ({
+          idle_lead_count: idleLeadCount,
+          lead_details: idleLeadsSample.map(l => ({
             id: l.id,
             name: l.name,
             phone: l.phone,
@@ -253,11 +255,11 @@ const runIdleLeadEscalationJob = async () => {
       target_id: null as any,
       target_type: "escalation",
       target_name: "Idle Lead Check",
-      details: `Detected ${idleLeads.length} idle leads and notified ${managersAndAdmins.length} managers/admins`,
+      details: `Detected ${idleLeadCount} idle leads and notified ${managersAndAdmins.length} managers/admins`,
     });
     await activityRepository.save(activity);
 
-    console.log(`Idle lead escalation: Notified ${managersAndAdmins.length} managers/admins about ${idleLeads.length} idle leads`);
+    console.log(`Idle lead escalation: Notified ${managersAndAdmins.length} managers/admins about ${idleLeadCount} idle leads`);
   } catch (error) {
     console.error("Idle lead escalation job error:", error);
   }
@@ -287,27 +289,6 @@ const runFollowupReminderJob = async () => {
     const thirtyMinsFromNow = new Date(now.getTime() + 30 * 60 * 1000);
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // --- UPCOMING FOLLOWUPS (within the next 30 minutes) ---
-    const upcomingLeads = await leadRepository
-      .createQueryBuilder("lead")
-      .where("lead.next_followup > :now", { now: now.toISOString() })
-      .andWhere("lead.next_followup <= :soon", { soon: thirtyMinsFromNow.toISOString() })
-      .andWhere("lead.status NOT IN (:...exclude)", { exclude: ["won", "lost"] })
-      .getMany();
-
-    // --- MISSED FOLLOWUPS (past due, within last 24 hours to avoid old spam) ---
-    const missedLeads = await leadRepository
-      .createQueryBuilder("lead")
-      .where("lead.next_followup < :now", { now: now.toISOString() })
-      .andWhere("lead.next_followup > :cutoff", { cutoff: twentyFourHoursAgo.toISOString() })
-      .andWhere("lead.status NOT IN (:...exclude)", { exclude: ["won", "lost"] })
-      .getMany();
-
-    if (upcomingLeads.length === 0 && missedLeads.length === 0) {
-      console.log("Followup reminder job: No upcoming or missed followups found");
-      return;
-    }
-
     // Get all admins
     const admins = await userRepository.find({
       where: [
@@ -315,94 +296,137 @@ const runFollowupReminderJob = async () => {
         { role: UserRole.MANAGER, is_active: true },
       ],
     });
-    const adminIds = new Set(admins.map(a => a.id));
-
-    // Helper: check if a recent notification already exists for this lead + type + user
-    const alreadyNotified = async (userId: string, type: string, leadId: string): Promise<boolean> => {
-      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-      const existing = await notificationRepository
-        .createQueryBuilder("n")
-        .where("n.user_id = :userId", { userId })
-        .andWhere("n.type = :type", { type })
-        .andWhere("n.target_id = :leadId", { leadId })
-        .andWhere("n.created_at > :since", { since: twoHoursAgo.toISOString() })
-        .getCount();
-      return existing > 0;
+    
+    let createdCount = 0;
+    const CHUNK_SIZE = 100;
+    
+    // --- Helper function for processing chunks ---
+    const processLeads = async (queryBuilder: any, type: string) => {
+      let skip = 0;
+      let hasMore = true;
+      let localCount = 0;
+      
+      while (hasMore) {
+        try {
+          const leads = await queryBuilder.skip(skip).take(CHUNK_SIZE).getMany();
+          
+          if (leads.length === 0) {
+            hasMore = false;
+            break;
+          }
+          
+          // Get existing notifications for this chunk of leads to avoid N+1 queries
+          const leadIds = leads.map((l: any) => l.id);
+          const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+          
+          const existingNotifications = await notificationRepository
+            .createQueryBuilder("n")
+            .where("n.type = :type", { type })
+            .andWhere("n.target_id IN (:...leadIds)", { leadIds })
+            .andWhere("n.created_at > :since", { since: twoHoursAgo.toISOString() })
+            .getMany();
+            
+          // Create a set of "userId_leadId" for fast lookup
+          const existingSet = new Set(
+            existingNotifications.map(n => `${n.user_id}_${n.target_id}`)
+          );
+          
+          const notificationsToCreate: Notification[] = [];
+          
+          for (const lead of leads) {
+            const recipientIds: string[] = [];
+            if (lead.assigned_to) recipientIds.push(lead.assigned_to);
+            admins.forEach(a => { if (!recipientIds.includes(a.id)) recipientIds.push(a.id); });
+            
+            const followupTime = new Date(lead.next_followup!);
+            
+            for (const userId of recipientIds) {
+              const cacheKey = `${userId}_${lead.id}`;
+              if (existingSet.has(cacheKey)) continue;
+              
+              // Depending on type, construct the notification
+              let title = "";
+              let message = "";
+              let overdueMinutes: number | undefined = undefined;
+              
+              const isAssignedUser = userId === lead.assigned_to;
+              const assignedText = !isAssignedUser && lead.assigned_name ? ` — Assigned to ${lead.assigned_name}` : '';
+              
+              if (type === NotificationType.FOLLOWUP_UPCOMING) {
+                const minsUntil = Math.round((followupTime.getTime() - now.getTime()) / 60000);
+                title = `Upcoming Follow-up in ${minsUntil} min`;
+                message = `${lead.name} (${lead.phone})${assignedText} has a follow-up scheduled at ${followupTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+              } else {
+                const minsOverdue = Math.round((now.getTime() - followupTime.getTime()) / 60000);
+                overdueMinutes = minsOverdue;
+                const overdueLabel = minsOverdue >= 60 ? `${Math.round(minsOverdue / 60)}h` : `${minsOverdue}m`;
+                title = `Missed Follow-up (${overdueLabel} overdue)`;
+                message = `${lead.name} (${lead.phone})${assignedText} had a follow-up at ${followupTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} that was missed.`;
+              }
+              
+              const notification = notificationRepository.create({
+                id: uuidv4(),
+                user_id: userId,
+                type: type as NotificationType,
+                priority: NotificationPriority.HIGH,
+                title,
+                message,
+                target_id: lead.id,
+                target_type: "lead",
+                metadata: {
+                  lead_name: lead.name,
+                  lead_phone: lead.phone,
+                  followup_time: lead.next_followup,
+                  assigned_to: lead.assigned_name,
+                  ...(overdueMinutes !== undefined ? { overdue_minutes: overdueMinutes } : {})
+                },
+              });
+              
+              notificationsToCreate.push(notification);
+              // Optimistically add to set to avoid duplicates within the same chunk if any
+              existingSet.add(cacheKey); 
+            }
+          }
+          
+          if (notificationsToCreate.length > 0) {
+            await notificationRepository.save(notificationsToCreate);
+            createdCount += notificationsToCreate.length;
+            localCount += notificationsToCreate.length;
+          }
+          
+          skip += CHUNK_SIZE;
+        } catch (chunkError) {
+          console.error(`Error processing chunk in followup reminder job (${type}):`, chunkError);
+          break;
+        }
+      }
+      return localCount;
     };
 
-    let createdCount = 0;
+    // --- UPCOMING FOLLOWUPS (within the next 30 minutes) ---
+    const upcomingQuery = leadRepository
+      .createQueryBuilder("lead")
+      .where("lead.next_followup > :now", { now: now.toISOString() })
+      .andWhere("lead.next_followup <= :soon", { soon: thirtyMinsFromNow.toISOString() })
+      .andWhere("lead.status NOT IN (:...exclude)", { exclude: ["won", "lost"] });
+      
+    const upcomingCount = await processLeads(upcomingQuery, NotificationType.FOLLOWUP_UPCOMING);
 
-    // --- Create UPCOMING followup notifications ---
-    for (const lead of upcomingLeads) {
-      const recipientIds: string[] = [];
-      if (lead.assigned_to) recipientIds.push(lead.assigned_to);
-      admins.forEach(a => { if (!recipientIds.includes(a.id)) recipientIds.push(a.id); });
+    // --- MISSED FOLLOWUPS (past due, within last 24 hours to avoid old spam) ---
+    const missedQuery = leadRepository
+      .createQueryBuilder("lead")
+      .where("lead.next_followup < :now", { now: now.toISOString() })
+      .andWhere("lead.next_followup > :cutoff", { cutoff: twentyFourHoursAgo.toISOString() })
+      .andWhere("lead.status NOT IN (:...exclude)", { exclude: ["won", "lost"] });
 
-      const followupTime = new Date(lead.next_followup!);
-      const minsUntil = Math.round((followupTime.getTime() - now.getTime()) / 60000);
+    const missedCount = await processLeads(missedQuery, NotificationType.FOLLOWUP_MISSED);
 
-      for (const userId of recipientIds) {
-        if (await alreadyNotified(userId, NotificationType.FOLLOWUP_UPCOMING, lead.id)) continue;
-
-        const isAssignedUser = userId === lead.assigned_to;
-        const notification = notificationRepository.create({
-          id: uuidv4(),
-          user_id: userId,
-          type: NotificationType.FOLLOWUP_UPCOMING,
-          priority: NotificationPriority.HIGH,
-          title: `Upcoming Follow-up in ${minsUntil} min`,
-          message: `${lead.name} (${lead.phone})${!isAssignedUser && lead.assigned_name ? ` — Assigned to ${lead.assigned_name}` : ''} has a follow-up scheduled at ${followupTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`,
-          target_id: lead.id,
-          target_type: "lead",
-          metadata: {
-            lead_name: lead.name,
-            lead_phone: lead.phone,
-            followup_time: lead.next_followup,
-            assigned_to: lead.assigned_name,
-          },
-        });
-        await notificationRepository.save(notification);
-        createdCount++;
-      }
+    if (upcomingCount === 0 && missedCount === 0) {
+      console.log("Followup reminder job: Processed but no new notifications created");
+    } else {
+      console.log(`Followup reminder job: Created ${createdCount} new notifications (${upcomingCount} upcoming, ${missedCount} missed)`);
     }
 
-    // --- Create MISSED followup notifications ---
-    for (const lead of missedLeads) {
-      const recipientIds: string[] = [];
-      if (lead.assigned_to) recipientIds.push(lead.assigned_to);
-      admins.forEach(a => { if (!recipientIds.includes(a.id)) recipientIds.push(a.id); });
-
-      const followupTime = new Date(lead.next_followup!);
-      const minsOverdue = Math.round((now.getTime() - followupTime.getTime()) / 60000);
-      const overdueLabel = minsOverdue >= 60 ? `${Math.round(minsOverdue / 60)}h` : `${minsOverdue}m`;
-
-      for (const userId of recipientIds) {
-        if (await alreadyNotified(userId, NotificationType.FOLLOWUP_MISSED, lead.id)) continue;
-
-        const isAssignedUser = userId === lead.assigned_to;
-        const notification = notificationRepository.create({
-          id: uuidv4(),
-          user_id: userId,
-          type: NotificationType.FOLLOWUP_MISSED,
-          priority: NotificationPriority.HIGH,
-          title: `Missed Follow-up (${overdueLabel} overdue)`,
-          message: `${lead.name} (${lead.phone})${!isAssignedUser && lead.assigned_name ? ` — Assigned to ${lead.assigned_name}` : ''} had a follow-up at ${followupTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} that was missed.`,
-          target_id: lead.id,
-          target_type: "lead",
-          metadata: {
-            lead_name: lead.name,
-            lead_phone: lead.phone,
-            followup_time: lead.next_followup,
-            assigned_to: lead.assigned_name,
-            overdue_minutes: minsOverdue,
-          },
-        });
-        await notificationRepository.save(notification);
-        createdCount++;
-      }
-    }
-
-    console.log(`Followup reminder job: ${upcomingLeads.length} upcoming, ${missedLeads.length} missed, ${createdCount} notifications created`);
   } catch (error) {
     console.error("Followup reminder job error:", error);
   }
