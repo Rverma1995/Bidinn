@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -530,9 +530,13 @@ interface PipelineColumnProps {
   onCardClick: (lead: any) => void;
   onDrop: (e: React.DragEvent, newStatus: string) => void;
   status: string;
+  page?: number;
+  totalPages?: number;
+  loading?: boolean;
+  onPageChange?: (page: number) => void;
 }
 
-function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, onCardClick, onDrop, status }: PipelineColumnProps) {
+function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, onCardClick, onDrop, status, page = 1, totalPages = 1, loading, onPageChange }: PipelineColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const colorClasses = {
@@ -591,8 +595,37 @@ function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, o
               </div>
             ))
           )}
+          {loading && (
+            <div className="text-center py-2 text-xs text-muted-foreground">
+              Loading...
+            </div>
+          )}
         </div>
       </ScrollArea>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-b-2xl">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            disabled={page <= 1 || loading}
+            onClick={() => onPageChange?.(page - 1)}
+          >
+            Prev
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Page {page} of {totalPages}
+          </span>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            disabled={page >= totalPages || loading}
+            onClick={() => onPageChange?.(page + 1)}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -606,35 +639,77 @@ export default function PipelinePage() {
   const [selectedLead, setSelectedLead] = useState(null);
   const [quickActionOpen, setQuickActionOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [stats, setStats] = useState({ won: 0, lost: 0, revenue: 0 });
+  const [stats, setStats] = useState({ won: 0, lost: 0, revenue: 0, active: 0 });
 
-  useEffect(() => {
-    fetchLeads();
-    fetchStats();
+  const [columnsPaging, setColumnsPaging] = useState({});
+  const pagingRef = useRef({});
+  const leadsRef = useRef([]);
+
+  const updateLeads = useCallback((updater) => {
+    setLeads(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      leadsRef.current = next;
+      return next;
+    });
   }, []);
 
-  const fetchLeads = async () => {
+  const fetchLeadsForStatus = async (status, page = 1) => {
+    const paging = pagingRef.current[status] || { page: 1, totalPages: 1, loading: false };
+    if (paging.loading) return;
+
+    pagingRef.current = { ...pagingRef.current, [status]: { ...paging, loading: true } };
+    setColumnsPaging({ ...pagingRef.current });
+
     try {
-      // Fetch all leads for pipeline view (need full dataset for kanban)
-      // Use a high limit to get all leads - pagination not ideal for kanban view
-      const response = await api.get('/leads?limit=10000');
-      // Handle both paginated and non-paginated response formats
-      const leadsData = response.data.leads || response.data;
-      setLeads(leadsData);
-    } catch (error) {
-      toast.error('Failed to fetch leads');
-    } finally {
-      setLoading(false);
+      let url = `/leads?compact=true&limit=50&status=${status}&page=${page}`;
+      
+      const response = await api.get(url);
+      const newLeads = response.data.leads || response.data;
+      const paginationData = response.data.pagination;
+
+      updateLeads(prev => {
+        const otherLeads = prev.filter(l => l.status !== status);
+        return [...otherLeads, ...newLeads];
+      });
+
+      pagingRef.current = {
+        ...pagingRef.current,
+        [status]: { 
+          page: paginationData?.page || page, 
+          totalPages: paginationData?.totalPages || 1, 
+          total: paginationData?.total || 0,
+          loading: false 
+        }
+      };
+      setColumnsPaging({ ...pagingRef.current });
+    } catch(e) {
+      console.error(`Failed to fetch leads for status ${status}`, e);
+      pagingRef.current = { ...pagingRef.current, [status]: { ...pagingRef.current[status], loading: false } };
+      setColumnsPaging({ ...pagingRef.current });
     }
   };
+
+  const fetchAllLeads = async () => {
+    setLoading(true);
+    const statuses = [...ACTIVE_PIPELINE_STATUSES.map(s => s.value), 'won', 'lost'];
+    await Promise.all(statuses.map(s => fetchLeadsForStatus(s)));
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchAllLeads();
+    fetchStats();
+  }, []);
 
   const fetchStats = async () => {
     try {
       const response = await api.get('/dashboard/stats');
+      const data = response.data;
       setStats({
-        won: response.data.closed_won || 0,
-        lost: response.data.closed_lost || 0,
-        revenue: response.data.total_revenue || 0,
+        won: data.closed_won || 0,
+        lost: data.closed_lost || 0,
+        revenue: data.total_revenue || 0,
+        active: (data.total_leads || 0) - (data.closed_won || 0) - (data.closed_lost || 0),
       });
     } catch (error) {
       console.error('Failed to fetch stats');
@@ -698,7 +773,7 @@ export default function PipelinePage() {
   };
 
   const handleQuickActionSuccess = () => {
-    fetchLeads();
+    fetchAllLeads();
     fetchStats();
   };
 
@@ -754,7 +829,7 @@ export default function PipelinePage() {
               <div>
                 <p className="text-sm text-muted-foreground">Active Leads</p>
                 <p className="text-2xl font-bold">
-                  {leads.filter(l => !['won', 'lost'].includes(l.status)).length}
+                  {stats.active}
                 </p>
               </div>
               <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
@@ -768,7 +843,7 @@ export default function PipelinePage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Won</p>
-                <p className="text-2xl font-bold text-green-600">{wonLeads.length}</p>
+                <p className="text-2xl font-bold text-green-600">{stats.won}</p>
               </div>
               <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
                 <Trophy className="w-5 h-5 text-green-600" />
@@ -781,7 +856,7 @@ export default function PipelinePage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Lost</p>
-                <p className="text-2xl font-bold text-red-600">{lostLeads.length}</p>
+                <p className="text-2xl font-bold text-red-600">{stats.lost}</p>
               </div>
               <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
                 <XCircle className="w-5 h-5 text-red-600" />
@@ -814,10 +889,14 @@ export default function PipelinePage() {
               color={stage.color}
               status={stage.value}
               leads={getLeadsByStatus(stage.value)}
-              count={getLeadsByStatus(stage.value).length}
+              count={columnsPaging[stage.value]?.total ?? getLeadsByStatus(stage.value).length}
               onCallClick={handleCallClick}
               onCardClick={handleCardClick}
               onDrop={handleDrop}
+              page={columnsPaging[stage.value]?.page}
+              totalPages={columnsPaging[stage.value]?.totalPages}
+              loading={columnsPaging[stage.value]?.loading}
+              onPageChange={(page) => fetchLeadsForStatus(stage.value, page)}
             />
           ))}
         </div>
@@ -830,7 +909,7 @@ export default function PipelinePage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2 text-green-700 dark:text-green-400">
               <Trophy className="w-5 h-5" />
-              Won ({wonLeads.length})
+              Won ({stats.won})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -862,11 +941,11 @@ export default function PipelinePage() {
         </Card>
 
         {/* Lost Deals */}
-        <Card className="border-red-200 dark:border-red-800">
+        <Card className="border-red-200 dark:border-red-900/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2 text-red-700 dark:text-red-400">
               <XCircle className="w-5 h-5" />
-              Lost ({lostLeads.length})
+              Lost ({stats.lost})
             </CardTitle>
           </CardHeader>
           <CardContent>

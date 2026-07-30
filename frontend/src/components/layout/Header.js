@@ -45,6 +45,9 @@ export function Header({ onMenuClick, showMobileMenu }) {
   const [searchQuery, setSearchQuery] = useState('');
   const seenNotifIds = useRef(new Set());
   const isFirstFetch = useRef(true);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [hasMoreNotifs, setHasMoreNotifs] = useState(true);
+  const lastNotifDate = useRef(null);
 
   const showFollowupToast = useCallback((notification) => {
     const isMissed = notification.type === 'followup_missed';
@@ -59,9 +62,17 @@ export function Header({ onMenuClick, showMobileMenu }) {
     });
   }, [navigate]);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (isLoadMore = false) => {
     try {
-      const response = await api.get('/notifications');
+      if (isLoadMore) {
+        setLoadingNotifs(true);
+      }
+      
+      const url = isLoadMore && lastNotifDate.current 
+        ? `/notifications?last_seen=${encodeURIComponent(lastNotifDate.current)}` 
+        : '/notifications';
+
+      const response = await api.get(url);
       const data = response.data;
       const notifList = data.notifications || (Array.isArray(data) ? data : []);
       const count = data.unread_count ?? notifList.filter(n => !n.is_read).length;
@@ -70,7 +81,7 @@ export function Header({ onMenuClick, showMobileMenu }) {
       if (isFirstFetch.current) {
         notifList.forEach(n => seenNotifIds.current.add(n.id));
         isFirstFetch.current = false;
-      } else {
+      } else if (!isLoadMore) {
         // Show pop-up toasts for NEW followup notifications we haven't seen
         notifList.forEach(n => {
           if (
@@ -82,16 +93,44 @@ export function Header({ onMenuClick, showMobileMenu }) {
           }
           seenNotifIds.current.add(n.id);
         });
+      } else {
+        notifList.forEach(n => seenNotifIds.current.add(n.id));
       }
 
-      setNotifications(notifList);
-      setUnreadCount(count);
+      if (isLoadMore) {
+        setNotifications(prev => {
+          const newItems = notifList.filter(n => !prev.some(p => p.id === n.id));
+          return [...prev, ...newItems];
+        });
+      } else {
+        setNotifications(notifList);
+        setUnreadCount(count);
+      }
+      
+      if (notifList.length > 0) {
+        lastNotifDate.current = notifList[notifList.length - 1].created_at;
+      }
+      setHasMoreNotifs(notifList.length > 0);
+      
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
-      setNotifications([]);
-      setUnreadCount(0);
+      if (!isLoadMore) {
+        setNotifications([]);
+        setUnreadCount(0);
+      }
+    } finally {
+      if (isLoadMore) {
+        setLoadingNotifs(false);
+      }
     }
   }, [api, showFollowupToast]);
+
+  const handleScroll = (e) => {
+    const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 50 && !loadingNotifs && hasMoreNotifs) {
+      fetchNotifications(true);
+    }
+  };
 
   useEffect(() => {
     fetchNotifications();
@@ -204,7 +243,7 @@ export function Header({ onMenuClick, showMobileMenu }) {
                 </Button>
               )}
             </div>
-            <ScrollArea className="h-80">
+            <ScrollArea className="h-80" onScrollCapture={handleScroll}>
               {notifications.length === 0 ? (
                 <div className="flex items-center justify-center h-40 text-muted-foreground">
                   No notifications
@@ -241,6 +280,11 @@ export function Header({ onMenuClick, showMobileMenu }) {
                       </div>
                     </div>
                   ))}
+                  {loadingNotifs && (
+                    <div className="p-4 text-center text-xs text-muted-foreground">
+                      Loading more...
+                    </div>
+                  )}
                 </div>
               )}
             </ScrollArea>

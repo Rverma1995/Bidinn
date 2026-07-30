@@ -293,7 +293,7 @@ export default function BookingsPage() {
 
   const fetchLeads = async () => {
     try {
-      const response = await api.get('/leads?limit=1000');
+      const response = await api.get('/leads?compact=true&limit=1000');
       // Handle both paginated and non-paginated response formats
       const leadsData = response.data.leads || response.data;
       setLeads(leadsData);

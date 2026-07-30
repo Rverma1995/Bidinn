@@ -20,7 +20,7 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
   synchronize: false, // Disabled to avoid index conflicts
-  logging: false,
+  // logging: true,
   entities: [User, Lead, Call, Booking, Activity, MetaConfig, Payment, Notification],
   migrations: [],
   subscribers: [],
@@ -28,6 +28,9 @@ export const AppDataSource = new DataSource({
   extra: {
     charset: "utf8mb4_unicode_ci",
     connectionLimit: 10,
+    connectTimeout: 60000, // 60 seconds
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
   },
 });
 

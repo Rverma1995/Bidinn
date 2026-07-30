@@ -12,6 +12,11 @@ export default [
         ...globals.browser,
         ...globals.node,
       },
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
     },
     rules: {
       'no-unused-vars': 'warn',

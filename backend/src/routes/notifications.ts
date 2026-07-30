@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
 import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
-import { Notification, UserRole } from "../entities";
+import { Notification } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
 
 const router = Router();
@@ -16,14 +16,27 @@ const notificationRepository = () => AppDataSource.getRepository(Notification);
 router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.NOTIFICATIONS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
-    const { unread_only, limit = "50" } = req.query;
+    const { unread_only, limit = "50", last_seen } = req.query;
 
     let queryBuilder = notificationRepository()
       .createQueryBuilder("notification")
+      .select([
+        "notification.id",
+        "notification.title",
+        "notification.message",
+        "notification.type",
+        "notification.is_read",
+        "notification.target_id",
+        "notification.created_at"
+      ])
       .where("notification.user_id = :userId", { userId: user.id });
 
     if (unread_only === "true") {
       queryBuilder = queryBuilder.andWhere("notification.is_read = false");
+    }
+
+    if (last_seen) {
+      queryBuilder = queryBuilder.andWhere("notification.created_at < :lastSeen", { lastSeen: new Date(last_seen as string) });
     }
 
     queryBuilder = queryBuilder

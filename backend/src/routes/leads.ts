@@ -117,6 +117,8 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_
     const source = req.query.source as string;
     const assigned_to = req.query.assigned_to as string;
     const search = req.query.search as string;
+    const compact = req.query.compact === 'true';
+    const lastSeen = req.query.last_seen as string;
 
     let queryBuilder = leadRepository().createQueryBuilder("lead");
 
@@ -145,6 +147,27 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_
         "(lead.name LIKE :search OR lead.phone LIKE :search OR lead.email LIKE :search)",
         { search: searchTerm }
       );
+    }
+
+    if (lastSeen) {
+      queryBuilder = queryBuilder.andWhere("lead.created_at < :lastSeen", { lastSeen: new Date(lastSeen) });
+    }
+
+    if (compact) {
+      queryBuilder = queryBuilder.select([
+        "lead.id",
+        "lead.name",
+        "lead.phone",
+        "lead.email",
+        "lead.city",
+        "lead.source",
+        "lead.status",
+        "lead.attempt_count",
+        "lead.assigned_to",
+        "lead.assigned_name",
+        "lead.created_at",
+        "lead.closed_reason",
+      ]);
     }
 
     // Get total count for pagination

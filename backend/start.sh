@@ -48,5 +48,9 @@ if [ ! -d "dist" ] || [ "src/index.ts" -nt "dist/index.js" ]; then
 fi
 
 # Start the Node.js backend
-echo "Starting Node.js backend with TypeORM..."
-exec node dist/index.js
+echo "Starting Node.js backend with TypeORM (with auto-restart)..."
+while true; do
+    node dist/index.js
+    echo "Server crashed with exit code $?. Restarting in 2 seconds..."
+    sleep 2
+done
