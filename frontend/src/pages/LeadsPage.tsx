@@ -824,6 +824,7 @@ export default function LeadsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState([]);
   const [users, setUsers] = useState([]);
+  const [campaigns, setCampaigns] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('table');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -849,11 +850,13 @@ export default function LeadsPage() {
   const [exportFilters, setExportFilters] = useState({
     status: 'all',
     source: 'all',
+    campaign: 'all',
     assigned_to: 'all',
   });
   const [filters, setFilters] = useState({
     status: searchParams.get('status') || 'all',
     source: searchParams.get('source') || 'all',
+    campaign: searchParams.get('campaign') || 'all',
     assigned_to: searchParams.get('assigned_to') || 'all',
     search: searchParams.get('search') || '',
   });
@@ -880,6 +883,7 @@ export default function LeadsPage() {
     } else {
       if (filters.status && filters.status !== 'all') params.set('status', filters.status);
       if (filters.source && filters.source !== 'all') params.set('source', filters.source);
+      if (filters.campaign && filters.campaign !== 'all') params.set('campaign', filters.campaign);
       if (filters.assigned_to && filters.assigned_to !== 'all') params.set('assigned_to', filters.assigned_to);
       if (filters.search) params.set('search', filters.search);
     }
@@ -898,6 +902,7 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
     fetchUsers();
+    fetchCampaigns();
   }, [filters, showUncontactedOnly, showOverdueOnly, currentPage]);
 
   // Reset to page 1 when filters change
@@ -912,7 +917,7 @@ export default function LeadsPage() {
     const checkForNewLeads = async () => {
       try {
         // Only check if we have a baseline and no filters applied
-        if (lastKnownTotal === null || filters.search || filters.status !== 'all' || filters.source !== 'all') {
+        if (lastKnownTotal === null || filters.search || filters.status !== 'all' || filters.source !== 'all' || filters.campaign !== 'all') {
           return;
         }
         
@@ -993,6 +998,7 @@ export default function LeadsPage() {
         params.append('limit', pageSize.toString());
         if (filters.status && filters.status !== 'all') params.append('status', filters.status);
         if (filters.source && filters.source !== 'all') params.append('source', filters.source);
+        if (filters.campaign && filters.campaign !== 'all') params.append('campaign', filters.campaign);
         if (filters.assigned_to && filters.assigned_to !== 'all') params.append('assigned_to', filters.assigned_to);
         if (filters.search) params.append('search', filters.search);
 
@@ -1006,7 +1012,7 @@ export default function LeadsPage() {
           setTotalPages(response.data.pagination?.totalPages || 1);
           
           // Update baseline for polling (only when no filters applied)
-          if (!filters.search && filters.status === 'all' && filters.source === 'all' && filters.assigned_to === 'all') {
+          if (!filters.search && filters.status === 'all' && filters.source === 'all' && filters.campaign === 'all' && filters.assigned_to === 'all') {
             setLastKnownTotal(total);
           }
         } else {
@@ -1030,6 +1036,15 @@ export default function LeadsPage() {
       setUsers(response.data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
+    }
+  };
+
+  const fetchCampaigns = async () => {
+    try {
+      const response = await api.get('/leads/campaigns');
+      setCampaigns(response.data);
+    } catch (error) {
+      console.error('Failed to fetch campaigns:', error);
     }
   };
 
@@ -1152,6 +1167,7 @@ export default function LeadsPage() {
       const params = new URLSearchParams();
       if (exportFilters.status && exportFilters.status !== 'all') params.append('status', exportFilters.status);
       if (exportFilters.source && exportFilters.source !== 'all') params.append('source', exportFilters.source);
+      if (exportFilters.campaign && exportFilters.campaign !== 'all') params.append('campaign', exportFilters.campaign);
       if (exportFilters.assigned_to && exportFilters.assigned_to !== 'all') params.append('assigned_to', exportFilters.assigned_to);
       params.append('format', 'csv');
 
@@ -1292,6 +1308,22 @@ export default function LeadsPage() {
                   {LEAD_SOURCES.map((source) => (
                     <SelectItem key={source} value={source}>
                       {source}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Campaign</Label>
+              <Select value={exportFilters.campaign} onValueChange={(value) => setExportFilters({ ...exportFilters, campaign: value })}>
+                <SelectTrigger data-testid="export-campaign-filter">
+                  <SelectValue placeholder="All campaigns" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All campaigns</SelectItem>
+                  {campaigns.map((camp) => (
+                    <SelectItem key={camp} value={camp}>
+                      {camp}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1538,6 +1570,20 @@ export default function LeadsPage() {
                 <SelectItem value="all">All sources</SelectItem>
                 {LEAD_SOURCES.map((source) => (
                   <SelectItem key={source} value={source}>{source}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.campaign}
+              onValueChange={(value) => setFilters({ ...filters, campaign: value })}
+            >
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="All campaigns" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All campaigns</SelectItem>
+                {campaigns.map((camp) => (
+                  <SelectItem key={camp} value={camp}>{camp}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

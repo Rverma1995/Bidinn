@@ -63,6 +63,7 @@ export const STAGES_REQUIRING_REASON: LeadStatus[] = [
 @Index("idx_leads_status_created", ["status", "created_at"])
 @Index("idx_leads_next_followup", ["next_followup"])
 @Index("idx_leads_attempt_count", ["attempt_count"])
+@Index("idx_leads_campaign", ["campaign"])
 export class Lead {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;

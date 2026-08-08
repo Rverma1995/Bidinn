@@ -39,11 +39,15 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.NOTIFICATIONS_LIST
       queryBuilder = queryBuilder.andWhere("notification.created_at < :lastSeen", { lastSeen: new Date(last_seen as string) });
     }
 
+    const parsedLimit = parseInt(limit as string) || 50;
     queryBuilder = queryBuilder
       .orderBy("notification.created_at", "DESC")
-      .take(parseInt(limit as string));
+      .take(parsedLimit + 1);
 
-    const notifications = await queryBuilder.getMany();
+    const fetchedNotifications = await queryBuilder.getMany();
+    
+    const has_more = fetchedNotifications.length > parsedLimit;
+    const notifications = has_more ? fetchedNotifications.slice(0, parsedLimit) : fetchedNotifications;
     
     // Get unread count
     const unreadCount = await notificationRepository().count({
@@ -52,6 +56,7 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.NOTIFICATIONS_LIST
 
     res.json({
       notifications,
+      has_more,
       unread_count: unreadCount,
     });
   } catch (error) {

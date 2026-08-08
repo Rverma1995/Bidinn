@@ -110,7 +110,7 @@ export function Header({ onMenuClick, showMobileMenu }) {
       if (notifList.length > 0) {
         lastNotifDate.current = notifList[notifList.length - 1].created_at;
       }
-      setHasMoreNotifs(notifList.length > 0);
+      setHasMoreNotifs(data.has_more !== undefined ? data.has_more : notifList.length > 0);
       
     } catch (error) {
       console.error('Failed to fetch notifications:', error);

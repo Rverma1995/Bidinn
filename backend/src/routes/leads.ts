@@ -104,6 +104,25 @@ router.get("/closed-reasons", authenticateToken, cacheMiddleware(CACHE_KEYS.LEAD
   res.json(reasons);
 });
 
+// Get unique campaigns list
+router.get("/campaigns", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+  try {
+    const campaigns = await leadRepository()
+      .createQueryBuilder("lead")
+      .select("lead.campaign", "campaign")
+      .where("lead.campaign IS NOT NULL")
+      .andWhere("lead.campaign != ''")
+      .distinct(true)
+      .orderBy("lead.campaign", "ASC")
+      .getRawMany();
+      
+    res.json(campaigns.map(c => c.campaign));
+  } catch (error) {
+    console.error("Get campaigns error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 // Get all leads with pagination
 router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
@@ -115,6 +134,7 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_
     // Filter parameters
     const status = req.query.status as string;
     const source = req.query.source as string;
+    const campaign = req.query.campaign as string;
     const assigned_to = req.query.assigned_to as string;
     const search = req.query.search as string;
     const compact = req.query.compact === 'true';
@@ -134,6 +154,10 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_
     
     if (source && source !== 'all') {
       queryBuilder = queryBuilder.andWhere("lead.source = :source", { source });
+    }
+    
+    if (campaign && campaign !== 'all') {
+      queryBuilder = queryBuilder.andWhere("lead.campaign = :campaign", { campaign });
     }
     
     if (assigned_to && assigned_to !== 'all') {
@@ -243,8 +267,29 @@ router.get("/export/csv", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LI
     const user = req.user!;
     let queryBuilder = leadRepository().createQueryBuilder("lead");
 
+    const status = req.query.status as string;
+    const source = req.query.source as string;
+    const campaign = req.query.campaign as string;
+    const assigned_to = req.query.assigned_to as string;
+
     if (user.role === UserRole.SALES_REP) {
       queryBuilder = queryBuilder.where("lead.assigned_to = :userId", { userId: user.id });
+    }
+    
+    if (status && status !== 'all') {
+      queryBuilder = queryBuilder.andWhere("lead.status = :status", { status });
+    }
+    
+    if (source && source !== 'all') {
+      queryBuilder = queryBuilder.andWhere("lead.source = :source", { source });
+    }
+    
+    if (campaign && campaign !== 'all') {
+      queryBuilder = queryBuilder.andWhere("lead.campaign = :campaign", { campaign });
+    }
+    
+    if (assigned_to && assigned_to !== 'all') {
+      queryBuilder = queryBuilder.andWhere("lead.assigned_to = :assigned_to", { assigned_to });
     }
 
     const leads = await queryBuilder.orderBy("lead.created_at", "DESC").getMany();
