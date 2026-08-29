@@ -134,6 +134,7 @@ function CreateUserDialog({ open, onOpenChange, onSuccess }) {
     email: '',
     password: '',
     role: 'sales_rep',
+    tata_extension: '',
   });
 
   const handleSubmit = async (e) => {
@@ -148,7 +149,7 @@ function CreateUserDialog({ open, onOpenChange, onSuccess }) {
       toast.success(`${formData.name} added to the team!`);
       onSuccess();
       onOpenChange(false);
-      setFormData({ name: '', email: '', password: '', role: 'sales_rep' });
+      setFormData({ name: '', email: '', password: '', role: 'sales_rep', tata_extension: '' });
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create user');
     } finally {
@@ -231,6 +232,17 @@ function CreateUserDialog({ open, onOpenChange, onSuccess }) {
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tata_extension">Tata Extension</Label>
+              <Input
+                id="tata_extension"
+                placeholder="e.g. 1001"
+                value={formData.tata_extension}
+                onChange={(e) => setFormData({ ...formData, tata_extension: e.target.value })}
+                data-testid="user-tata-extension-input"
+              />
+              <p className="text-xs text-muted-foreground">Smartflo agent extension for click-to-call</p>
             </div>
           </div>
           <DialogFooter>
@@ -332,6 +344,7 @@ function EditUserDialog({ open, onOpenChange, user, onSuccess }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    tata_extension: '',
   });
 
   // Update form data when user changes
@@ -340,6 +353,7 @@ function EditUserDialog({ open, onOpenChange, user, onSuccess }) {
       setFormData({
         name: user.name || '',
         email: user.email || '',
+        tata_extension: user.tata_extension || '',
       });
     }
   }, [user]);
@@ -402,6 +416,16 @@ function EditUserDialog({ open, onOpenChange, user, onSuccess }) {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
                 data-testid="edit-user-email-input"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editExtension">Tata Extension</Label>
+              <Input
+                id="editExtension"
+                placeholder="e.g. 1001"
+                value={formData.tata_extension}
+                onChange={(e) => setFormData({ ...formData, tata_extension: e.target.value })}
+                data-testid="edit-user-tata-extension-input"
               />
             </div>
           </div>

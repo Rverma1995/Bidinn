@@ -37,6 +37,7 @@ export interface User {
   avatar?: string;
   is_active: boolean;
   password_hash: string;
+  tata_extension?: string | null;
   created_at: string;
 }
 
@@ -47,6 +48,7 @@ export interface UserResponse {
   role: UserRole;
   avatar?: string;
   is_active: boolean;
+  tata_extension?: string | null;
   created_at: string;
 }
 
@@ -76,14 +78,21 @@ export interface LeadResponse extends Lead {
 
 export interface CallLog {
   id: string;
-  lead_id: string;
-  user_id: string;
+  lead_id: string | null;
+  user_id: string | null;
   user_name: string;
-  outcome: CallOutcome;
+  outcome: CallOutcome | null;
   duration_minutes: number;
   notes?: string;
   next_followup?: string;
   created_at: string;
+  tata_call_id?: string | null;
+  direction?: 'inbound' | 'outbound' | null;
+  recording_url?: string | null;
+  started_at?: string | null;
+  answered_at?: string | null;
+  ended_at?: string | null;
+  customer_phone?: string | null;
 }
 
 export interface Booking {

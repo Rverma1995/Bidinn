@@ -30,6 +30,7 @@ import {
   formatDate,
   formatDateTime,
   formatRelativeTime,
+  formatDuration,
   getStatusColor,
   getStatusLabel,
   generateInitials,
@@ -55,11 +56,14 @@ import {
   Loader2,
   MessageSquare,
   PhoneCall,
+  PhoneIncoming,
+  PhoneOutgoing,
   CheckCircle2,
   AlertCircle,
   Building,
 } from 'lucide-react';
 import { Lead, Activity, CallLog, User as UserType } from '../types';
+import { ClickToCallButton } from '../components/ClickToCallButton';
 
 interface EditLeadData {
   name?: string;
@@ -492,7 +496,7 @@ export default function LeadDetailPage() {
 
   const fetchCalls = async () => {
     try {
-      const response = await api.get(`/calls?lead_id=${id}`);
+      const response = await api.get(`/calls/lead/${id}`);
       setCalls(response.data);
     } catch (error) {
       console.error('Failed to fetch calls:', error);
@@ -645,6 +649,15 @@ export default function LeadDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <ClickToCallButton
+            leadId={id}
+            phoneNumber={lead.phone}
+            onSettled={() => {
+              fetchCalls();
+              fetchLead();
+              fetchTimeline();
+            }}
+          />
           <Button variant="outline" onClick={() => setLogCallOpen(true)} data-testid="log-call-btn">
             <Phone className="w-4 h-4 mr-2" />
             Log Call
@@ -886,27 +899,52 @@ export default function LeadDetailPage() {
                           ? 'bg-green-100 dark:bg-green-900/30' 
                           : 'bg-slate-100 dark:bg-slate-700'
                       }`}>
-                        <Phone className={`w-4 h-4 ${
-                          call.outcome === 'connected' 
-                            ? 'text-green-600' 
-                            : 'text-slate-500'
-                        }`} />
+                        {call.tata_call_id && call.direction === 'inbound' ? (
+                          <PhoneIncoming className={`w-4 h-4 ${call.outcome === 'connected' ? 'text-green-600' : 'text-blue-500'}`} />
+                        ) : call.tata_call_id && call.direction === 'outbound' ? (
+                          <PhoneOutgoing className={`w-4 h-4 ${call.outcome === 'connected' ? 'text-green-600' : 'text-slate-500'}`} />
+                        ) : (
+                          <Phone className={`w-4 h-4 ${
+                            call.outcome === 'connected' 
+                              ? 'text-green-600' 
+                              : 'text-slate-500'
+                          }`} />
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="outline" className="capitalize">
-                            {call.outcome.replace('_', ' ')}
+                            {call.outcome ? call.outcome.replace('_', ' ') : 'Pending'}
                           </Badge>
                           <span className="text-sm text-muted-foreground">
-                            {call.duration_minutes} min
+                            {formatDuration(call.duration_minutes)}
                           </span>
+                          {call.tata_call_id && call.direction && (
+                            <span className="text-xs text-muted-foreground capitalize">
+                              {call.direction}
+                            </span>
+                          )}
                         </div>
                         {call.notes && (
                           <p className="text-sm mt-2">{call.notes}</p>
                         )}
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {call.user_name} · {formatDateTime(call.created_at)}
-                        </p>
+                        {call.tata_call_id ? (
+                          <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
+                            <p>{call.user_name} · {formatDateTime(call.created_at)}</p>
+                            {call.started_at && <p>Started {formatDateTime(call.started_at)}</p>}
+                            {call.answered_at && <p>Answered {formatDateTime(call.answered_at)}</p>}
+                            {call.ended_at && <p>Ended {formatDateTime(call.ended_at)}</p>}
+                            {call.recording_url && (
+                              <audio className="mt-2 w-full max-w-md" controls src={call.recording_url} preload="none">
+                                Your browser does not support audio playback.
+                              </audio>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {call.user_name} · {formatDateTime(call.created_at)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}

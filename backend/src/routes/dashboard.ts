@@ -1,10 +1,15 @@
 import { Router, Response } from "express";
-import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { cacheMiddleware } from "../middleware/cache";
 import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
 import { Lead, LeadStatus, Booking, PaymentStatus, Call, User, UserRole } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
-import { Between, In, IsNull, LessThan, Not } from "typeorm";
+import { In } from "typeorm";
+import { applySalesRepLeadScope } from "../utils/lead-scope";
+import { AuthUser } from "../types";
+import { getDashboardStats } from "../services/dashboard-metrics.service";
+import { getAgentPerformance } from "../services/agent-performance.service";
+import { overdueFollowupsQuery, upcomingFollowupsQuery } from "../services/delay-leads.service";
 
 const router = Router();
 const leadRepository = () => AppDataSource.getRepository(Lead);
@@ -12,109 +17,26 @@ const bookingRepository = () => AppDataSource.getRepository(Booking);
 const callRepository = () => AppDataSource.getRepository(Call);
 const userRepository = () => AppDataSource.getRepository(User);
 
-// Get dashboard stats
-router.get("/stats", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+const paidStatuses = [PaymentStatus.PAID, PaymentStatus.PARTIAL];
+
+function applyRevenueScope(queryBuilder: ReturnType<ReturnType<typeof bookingRepository>["createQueryBuilder"]>, user: AuthUser) {
+  queryBuilder.innerJoin("booking.lead", "lead");
+  return applySalesRepLeadScope(queryBuilder, user, "lead");
+}
+
+/**
+ * Metric definitions (calendar month, server local timezone):
+ * - needs_immediate_attention: uncontacted_over_1hr + overdue_followups
+ * - overdue_followups: next_followup < now, not won/lost
+ * - closed_won / closed_lost: current status (all-time)
+ * - uncontacted_over_1hr: status=new AND attempt_count=0 AND created_at < now-1h
+ *   (no first_contact column — attempt_count is the contact proxy)
+ * - monthly_closed_won/lost: status in (won,lost) AND updated_at >= start of month
+ *   (no closed_at column — updated_at is the close-time proxy)
+ */
+router.get("/stats", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.TIME_SENSITIVE), async (req: AuthRequest, res: Response) => {
   try {
-    const user = req.user!;
-    const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-
-    // Base query conditions based on role
-    const isSalesRep = user.role === UserRole.SALES_REP;
-
-    // Total leads
-    let totalLeadsQuery = leadRepository().createQueryBuilder("lead");
-    if (isSalesRep) {
-      totalLeadsQuery = totalLeadsQuery.where("lead.assigned_to = :userId", { userId: user.id });
-    }
-    const totalLeads = await totalLeadsQuery.getCount();
-
-    // New leads
-    let newLeadsQuery = leadRepository().createQueryBuilder("lead").where("lead.status = :status", { status: LeadStatus.NEW });
-    if (isSalesRep) {
-      newLeadsQuery = newLeadsQuery.andWhere("lead.assigned_to = :userId", { userId: user.id });
-    }
-    const newLeads = await newLeadsQuery.getCount();
-
-    // Won leads
-    let wonLeadsQuery = leadRepository().createQueryBuilder("lead").where("lead.status = :status", { status: LeadStatus.WON });
-    if (isSalesRep) {
-      wonLeadsQuery = wonLeadsQuery.andWhere("lead.assigned_to = :userId", { userId: user.id });
-    }
-    const closedWon = await wonLeadsQuery.getCount();
-
-    // Lost leads
-    let lostLeadsQuery = leadRepository().createQueryBuilder("lead").where("lead.status = :status", { status: LeadStatus.LOST });
-    if (isSalesRep) {
-      lostLeadsQuery = lostLeadsQuery.andWhere("lead.assigned_to = :userId", { userId: user.id });
-    }
-    const closedLost = await lostLeadsQuery.getCount();
-
-    // Overdue follow-ups
-    let overdueQuery = leadRepository()
-      .createQueryBuilder("lead")
-      .where("lead.next_followup < :now", { now })
-      .andWhere("lead.next_followup IS NOT NULL")
-      .andWhere("lead.status NOT IN (:...statuses)", { statuses: [LeadStatus.WON, LeadStatus.LOST] });
-    if (isSalesRep) {
-      overdueQuery = overdueQuery.andWhere("lead.assigned_to = :userId", { userId: user.id });
-    }
-    const overdueFollowups = await overdueQuery.getCount();
-
-    // Uncontacted over 1 hour
-    let uncontactedQuery = leadRepository()
-      .createQueryBuilder("lead")
-      .where("lead.status = :status", { status: LeadStatus.NEW })
-      .andWhere("lead.attempt_count = 0")
-      .andWhere("lead.created_at < :oneHourAgo", { oneHourAgo });
-    if (isSalesRep) {
-      uncontactedQuery = uncontactedQuery.andWhere("lead.assigned_to = :userId", { userId: user.id });
-    }
-    const uncontactedOver1hr = await uncontactedQuery.getCount();
-
-    // Total revenue (from paid bookings)
-    const revenueResult = await bookingRepository()
-      .createQueryBuilder("booking")
-      .select("SUM(booking.payment_amount)", "total")
-      .where("booking.payment_status IN (:...statuses)", { statuses: [PaymentStatus.PAID, PaymentStatus.PARTIAL] })
-      .getRawOne();
-    const totalRevenue = parseFloat(revenueResult?.total || "0");
-
-    // Monthly revenue
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthlyRevenueResult = await bookingRepository()
-      .createQueryBuilder("booking")
-      .select("SUM(booking.payment_amount)", "total")
-      .where("booking.payment_status IN (:...statuses)", { statuses: [PaymentStatus.PAID, PaymentStatus.PARTIAL] })
-      .andWhere("booking.created_at >= :startOfMonth", { startOfMonth })
-      .getRawOne();
-    const monthlyRevenue = parseFloat(monthlyRevenueResult?.total || "0");
-
-    // Conversion rate
-    const convertedLeads = closedWon;
-    const processedLeads = closedWon + closedLost;
-    const conversionRate = processedLeads > 0 ? Math.round((convertedLeads / processedLeads) * 100) : 0;
-
-    // Average deal size
-    const avgDealResult = await bookingRepository()
-      .createQueryBuilder("booking")
-      .select("AVG(booking.final_price)", "avg")
-      .where("booking.payment_status = :status", { status: PaymentStatus.PAID })
-      .getRawOne();
-    const avgDealSize = parseFloat(avgDealResult?.avg || "0");
-
-    res.json({
-      total_leads: totalLeads,
-      new_leads: newLeads,
-      closed_won: closedWon,
-      closed_lost: closedLost,
-      overdue_followups: overdueFollowups,
-      uncontacted_over_1hr: uncontactedOver1hr,
-      total_revenue: totalRevenue,
-      monthly_revenue: monthlyRevenue,
-      conversion_rate: conversionRate,
-      avg_deal_size: avgDealSize,
-    });
+    res.json(await getDashboardStats(req.user!));
   } catch (error) {
     console.error("Get stats error:", error);
     res.status(500).json({ detail: "Internal server error" });
@@ -189,17 +111,29 @@ router.get("/activities", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOAR
   }
 });
 
+async function getPipelineCounts(user: AuthRequest["user"]) {
+  const statuses = Object.values(LeadStatus);
+  const pipeline: Record<string, number> = {};
+  statuses.forEach((s) => { pipeline[s] = 0; });
+
+  const query = leadRepository()
+    .createQueryBuilder("lead")
+    .select("lead.status", "status")
+    .addSelect("COUNT(*)", "count")
+    .groupBy("lead.status");
+  applySalesRepLeadScope(query, user!);
+
+  const rows = await query.getRawMany();
+  for (const row of rows) {
+    pipeline[row.status] = parseInt(row.count || "0", 10);
+  }
+  return pipeline;
+}
+
 // Get pipeline stats
-router.get("/pipeline", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/pipeline", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.TIME_SENSITIVE), async (req: AuthRequest, res: Response) => {
   try {
-    const statuses = Object.values(LeadStatus);
-    const pipeline: Record<string, number> = {};
-
-    for (const status of statuses) {
-      pipeline[status] = await leadRepository().count({ where: { status } });
-    }
-
-    res.json(pipeline);
+    res.json(await getPipelineCounts(req.user));
   } catch (error) {
     console.error("Get pipeline error:", error);
     res.status(500).json({ detail: "Internal server error" });
@@ -207,16 +141,9 @@ router.get("/pipeline", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_
 });
 
 // Get pipeline stats (alternate endpoint)
-router.get("/pipeline-stats", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/pipeline-stats", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.TIME_SENSITIVE), async (req: AuthRequest, res: Response) => {
   try {
-    const statuses = Object.values(LeadStatus);
-    const pipeline: Record<string, number> = {};
-
-    for (const status of statuses) {
-      pipeline[status] = await leadRepository().count({ where: { status } });
-    }
-
-    res.json(pipeline);
+    res.json(await getPipelineCounts(req.user));
   } catch (error) {
     console.error("Get pipeline-stats error:", error);
     res.status(500).json({ detail: "Internal server error" });
@@ -224,16 +151,11 @@ router.get("/pipeline-stats", authenticateToken, cacheMiddleware(CACHE_KEYS.DASH
 });
 
 // Get overdue followups
-router.get("/overdue-followups", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/overdue-followups", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.TIME_SENSITIVE), async (req: AuthRequest, res: Response) => {
   try {
-    const now = new Date();
-    const leads = await leadRepository()
-      .createQueryBuilder("lead")
-      .where("lead.next_followup < :now", { now })
-      .andWhere("lead.next_followup IS NOT NULL")
-      .andWhere("lead.status NOT IN (:...statuses)", { statuses: [LeadStatus.WON, LeadStatus.LOST] })
-      .orderBy("lead.next_followup", "ASC")
-      .getMany();
+    const query = overdueFollowupsQuery();
+    applySalesRepLeadScope(query, req.user!);
+    const leads = await query.getMany();
 
     res.json(leads);
   } catch (error) {
@@ -242,184 +164,34 @@ router.get("/overdue-followups", authenticateToken, cacheMiddleware(CACHE_KEYS.D
   }
 });
 
+// Get upcoming followups (due in the next 24 hours)
+router.get("/upcoming-followups", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.TIME_SENSITIVE), async (req: AuthRequest, res: Response) => {
+  try {
+    const query = upcomingFollowupsQuery();
+    applySalesRepLeadScope(query, req.user!);
+    const leads = await query.getMany();
+
+    res.json(leads);
+  } catch (error) {
+    console.error("Get upcoming-followups error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
 // Get agent performance
 router.get("/agent-performance", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
-    const { agent_id, start_date, end_date } = req.query;
-
-    // Get all sales reps, team leads, and managers for the dropdown
-    const allAgents = await userRepository().find({
-      where: { role: In([UserRole.SALES_REP, UserRole.TEAM_LEAD, UserRole.MANAGER]) },
-    });
-
-    // Get admin users to identify "system" leads
-    const adminUsers = await userRepository().find({
-      where: { role: UserRole.ADMIN },
-    });
-    const adminIds = adminUsers.map(a => a.id);
-
-    // If specific agent is selected, filter to that agent only
-    const usersToProcess = agent_id && agent_id !== 'all' && agent_id !== 'system'
-      ? allAgents.filter(u => u.id === agent_id)
-      : allAgents;
-
-    const agents = await Promise.all(
-      usersToProcess.map(async (user) => {
-        // Build base query for leads assigned to this user
-        let leadsQuery = leadRepository().createQueryBuilder("lead").where("lead.assigned_to = :userId", { userId: user.id });
-        
-        // Apply date filters to leads
-        if (start_date) {
-          leadsQuery = leadsQuery.andWhere("lead.created_at >= :start", { start: new Date(start_date as string) });
-        }
-        if (end_date) {
-          leadsQuery = leadsQuery.andWhere("lead.created_at <= :end", { end: new Date(end_date as string) });
-        }
-
-        const totalLeads = await leadsQuery.getCount();
-        
-        // Contacted = any status except 'new'
-        const contacted = await leadsQuery.clone()
-          .andWhere("lead.status != :newStatus", { newStatus: LeadStatus.NEW })
-          .getCount();
-        
-        const notContacted = totalLeads - contacted;
-        
-        // Converted = won status
-        const converted = await leadsQuery.clone()
-          .andWhere("lead.status = :wonStatus", { wonStatus: LeadStatus.WON })
-          .getCount();
-
-        // Get counts for all lead stages
-        const stageNew = await leadsQuery.clone()
-          .andWhere("lead.status = :status", { status: LeadStatus.NEW })
-          .getCount();
-        const stageNotAnswered = await leadsQuery.clone()
-          .andWhere("lead.status = :status", { status: LeadStatus.NOT_ANSWERED })
-          .getCount();
-        const stageInterested = await leadsQuery.clone()
-          .andWhere("lead.status = :status", { status: LeadStatus.INTERESTED })
-          .getCount();
-        const stageFollowup = await leadsQuery.clone()
-          .andWhere("lead.status = :status", { status: LeadStatus.FOLLOWUP })
-          .getCount();
-        const stageWon = converted;
-        const stageLost = await leadsQuery.clone()
-          .andWhere("lead.status = :status", { status: LeadStatus.LOST })
-          .getCount();
-        const stageNotInterested = await leadsQuery.clone()
-          .andWhere("lead.status = :status", { status: LeadStatus.NOT_INTERESTED })
-          .getCount();
-
-        // Get calls made
-        let callsQuery = callRepository().createQueryBuilder("call").where("call.user_id = :userId", { userId: user.id });
-        if (start_date) {
-          callsQuery = callsQuery.andWhere("call.created_at >= :start", { start: new Date(start_date as string) });
-        }
-        if (end_date) {
-          callsQuery = callsQuery.andWhere("call.created_at <= :end", { end: new Date(end_date as string) });
-        }
-        const callsMade = await callsQuery.getCount();
-
-        // Get revenue from bookings
-        let bookingsQuery = bookingRepository().createQueryBuilder("booking").where("booking.created_by_id = :userId", { userId: user.id });
-        if (start_date) {
-          bookingsQuery = bookingsQuery.andWhere("booking.created_at >= :start", { start: new Date(start_date as string) });
-        }
-        if (end_date) {
-          bookingsQuery = bookingsQuery.andWhere("booking.created_at <= :end", { end: new Date(end_date as string) });
-        }
-        
-        const revenueResult = await bookingsQuery
-          .select("SUM(booking.payment_amount)", "total")
-          .andWhere("booking.payment_status IN (:...statuses)", { statuses: [PaymentStatus.PAID, PaymentStatus.PARTIAL] })
-          .getRawOne();
-
-        const totalRevenue = parseFloat(revenueResult?.total || "0");
-        const conversionRate = totalLeads > 0 ? Math.round((converted / totalLeads) * 100) : 0;
-
-        return {
-          agent_id: user.id,
-          agent_name: user.name,
-          agent_email: user.email,
-          agent_role: user.role,
-          total_leads: totalLeads,
-          contacted,
-          not_contacted: notContacted,
-          converted,
-          conversion_rate: conversionRate,
-          calls_made: callsMade,
-          total_revenue: totalRevenue,
-          // Lead stages
-          stage_new: stageNew,
-          stage_not_answered: stageNotAnswered,
-          stage_interested: stageInterested,
-          stage_followup: stageFollowup,
-          stage_won: stageWon,
-          stage_lost: stageLost,
-          stage_not_interested: stageNotInterested,
-        };
-      })
-    );
-
-    // Calculate "System" row for unassigned leads and leads assigned to admin/default
-    let systemLeadsQuery = leadRepository().createQueryBuilder("lead")
-      .where("(lead.assigned_to IS NULL OR lead.assigned_to IN (:...adminIds) OR lead.assigned_name = :defaultName)", 
-        { adminIds: adminIds.length > 0 ? adminIds : ['no-admin'], defaultName: 'Default' });
-    
-    if (start_date) {
-      systemLeadsQuery = systemLeadsQuery.andWhere("lead.created_at >= :start", { start: new Date(start_date as string) });
-    }
-    if (end_date) {
-      systemLeadsQuery = systemLeadsQuery.andWhere("lead.created_at <= :end", { end: new Date(end_date as string) });
+    let { agent_id, start_date, end_date } = req.query;
+    if (req.user!.role === UserRole.SALES_REP) {
+      agent_id = req.user!.id;
     }
 
-    const systemTotalLeads = await systemLeadsQuery.getCount();
-    const systemContacted = await systemLeadsQuery.clone()
-      .andWhere("lead.status != :newStatus", { newStatus: LeadStatus.NEW })
-      .getCount();
-    const systemNotContacted = systemTotalLeads - systemContacted;
-    const systemConverted = await systemLeadsQuery.clone()
-      .andWhere("lead.status = :wonStatus", { wonStatus: LeadStatus.WON })
-      .getCount();
-    const systemConversionRate = systemTotalLeads > 0 ? Math.round((systemConverted / systemTotalLeads) * 100) : 0;
-
-    const systemAgent = {
-      agent_id: 'system',
-      agent_name: 'System (Unassigned/Admin)',
-      agent_email: 'system@bidinn.com',
-      agent_role: 'system',
-      total_leads: systemTotalLeads,
-      contacted: systemContacted,
-      not_contacted: systemNotContacted,
-      converted: systemConverted,
-      conversion_rate: systemConversionRate,
-      calls_made: 0,
-      total_revenue: 0,
-    };
-
-    // Add system row to agents if showing all or specifically selected
-    const allAgentsWithSystem = agent_id === 'system' 
-      ? [systemAgent] 
-      : (agent_id && agent_id !== 'all' ? agents : [...agents, systemAgent]);
-
-    // Calculate team summary (including system leads)
-    const teamSummary = {
-      total_leads: agents.reduce((sum, a) => sum + a.total_leads, 0) + systemTotalLeads,
-      contacted: agents.reduce((sum, a) => sum + a.contacted, 0) + systemContacted,
-      not_contacted: agents.reduce((sum, a) => sum + a.not_contacted, 0) + systemNotContacted,
-      converted: agents.reduce((sum, a) => sum + a.converted, 0) + systemConverted,
-      total_revenue: agents.reduce((sum, a) => sum + a.total_revenue, 0),
-    };
-
-    res.json({
-      agents: allAgentsWithSystem,
-      team_summary: teamSummary,
-      all_agents: [
-        ...allAgents.map(a => ({ id: a.id, name: a.name, role: a.role })),
-        { id: 'system', name: 'System (Unassigned/Admin)', role: 'system' },
-      ],
+    const result = await getAgentPerformance({
+      agentId: typeof agent_id === "string" ? agent_id : undefined,
+      startDate: start_date ? new Date(start_date as string) : undefined,
+      endDate: end_date ? new Date(end_date as string) : undefined,
     });
+    res.json(result);
   } catch (error) {
     console.error("Get agent-performance error:", error);
     res.status(500).json({ detail: "Internal server error" });
@@ -429,45 +201,87 @@ router.get("/agent-performance", authenticateToken, cacheMiddleware(CACHE_KEYS.D
 // Get revenue trend
 router.get("/revenue-trend", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
-    // Get last 30 days revenue by day
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    
-    const result = await bookingRepository()
+
+    const query = bookingRepository()
       .createQueryBuilder("booking")
       .select("DATE(booking.created_at)", "date")
       .addSelect("SUM(booking.payment_amount)", "revenue")
       .where("booking.created_at >= :start", { start: thirtyDaysAgo })
-      .andWhere("booking.payment_status IN (:...statuses)", { statuses: [PaymentStatus.PAID, PaymentStatus.PARTIAL] })
+      .andWhere("booking.payment_status IN (:...statuses)", { statuses: paidStatuses })
       .groupBy("DATE(booking.created_at)")
-      .orderBy("date", "ASC")
-      .getRawMany();
+      .orderBy("date", "ASC");
 
-    res.json(result.map(r => ({ date: r.date, revenue: parseFloat(r.revenue || "0") })));
+    applyRevenueScope(query, req.user!);
+    const result = await query.getRawMany();
+
+    res.json(result.map(r => ({ date: r.date, month: r.date, revenue: parseFloat(r.revenue || "0") })));
   } catch (error) {
     console.error("Get revenue-trend error:", error);
     res.status(500).json({ detail: "Internal server error" });
   }
 });
 
+function mapChannelRow(r: { source?: string; campaign?: string; total: string; won: string }) {
+  const total = parseInt(r.total || "0", 10);
+  const won = parseInt(r.won || "0", 10);
+  const conversionRate = total > 0 ? Math.round((won / total) * 1000) / 10 : 0;
+  return {
+    source: r.source,
+    campaign: r.campaign,
+    total,
+    total_leads: total,
+    won,
+    closed_won: won,
+    conversion_rate: conversionRate,
+  };
+}
+
 // Get source performance
 router.get("/source-performance", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
-    const result = await leadRepository()
+    const query = leadRepository()
       .createQueryBuilder("lead")
       .select("lead.source", "source")
       .addSelect("COUNT(*)", "total")
       .addSelect("SUM(CASE WHEN lead.status = 'won' THEN 1 ELSE 0 END)", "won")
-      .groupBy("lead.source")
-      .getRawMany();
+      .groupBy("lead.source");
+    applySalesRepLeadScope(query, req.user!);
 
-    res.json(result.map(r => ({
-      source: r.source,
-      total: parseInt(r.total || "0"),
-      won: parseInt(r.won || "0"),
-      conversion_rate: r.total > 0 ? (r.won / r.total) * 100 : 0,
-    })));
+    const result = await query.getRawMany();
+    res.json(result.map(mapChannelRow));
   } catch (error) {
     console.error("Get source-performance error:", error);
+    res.status(500).json({ detail: "Internal server error" });
+  }
+});
+
+/**
+ * Campaign performance. Cost/spend is not stored anywhere in this CRM,
+ * so ROI cannot be computed. campaign_cost_available is always false.
+ */
+router.get("/campaign-performance", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOARD_STATS, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+  try {
+    const query = leadRepository()
+      .createQueryBuilder("lead")
+      .select("lead.campaign", "campaign")
+      .addSelect("COUNT(*)", "total")
+      .addSelect("SUM(CASE WHEN lead.status = 'won' THEN 1 ELSE 0 END)", "won")
+      .where("lead.campaign IS NOT NULL")
+      .andWhere("lead.campaign != ''")
+      .groupBy("lead.campaign")
+      .orderBy("COUNT(*)", "DESC");
+    applySalesRepLeadScope(query, req.user!);
+
+    const result = await query.getRawMany();
+    res.json({
+      campaign_cost_available: false,
+      roi_available: false,
+      message: "Campaign cost/spend is not tracked yet, so ROI (revenue vs cost) cannot be computed. Add a campaign cost field before enabling ROI.",
+      campaigns: result.map(mapChannelRow),
+    });
+  } catch (error) {
+    console.error("Get campaign-performance error:", error);
     res.status(500).json({ detail: "Internal server error" });
   }
 });
@@ -496,7 +310,7 @@ router.get("/lead-counts", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOA
       groupLabel = 'year';
     }
     
-    const results = await leadRepository()
+    const countsQuery = leadRepository()
       .createQueryBuilder("lead")
       .select(`DATE_FORMAT(lead.created_at, '${dateFormat}')`, "period")
       .addSelect("COUNT(*)", "count")
@@ -507,8 +321,9 @@ router.get("/lead-counts", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOA
       .where("lead.created_at >= :startDate", { startDate })
       .andWhere("lead.created_at <= :endDate", { endDate })
       .groupBy("period")
-      .orderBy("period", "ASC")
-      .getRawMany();
+      .orderBy("period", "ASC");
+    applySalesRepLeadScope(countsQuery, req.user!);
+    const results = await countsQuery.getRawMany();
     
     // Format results with proper date labels
     const formattedResults = results.map(r => {

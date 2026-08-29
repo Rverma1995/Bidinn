@@ -1,6 +1,6 @@
 export { User, UserRole } from "./User";
 export { Lead, LeadStatus, ClosedReason, STAGE_TRANSITIONS, STAGES_REQUIRING_ASSIGNMENT, STAGES_REQUIRING_REASON } from "./Lead";
-export { Call, CallOutcome } from "./Call";
+export { Call, CallOutcome, CallDirection } from "./Call";
 export { Booking, PaymentStatus } from "./Booking";
 export { Activity } from "./Activity";
 export { MetaConfig } from "./MetaConfig";

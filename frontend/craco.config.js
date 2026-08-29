@@ -110,6 +110,15 @@ webpackConfig.devServer = (devServerConfig) => {
     };
   }
 
+  // Proxy /api to the Express backend so one-command local start works
+  // without setting REACT_APP_BACKEND_URL.
+  devServerConfig.proxy = {
+    "/api": {
+      target: process.env.BACKEND_URL || "http://127.0.0.1:8001",
+      changeOrigin: true,
+    },
+  };
+
   return devServerConfig;
 };
 

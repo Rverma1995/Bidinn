@@ -2,23 +2,32 @@ import { Router, Response } from "express";
 import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
 import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
-import { Call, CallOutcome, Lead, Activity } from "../entities";
+import { Call, CallOutcome, Lead } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
+import { canAccessLead, isSalesRep } from "../utils/lead-scope";
+import { applyCallCompletion } from "../services/call-log.service";
 
 const router = Router();
 
 // Automatically invalidate caches on any successful mutation in this router
-router.use(invalidateCacheMiddleware([CACHE_KEYS.CALLS_LIST, CACHE_KEYS.DASHBOARD_STATS]));
+router.use(invalidateCacheMiddleware([CACHE_KEYS.CALLS_LIST, CACHE_KEYS.DASHBOARD_STATS, CACHE_KEYS.LEADS_LIST]));
 
 const callRepository = () => AppDataSource.getRepository(Call);
 const leadRepository = () => AppDataSource.getRepository(Lead);
-const activityRepository = () => AppDataSource.getRepository(Activity);
 
 // Get calls for a lead
 router.get("/lead/:leadId", authenticateToken, cacheMiddleware(CACHE_KEYS.CALLS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const leadId = req.params.leadId as string;
+    const lead = await leadRepository().findOne({ where: { id: leadId } });
+    if (!lead) {
+      return res.status(404).json({ detail: "Lead not found" });
+    }
+    if (!canAccessLead(lead, req.user!)) {
+      return res.status(403).json({ detail: "You can only view calls for leads assigned to you" });
+    }
+
     const calls = await callRepository().find({
       where: { lead_id: leadId },
       order: { created_at: "DESC" },
@@ -43,6 +52,9 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
     if (!lead) {
       return res.status(404).json({ detail: "Lead not found" });
     }
+    if (!canAccessLead(lead, req.user!)) {
+      return res.status(403).json({ detail: "You can only log calls on leads assigned to you" });
+    }
 
     const call = callRepository().create({
       id: uuidv4(),
@@ -57,26 +69,13 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 
     await callRepository().save(call);
 
-    // Update lead
-    lead.attempt_count = (lead.attempt_count || 0) + 1;
-    lead.last_activity = new Date();
-    if (next_followup) {
-      lead.next_followup = new Date(next_followup);
-    }
-    await leadRepository().save(lead);
-
-    // Log activity
-    const activity = activityRepository().create({
-      id: uuidv4(),
-      user_id: req.user!.id,
-      user_name: req.user!.name,
-      action: "logged_call",
-      target_id: lead_id,
-      target_type: "lead",
-      target_name: lead.name,
-      details: `Outcome: ${outcome}`,
+    await applyCallCompletion({
+      lead,
+      userId: req.user!.id,
+      userName: req.user!.name,
+      outcome: outcome as CallOutcome,
+      nextFollowup: next_followup ? new Date(next_followup) : undefined,
     });
-    await activityRepository().save(activity);
 
     res.status(201).json(call);
   } catch (error) {
@@ -88,10 +87,28 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 // Get all calls (for reports)
 router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.CALLS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
-    const calls = await callRepository().find({
-      order: { created_at: "DESC" },
-      take: 100,
-    });
+    const leadId = req.query.lead_id as string | undefined;
+    if (leadId) {
+      const lead = await leadRepository().findOne({ where: { id: leadId } });
+      if (!lead) {
+        return res.status(404).json({ detail: "Lead not found" });
+      }
+      if (!canAccessLead(lead, req.user!)) {
+        return res.status(403).json({ detail: "You can only view calls for leads assigned to you" });
+      }
+      const calls = await callRepository().find({
+        where: { lead_id: leadId },
+        order: { created_at: "DESC" },
+      });
+      return res.json(calls);
+    }
+
+    const query = callRepository().createQueryBuilder("call");
+    if (isSalesRep(req.user)) {
+      query.innerJoin(Lead, "lead", "lead.id = call.lead_id")
+        .andWhere("lead.assigned_to = :salesRepScopeId", { salesRepScopeId: req.user!.id });
+    }
+    const calls = await query.orderBy("call.created_at", "DESC").take(100).getMany();
     res.json(calls);
   } catch (error) {
     console.error("Get all calls error:", error);

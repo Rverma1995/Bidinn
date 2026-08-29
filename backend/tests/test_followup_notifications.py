@@ -266,7 +266,7 @@ class TestFollowupNotifications:
         
         # Check that followup types are valid
         valid_types = {"idle_lead", "duplicate_lead", "lead_merged", "lead_assignment", 
-                       "followup_upcoming", "followup_missed", "system"}
+                       "followup_upcoming", "followup_missed", "system", "unmatched_call"}
         
         for ntype in notification_types:
             assert ntype in valid_types, f"Unknown notification type: {ntype}"

@@ -105,14 +105,29 @@ interface LeadCardProps {
   lead: any;
 }
 
+function formatFollowupTime(value?: string) {
+  if (!value) return '';
+  return new Date(value).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function LeadCard({ lead }: LeadCardProps) {
   const countdown = getCountdownTime(lead.created_at);
   const showCountdown = lead.status === 'new' && lead.attempt_count === 0;
+  const followupTime = lead.next_followup ? new Date(lead.next_followup) : null;
+  const isMissed = followupTime && followupTime < new Date() && !['won', 'lost'].includes(lead.status);
 
   return (
-    <div className={`p-4 rounded-lg border bg-white dark:bg-slate-900 card-hover ${
-      lead.is_overdue ? 'border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' : 'border-slate-200 dark:border-slate-800'
-    }`}>
+    <Link
+      to={`/leads/${lead.id}`}
+      className={`block p-4 rounded-lg border bg-white dark:bg-slate-900 card-hover ${
+        isMissed || lead.is_overdue ? 'border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' : 'border-slate-200 dark:border-slate-800'
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{lead.name}</p>
@@ -131,15 +146,20 @@ function LeadCard({ lead }: LeadCardProps) {
           </Badge>
         )}
       </div>
+      {followupTime && (
+        <p className={`text-xs mt-2 ${isMissed ? 'text-red-600 font-medium' : 'text-amber-600'}`}>
+          {isMissed ? 'Missed' : 'Upcoming'}: {formatFollowupTime(lead.next_followup)}
+        </p>
+      )}
       <div className="flex items-center gap-2 mt-3">
         <Badge variant="secondary" className={getStatusColor(lead.status)}>
           {getStatusLabel(lead.status)}
         </Badge>
         <span className="text-xs text-muted-foreground">
-          {lead.source}
+          {lead.assigned_name || lead.source}
         </span>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -187,10 +207,19 @@ export default function DashboardPage() {
   const [sourceData, setSourceData] = useState([]);
   const [uncontactedLeads, setUncontactedLeads] = useState([]);
   const [overdueLeads, setOverdueLeads] = useState([]);
+  const [upcomingLeads, setUpcomingLeads] = useState([]);
+  const [followupNotifications, setFollowupNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 60 * 1000);
+    const onFocus = () => fetchDashboardData();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
@@ -217,12 +246,28 @@ export default function DashboardPage() {
         console.log('Uncontacted leads fetch skipped');
       }
 
-      // Fetch overdue follow-ups
       try {
         const overdueRes = await api.get('/dashboard/overdue-followups');
         setOverdueLeads(overdueRes.data.slice(0, 5));
       } catch (e) {
         console.log('Overdue leads fetch skipped');
+      }
+
+      try {
+        const upcomingRes = await api.get('/dashboard/upcoming-followups');
+        setUpcomingLeads(upcomingRes.data.slice(0, 5));
+      } catch (e) {
+        console.log('Upcoming follow-ups fetch skipped');
+      }
+
+      try {
+        const notifRes = await api.get('/notifications?unread_only=true&limit=20');
+        const list = notifRes.data.notifications || [];
+        setFollowupNotifications(
+          list.filter((n) => n.type === 'followup_upcoming' || n.type === 'followup_missed')
+        );
+      } catch (e) {
+        console.log('Follow-up notifications fetch skipped');
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -255,22 +300,58 @@ export default function DashboardPage() {
         </Button>
       </div>
 
+      {followupNotifications.length > 0 && (
+        <Card className="border-indigo-200 dark:border-indigo-800" data-testid="dashboard-followup-notifications">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="w-5 h-5 text-indigo-500" />
+              Follow-up notifications
+            </CardTitle>
+            <CardDescription>
+              Upcoming and missed follow-ups assigned to you
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {followupNotifications.map((notification) => {
+              const isMissed = notification.type === 'followup_missed';
+              return (
+                <Link
+                  key={notification.id}
+                  to={notification.target_id ? `/leads/${notification.target_id}` : '/leads'}
+                  className={`flex items-start gap-3 p-3 rounded-lg border hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                    isMissed
+                      ? 'border-l-4 border-l-red-500'
+                      : 'border-l-4 border-l-amber-500'
+                  }`}
+                >
+                  {isMissed
+                    ? <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    : <Clock className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />}
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{notification.title}</p>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{notification.message}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Total Leads"
-          value={formatNumber(stats?.total_leads || 0)}
-          subtitle={`${stats?.new_leads || 0} new this month`}
-          icon={Users}
+          title="Needs attention"
+          value={formatNumber(stats?.needs_immediate_attention || ((stats?.uncontacted_over_1hr || 0) + (stats?.overdue_followups || 0)))}
+          subtitle="Uncontacted >1hr + overdue follow-ups"
+          icon={AlertTriangle}
           loading={loading}
         />
         <StatCard
           title="Closed Won"
           value={formatNumber(stats?.closed_won || 0)}
-          subtitle={`${stats?.conversion_rate?.toFixed(1) || 0}% conversion`}
+          subtitle={`${stats?.conversion_rate?.toFixed?.(1) || stats?.conversion_rate || 0}% conversion (won / won+lost)`}
           icon={CheckCircle2}
-          trend="up"
-          trendValue="+12%"
           loading={loading}
         />
         <StatCard
@@ -278,21 +359,19 @@ export default function DashboardPage() {
           value={formatCurrency(stats?.total_revenue || 0)}
           subtitle={`${formatCurrency(stats?.avg_deal_size || 0)} avg deal`}
           icon={DollarSign}
-          trend="up"
-          trendValue="+8%"
           loading={loading}
         />
         <StatCard
           title="This Month"
           value={formatCurrency(stats?.monthly_revenue || 0)}
-          subtitle="Revenue collected"
+          subtitle={`${stats?.monthly_closed_won || 0} won · ${stats?.monthly_closed_lost || 0} lost`}
           icon={TrendingUp}
           loading={loading}
         />
       </div>
 
       {/* Alert Cards for All Users */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className={`border-l-4 ${(stats?.uncontacted_over_1hr || 0) > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
           <CardContent className="p-4 flex items-center gap-4">
             <div className={`p-3 rounded-full ${(stats?.uncontacted_over_1hr || 0) > 0 ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
@@ -309,13 +388,30 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
-        <Card className={`border-l-4 ${(stats?.overdue_followups || 0) > 0 ? 'border-l-amber-500' : 'border-l-emerald-500'}`}>
+        <Card className={`border-l-4 ${(stats?.upcoming_followups || 0) > 0 ? 'border-l-amber-500' : 'border-l-emerald-500'}`}>
           <CardContent className="p-4 flex items-center gap-4">
-            <div className={`p-3 rounded-full ${(stats?.overdue_followups || 0) > 0 ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
-              <Clock className={`w-5 h-5 ${(stats?.overdue_followups || 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}`} />
+            <div className={`p-3 rounded-full ${(stats?.upcoming_followups || 0) > 0 ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
+              <Clock className={`w-5 h-5 ${(stats?.upcoming_followups || 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}`} />
             </div>
             <div>
-              <p className="font-medium">Overdue Follow-ups</p>
+              <p className="font-medium">Upcoming Follow-ups</p>
+              <p className="text-2xl font-bold">{stats?.upcoming_followups || 0}</p>
+              <p className="text-xs text-muted-foreground">Due in next 24 hours</p>
+            </div>
+            {(stats?.upcoming_followups || 0) > 0 && (
+              <Button variant="outline" size="sm" className="ml-auto" asChild>
+                <Link to="/leads?filter=upcoming">Review</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+        <Card className={`border-l-4 ${(stats?.overdue_followups || 0) > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className={`p-3 rounded-full ${(stats?.overdue_followups || 0) > 0 ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
+              <AlertTriangle className={`w-5 h-5 ${(stats?.overdue_followups || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
+            </div>
+            <div>
+              <p className="font-medium">Missed Follow-ups</p>
               <p className="text-2xl font-bold">{stats?.overdue_followups || 0}</p>
             </div>
             {(stats?.overdue_followups || 0) > 0 && (
@@ -333,7 +429,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Revenue Trend</CardTitle>
-            <CardDescription>Last 6 months performance</CardDescription>
+            <CardDescription>Last 30 days</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
@@ -341,7 +437,7 @@ export default function DashboardPage() {
                 <LineChart data={revenueData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis 
-                    dataKey="month" 
+                    dataKey="date" 
                     tick={{ fontSize: 12 }}
                     stroke="hsl(var(--muted-foreground))"
                   />
@@ -485,7 +581,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between text-sm mb-1">
                       <span className="font-medium">{source.source}</span>
                       <span className="text-muted-foreground">
-                        {source.closed_won}/{source.total_leads} ({source.conversion_rate}%)
+                        {source.closed_won ?? source.won}/{source.total_leads ?? source.total} ({typeof source.conversion_rate === 'number' ? source.conversion_rate.toFixed(1) : source.conversion_rate}%)
                       </span>
                     </div>
                     <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -530,15 +626,43 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Overdue Follow-ups Alert */}
-      {overdueLeads.length > 0 && (
-        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10">
+      {/* Upcoming Follow-ups */}
+      {upcomingLeads.length > 0 && (
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10" data-testid="dashboard-upcoming-followups">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-amber-700 dark:text-amber-400">
               <Clock className="w-5 h-5" />
-              Overdue Follow-ups
+              Upcoming Follow-ups
             </CardTitle>
             <CardDescription className="text-amber-600/70 dark:text-amber-400/70">
+              Follow-ups due in the next 24 hours
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {upcomingLeads.map((lead) => (
+                <LeadCard key={lead.id} lead={lead} />
+              ))}
+            </div>
+            <Button className="mt-4" variant="outline" asChild>
+              <Link to="/leads?filter=upcoming">
+                View all upcoming follow-ups
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Missed Follow-ups Alert */}
+      {overdueLeads.length > 0 && (
+        <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10" data-testid="dashboard-missed-followups">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2 text-red-700 dark:text-red-400">
+              <AlertTriangle className="w-5 h-5" />
+              Missed Follow-ups
+            </CardTitle>
+            <CardDescription className="text-red-600/70 dark:text-red-400/70">
               These leads have missed their scheduled follow-up time
             </CardDescription>
           </CardHeader>
@@ -550,7 +674,7 @@ export default function DashboardPage() {
             </div>
             <Button className="mt-4" variant="outline" asChild>
               <Link to="/leads?filter=overdue">
-                View all overdue leads
+                View all missed follow-ups
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Link>
             </Button>

@@ -72,12 +72,23 @@ export default function SettingsPage() {
     page_access_token: '',
     page_id: '',
   });
+  const [telephonyEnabled, setTelephonyEnabled] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
       fetchMetaConfig();
     }
+    fetchFeatures();
   }, [isAdmin]);
+
+  const fetchFeatures = async () => {
+    try {
+      const response = await api.get('/admin/features');
+      setTelephonyEnabled(!!response.data?.telephony_enabled);
+    } catch (error) {
+      console.error('Failed to fetch feature flags:', error);
+    }
+  };
 
   const fetchMetaConfig = async () => {
     try {
@@ -842,10 +853,12 @@ export default function SettingsPage() {
             <div className="space-y-0.5">
               <Label>Telephony Integration</Label>
               <p className="text-sm text-muted-foreground">
-                Smartflo telephony integration (Future feature)
+                {telephonyEnabled
+                  ? 'Tata Smartflo click-to-call and call recordings are enabled'
+                  : 'Set TELEPHONY_ENABLED=true on the server to enable Tata Smartflo'}
               </p>
             </div>
-            <Switch disabled checked={false} />
+            <Switch disabled checked={telephonyEnabled} />
           </div>
         </CardContent>
       </Card>

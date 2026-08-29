@@ -7,6 +7,7 @@ export interface User {
   role: 'admin' | 'manager' | 'team_lead' | 'sales_rep';
   avatar?: string;
   is_active: boolean;
+  tata_extension?: string | null;
   created_at: string;
 }
 
@@ -35,14 +36,21 @@ export type LeadStatus = 'new' | 'interested' | 'not_interested' | 'followup' | 
 
 export interface CallLog {
   id: string;
-  lead_id: string;
-  user_id: string;
+  lead_id: string | null;
+  user_id: string | null;
   user_name: string;
-  outcome: CallOutcome;
+  outcome: CallOutcome | null;
   duration_minutes: number;
   notes?: string;
   next_followup?: string;
   created_at: string;
+  tata_call_id?: string | null;
+  direction?: 'inbound' | 'outbound' | null;
+  recording_url?: string | null;
+  started_at?: string | null;
+  answered_at?: string | null;
+  ended_at?: string | null;
+  customer_phone?: string | null;
 }
 
 export type CallOutcome = 'connected' | 'no_answer' | 'busy' | 'voicemail' | 'wrong_number' | 'callback_requested';
@@ -58,6 +66,7 @@ export interface Booking {
   bid_price?: number;
   payment_status: PaymentStatus;
   payment_amount: number;
+  remaining_balance?: number;
   notes?: string;
   booking_reason?: string;
   created_at: string;
@@ -78,12 +87,17 @@ export interface Payment {
 export interface DashboardStats {
   total_leads: number;
   new_leads: number;
+  monthly_new_leads?: number;
   contacted_leads: number;
   qualified_leads: number;
   closed_won: number;
   closed_lost: number;
+  monthly_closed_won?: number;
+  monthly_closed_lost?: number;
   overdue_followups: number;
+  upcoming_followups?: number;
   uncontacted_over_1hr: number;
+  needs_immediate_attention?: number;
   total_revenue: number;
   monthly_revenue: number;
   conversion_rate: number;

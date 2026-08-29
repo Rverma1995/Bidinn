@@ -76,6 +76,7 @@ import {
   Info,
   RefreshCw,
   Bell,
+  X,
 } from 'lucide-react';
 import { Checkbox } from '../components/ui/checkbox';
 
@@ -339,7 +340,9 @@ function CreateLeadDialog({ open, onOpenChange, onSuccess }: CreateLeadDialogPro
                   Lead Already Exists
                 </p>
                 <p className="text-sm text-red-700 dark:text-red-300">
-                  A lead with this phone number already exists in the system. Please contact Admin to access or reassign this lead.
+                  A lead with this phone number already exists. Currently assigned to{' '}
+                  <span className="font-semibold">{duplicates[0]?.assigned_name || 'Unassigned'}</span>
+                  . Contact them or an admin to resolve — creation is blocked.
                 </p>
               </div>
             </div>
@@ -351,7 +354,7 @@ function CreateLeadDialog({ open, onOpenChange, onSuccess }: CreateLeadDialogPro
                     {dup.phone} {dup.email && `• ${dup.email}`}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Status: {getStatusLabel(dup.status)} • {dup.assigned_name || 'Unassigned'}
+                    Status: {getStatusLabel(dup.status)} • Assigned to: <span className="font-medium text-foreground">{dup.assigned_name || 'Unassigned'}</span>
                   </p>
                 </div>
               ))}
@@ -831,6 +834,7 @@ export default function LeadsPage() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [showUncontactedOnly, setShowUncontactedOnly] = useState(searchParams.get('filter') === 'uncontacted');
   const [showOverdueOnly, setShowOverdueOnly] = useState(searchParams.get('filter') === 'overdue');
+  const [showUpcomingOnly, setShowUpcomingOnly] = useState(searchParams.get('filter') === 'upcoming');
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
   const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
@@ -880,6 +884,8 @@ export default function LeadsPage() {
       params.set('filter', 'uncontacted');
     } else if (showOverdueOnly) {
       params.set('filter', 'overdue');
+    } else if (showUpcomingOnly) {
+      params.set('filter', 'upcoming');
     } else {
       if (filters.status && filters.status !== 'all') params.set('status', filters.status);
       if (filters.source && filters.source !== 'all') params.set('source', filters.source);
@@ -897,18 +903,18 @@ export default function LeadsPage() {
     if (newSearch !== currentSearch) {
       setSearchParams(params, { replace: true });
     }
-  }, [filters, showUncontactedOnly, showOverdueOnly, currentPage]);
+  }, [filters, showUncontactedOnly, showOverdueOnly, showUpcomingOnly, currentPage]);
 
   useEffect(() => {
     fetchLeads();
     fetchUsers();
     fetchCampaigns();
-  }, [filters, showUncontactedOnly, showOverdueOnly, currentPage]);
+  }, [filters, showUncontactedOnly, showOverdueOnly, showUpcomingOnly, currentPage]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, showUncontactedOnly, showOverdueOnly]);
+  }, [filters, showUncontactedOnly, showOverdueOnly, showUpcomingOnly]);
 
   // Smart polling - check for new leads every 5 minutes
   useEffect(() => {
@@ -972,6 +978,18 @@ export default function LeadsPage() {
           setTotalPages(1);
         } catch (error) {
           console.error('Failed to fetch overdue leads:', error);
+          setLeads([]);
+          setTotalLeads(0);
+          setTotalPages(1);
+        }
+      } else if (showUpcomingOnly) {
+        try {
+          const response = await api.get('/dashboard/upcoming-followups');
+          setLeads(response.data);
+          setTotalLeads(response.data.length);
+          setTotalPages(1);
+        } catch (error) {
+          console.error('Failed to fetch upcoming follow-ups:', error);
           setLeads([]);
           setTotalLeads(0);
           setTotalPages(1);
@@ -1199,19 +1217,21 @@ export default function LeadsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {showOverdueOnly ? 'Overdue Follow-ups' : showUncontactedOnly ? 'Uncontacted Leads (>1hr)' : 'Leads'}
+            {showOverdueOnly ? 'Missed Follow-ups' : showUpcomingOnly ? 'Upcoming Follow-ups' : showUncontactedOnly ? 'Uncontacted Leads (>1hr)' : 'Leads'}
           </h1>
           <p className="text-muted-foreground">
             {showOverdueOnly
               ? 'Leads with past-due follow-up dates'
+              : showUpcomingOnly
+              ? 'Follow-ups due in the next 24 hours'
               : showUncontactedOnly 
               ? 'Leads that need immediate attention' 
               : 'Manage and track your sales leads'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(showUncontactedOnly || showOverdueOnly) && (
-            <Button variant="outline" onClick={() => { setShowUncontactedOnly(false); setShowOverdueOnly(false); }}>
+          {(showUncontactedOnly || showOverdueOnly || showUpcomingOnly) && (
+            <Button variant="outline" onClick={() => { setShowUncontactedOnly(false); setShowOverdueOnly(false); setShowUpcomingOnly(false); }}>
               Show All Leads
             </Button>
           )}
@@ -1529,7 +1549,7 @@ export default function LeadsPage() {
       )}
 
       {/* Filters */}
-      {!showUncontactedOnly && (
+      {!showUncontactedOnly && !showOverdueOnly && !showUpcomingOnly && (
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-col sm:flex-row gap-4">
@@ -1619,8 +1639,32 @@ export default function LeadsPage() {
                 <Grid3X3 className="w-4 h-4" />
               </Button>
             </div>
-          </div>
-        </CardContent>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Filters combine with AND across fields (status + source + campaign + associate). Grouped OR across fields is not supported yet.
+            </p>
+            {(filters.status !== 'all' || filters.source !== 'all' || filters.campaign !== 'all' || filters.assigned_to !== 'all' || filters.search) && (
+              <div className="flex flex-wrap items-center gap-2 mt-3" data-testid="active-filter-chips">
+                {filters.search && <Badge variant="secondary">Search: {filters.search}</Badge>}
+                {filters.status !== 'all' && <Badge variant="secondary">Status: {getStatusLabel(filters.status)}</Badge>}
+                {filters.source !== 'all' && <Badge variant="secondary">Source: {filters.source}</Badge>}
+                {filters.campaign !== 'all' && <Badge variant="secondary">Campaign: {filters.campaign}</Badge>}
+                {filters.assigned_to !== 'all' && (
+                  <Badge variant="secondary">Associate: {salesReps.find(r => r.id === filters.assigned_to)?.name || filters.assigned_to}</Badge>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => setFilters({ status: 'all', source: 'all', campaign: 'all', assigned_to: 'all', search: '' })}
+                  data-testid="clear-filters-btn"
+                >
+                  <X className="w-3 h-3 mr-1" />
+                  Clear filters
+                </Button>
+              </div>
+            )}
+          </CardContent>
       </Card>
       )}
 
