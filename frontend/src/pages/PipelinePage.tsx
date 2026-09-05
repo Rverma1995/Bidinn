@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { ClickToCallButton } from '../components/ClickToCallButton';
 import { toast } from 'sonner';
 import {
   getStatusColor,
@@ -39,6 +40,8 @@ import {
   STATUSES_REQUIRING_REASON,
   STATUSES_REQUIRING_ASSIGNMENT,
   isTransitionAllowed,
+  isLeadStalled,
+  getStageProgress,
 } from '../lib/utils';
 import {
   Loader2,
@@ -425,6 +428,9 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
 function LeadCard({ lead, onCallClick, onCardClick }) {
   const [countdown, setCountdown] = useState(null);
   const showCountdown = lead.status === 'new' && lead.attempt_count === 0;
+  const stalled = isLeadStalled(lead);
+  const progress = getStageProgress(lead.status);
+  const overdueFollowup = lead.next_followup && new Date(lead.next_followup) < new Date() && !['won', 'lost'].includes(lead.status);
 
   useEffect(() => {
     if (!showCountdown) return;
@@ -437,61 +443,65 @@ function LeadCard({ lead, onCallClick, onCardClick }) {
   return (
     <Link
       to={`/leads/${lead.id}`}
-      className={`group block p-4 rounded-xl border bg-white dark:bg-slate-900 transition-all hover:shadow-lg cursor-pointer no-underline text-inherit ${
-        lead.is_overdue ? 'border-red-300 dark:border-red-700 ring-1 ring-red-200 dark:ring-red-800' : 'border-slate-200 dark:border-slate-700 hover:border-primary/50'
+      className={`group block p-3 rounded-xl border bg-white dark:bg-slate-900 transition-all hover:shadow-lg cursor-pointer no-underline text-inherit ${
+        lead.is_overdue || overdueFollowup
+          ? 'border-red-300 dark:border-red-700 ring-1 ring-red-200 dark:ring-red-800'
+          : stalled
+            ? 'border-amber-300 dark:border-amber-700'
+            : 'border-slate-200 dark:border-slate-700 hover:border-primary/50'
       }`}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-primary/10 text-primary text-sm">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Avatar className="h-9 w-9 flex-shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary text-xs">
               {generateInitials(lead.name)}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <h3 className="font-semibold text-sm">{lead.name}</h3>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Phone className="w-3 h-3" />
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm truncate">{lead.name}</h3>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+              <Phone className="w-3 h-3 flex-shrink-0" />
               {lead.phone}
             </p>
           </div>
         </div>
         {showCountdown && countdown && (
-          <Badge className={`text-xs ${
-            countdown.expired 
-              ? 'bg-red-500 text-white animate-pulse' 
-              : countdown.urgent 
-                ? 'bg-amber-500 text-white' 
+          <Badge className={`text-xs flex-shrink-0 ${
+            countdown.expired
+              ? 'bg-red-500 text-white animate-pulse'
+              : countdown.urgent
+                ? 'bg-amber-500 text-white'
                 : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
           }`}>
             <Clock className="w-3 h-3 mr-1" />
             {countdown.text}
           </Badge>
         )}
-      </div>
-
-      {/* Info Row */}
-      <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
-        {lead.city && (
-          <span className="flex items-center gap-1">
-            <MapPin className="w-3 h-3" />
-            {lead.city}
-          </span>
-        )}
-        <span>•</span>
-        <span>{lead.source}</span>
-        {lead.attempt_count > 0 && (
-          <>
-            <span>•</span>
-            <span>{lead.attempt_count} calls</span>
-          </>
+        {stalled && !showCountdown && (
+          <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300 flex-shrink-0">
+            Stalled
+          </Badge>
         )}
       </div>
 
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-        <div className="text-xs text-muted-foreground">
+      <div className="h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full mb-2 overflow-hidden">
+        <div className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-1 mb-2 text-[11px] text-muted-foreground">
+        <span className="truncate">Last: {formatRelativeTime(lead.last_activity || lead.created_at)}</span>
+        <span className={`truncate text-right ${overdueFollowup ? 'text-red-600 font-medium' : ''}`}>
+          {!lead.next_followup
+            ? 'No follow-up'
+            : overdueFollowup
+              ? `Overdue ${formatRelativeTime(lead.next_followup)}`
+              : `Next ${new Date(lead.next_followup).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+        <div className="text-xs text-muted-foreground truncate">
           {lead.assigned_name ? (
             <span className="flex items-center gap-1">
               <User className="w-3 h-3" />
@@ -501,19 +511,27 @@ function LeadCard({ lead, onCallClick, onCardClick }) {
             <span className="text-amber-600">Unassigned</span>
           )}
         </div>
-        <Button
+        <div className="flex items-center gap-1">
+          <ClickToCallButton
+            leadId={lead.id}
+            phoneNumber={lead.phone}
+            size="sm"
+            className="h-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+          />
+          <Button
           size="sm"
           variant="secondary"
-          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          className="h-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
             onCallClick(lead);
           }}
         >
-          <PhoneCall className="w-4 h-4 mr-1" />
+          <PhoneCall className="w-3 h-3 mr-1" />
           Log Call
         </Button>
+        </div>
       </div>
     </Link>
   );
@@ -544,14 +562,25 @@ function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, o
     emerald: 'bg-emerald-500',
     slate: 'bg-slate-500',
     amber: 'bg-amber-500',
+    orange: 'bg-orange-500',
     green: 'bg-green-500',
     red: 'bg-red-500',
   };
 
+  const columnTint = {
+    blue: 'border-t-blue-500 bg-blue-50/40 dark:bg-blue-950/20',
+    emerald: 'border-t-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20',
+    slate: 'border-t-slate-400 bg-slate-50/50 dark:bg-slate-800/30',
+    amber: 'border-t-amber-500 bg-amber-50/40 dark:bg-amber-950/20',
+    orange: 'border-t-orange-500 bg-orange-50/40 dark:bg-orange-950/20',
+    green: 'border-t-green-500 bg-green-50/40 dark:bg-green-950/20',
+    red: 'border-t-red-500 bg-red-50/40 dark:bg-red-950/20',
+  };
+
   return (
     <div
-      className={`flex flex-col flex-1 min-w-[300px] max-w-[380px] h-full rounded-2xl bg-slate-50/50 dark:bg-slate-800/30 border ${
-        isDragOver ? 'border-primary border-dashed bg-primary/5' : 'border-transparent'
+      className={`flex flex-col flex-1 min-w-[260px] sm:min-w-[300px] max-w-[380px] h-full rounded-2xl border-t-4 ${
+        isDragOver ? 'border-primary border-dashed bg-primary/5' : `${columnTint[color] || 'border-t-slate-300'} border border-slate-200/80 dark:border-slate-700/50`
       }`}
       onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
       onDragLeave={() => setIsDragOver(false)}
@@ -752,7 +781,7 @@ export default function PipelinePage() {
     ));
 
     try {
-      await api.put(`/leads/${leadId}`, { status: newStatus });
+      await api.put(`/leads/${leadId}`, { status: newStatus, notes: lead.notes || 'Moved via pipeline' });
       toast.success(`Lead moved to ${getStatusLabel(newStatus)}`);
     } catch (error: any) {
       setLeads(prev => prev.map(l => 

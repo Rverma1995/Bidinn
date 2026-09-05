@@ -1,5 +1,6 @@
 export const CACHE_TTL = {
   SHORT: 3600, // 1 hour (increased from 1m since invalidation handles updates)
+  TIME_SENSITIVE: 60, // overdue / uncontacted / dashboard counts drift with time, not only mutations
   MEDIUM: 86400, // 1 day
   LONG: 604800, // 1 week
   DAY: 86400, // 1 day

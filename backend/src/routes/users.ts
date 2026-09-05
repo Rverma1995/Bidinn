@@ -19,7 +19,7 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CACHE_
   try {
     const users = await userRepository().find({
       order: { created_at: "DESC" },
-      select: ["id", "email", "name", "role", "is_active", "created_at"],
+      select: ["id", "email", "name", "role", "is_active", "tata_extension", "created_at"],
       take: 500, // Safety limit
     });
     res.json(users);
@@ -35,7 +35,7 @@ router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CAC
     const userId = req.params.id as string;
     const user = await userRepository().findOne({
       where: { id: userId },
-      select: ["id", "email", "name", "role", "is_active", "created_at"],
+      select: ["id", "email", "name", "role", "is_active", "tata_extension", "created_at"],
     });
 
     if (!user) {
@@ -52,7 +52,7 @@ router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.USERS_LIST, CAC
 // Create user (Admin and Manager only)
 router.post("/", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGER]), async (req: AuthRequest, res: Response) => {
   try {
-    const { email, name, password, role } = req.body;
+    const { email, name, password, role, tata_extension } = req.body;
 
     if (!email || !name || !password) {
       return res.status(400).json({ detail: "Email, name, and password are required" });
@@ -77,6 +77,7 @@ router.post("/", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGE
       password_hash: hashedPassword,
       role: role || UserRole.SALES_REP,
       is_active: true,
+      tata_extension: tata_extension || null,
     });
 
     await userRepository().save(user);
@@ -92,7 +93,7 @@ router.post("/", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGE
 // Update user (Admin/Manager only, or self-update for name/email)
 router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, email, role, is_active } = req.body;
+    const { name, email, role, is_active, tata_extension } = req.body;
     const userId = req.params.id as string;
     const currentUser = req.user!;
 
@@ -126,6 +127,9 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
     }
 
     if (name) user.name = name;
+    if (tata_extension !== undefined && (isAdminOrManager || isSelfUpdate)) {
+      user.tata_extension = tata_extension || null;
+    }
     
     // Only admin/manager can change OTHER users' role and is_active (not their own)
     if (isAdminOrManager && !isSelfUpdate) {

@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 const router = Router();
 
 // Automatically invalidate caches on any successful mutation in this router
-router.use(invalidateCacheMiddleware([CACHE_KEYS.PAYMENTS_LIST, CACHE_KEYS.DASHBOARD_STATS]));
+router.use(invalidateCacheMiddleware([CACHE_KEYS.PAYMENTS_LIST, CACHE_KEYS.BOOKINGS_LIST, CACHE_KEYS.DASHBOARD_STATS]));
 
 const paymentRepository = () => AppDataSource.getRepository(Payment);
 const bookingRepository = () => AppDataSource.getRepository(Booking);

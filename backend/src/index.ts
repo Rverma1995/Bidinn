@@ -11,6 +11,15 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 import { AppDataSource, initializeDatabase } from "./config/data-source";
 import { User, UserRole, Lead, LeadStatus, Booking, PaymentStatus, Activity, Notification, NotificationType, NotificationPriority } from "./entities";
+import {
+  FOLLOWUP_EXCLUDE_STATUSES,
+  FOLLOWUP_UPCOMING_WINDOW_MS,
+  FOLLOWUP_MISSED_LOOKBACK_MS,
+  FOLLOWUP_DEDUP_MS,
+  buildFollowupNotice,
+  followupDedupKey,
+  shouldNotifyFollowupAssignee,
+} from "./utils/followup-notify";
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
 import leadRoutes from "./routes/leads";
@@ -22,7 +31,12 @@ import metaRoutes from "./routes/meta";
 import paymentRoutes from "./routes/payments";
 import adminRoutes from "./routes/admin";
 import notificationRoutes from "./routes/notifications";
+import tataRoutes from "./routes/tata";
 import { cacheService } from "./services/cache.service";
+import { idleLeadsQuery } from "./services/delay-leads.service";
+import { scheduleEmailReportJobs } from "./services/report-jobs.service";
+import { invalidateCache } from "./middleware/cache";
+import { CACHE_KEYS } from "./config/cache.constants";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "8001");
@@ -43,7 +57,8 @@ app.use(express.json({
   limit: "50mb",
   verify: (req: any, res, buf) => {
     // Store raw body for webhook signature verification
-    if (req.url === '/api/meta/webhook' || req.originalUrl === '/api/meta/webhook') {
+    if (req.url === '/api/meta/webhook' || req.originalUrl === '/api/meta/webhook' ||
+        req.url === '/api/tata/webhook' || req.originalUrl === '/api/tata/webhook') {
       req.rawBody = buf;
     }
   }
@@ -79,6 +94,11 @@ app.use("/api/meta", metaRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
+
+if (process.env.TELEPHONY_ENABLED === "true") {
+  app.use("/api/tata", tataRoutes);
+  console.log("Tata Smartflo telephony routes enabled at /api/tata");
+}
 
 // Root API endpoint
 app.get("/api/", (req: Request, res: Response) => {
@@ -184,22 +204,12 @@ const scheduleAutoResetJob = () => {
 const runIdleLeadEscalationJob = async () => {
   console.log("Running idle lead escalation job...");
   try {
-    const leadRepository = AppDataSource.getRepository(Lead);
     const userRepository = AppDataSource.getRepository(User);
     const notificationRepository = AppDataSource.getRepository(Notification);
     const activityRepository = AppDataSource.getRepository(Activity);
 
-    // Find leads with no activity for 5 days
-    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
-
-    // Get idle leads that are in active statuses (not won, lost, or not_interested)
-    const queryBuilder = leadRepository
-      .createQueryBuilder("lead")
-      .where("lead.status NOT IN (:...statuses)", { 
-        statuses: [LeadStatus.WON, LeadStatus.LOST, LeadStatus.NOT_INTERESTED] 
-      })
-      .andWhere("(lead.last_activity < :fiveDaysAgo OR lead.last_activity IS NULL)", { fiveDaysAgo })
-      .andWhere("lead.created_at < :fiveDaysAgo", { fiveDaysAgo });
+    // Find leads with no activity for 5 days — same query as the delay report
+    const queryBuilder = idleLeadsQuery();
 
     const idleLeadCount = await queryBuilder.getCount();
 
@@ -282,22 +292,12 @@ const scheduleIdleLeadEscalationJob = () => {
 const runFollowupReminderJob = async () => {
   try {
     const leadRepository = AppDataSource.getRepository(Lead);
-    const userRepository = AppDataSource.getRepository(User);
     const notificationRepository = AppDataSource.getRepository(Notification);
 
     const now = new Date();
-    // Hourly schedule, so upcoming is within the next 60 minutes
-    const sixtyMinsFromNow = new Date(now.getTime() + 60 * 60 * 1000);
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const sixtyMinsFromNow = new Date(now.getTime() + FOLLOWUP_UPCOMING_WINDOW_MS);
+    const twentyFourHoursAgo = new Date(now.getTime() - FOLLOWUP_MISSED_LOOKBACK_MS);
 
-    // Get all admins using QueryBuilder (optimized by selecting only required fields)
-    const admins = await userRepository
-      .createQueryBuilder("user")
-      .select(["user.id"])
-      .where("user.is_active = :isActive", { isActive: true })
-      .andWhere("user.role IN (:...roles)", { roles: [UserRole.ADMIN, UserRole.MANAGER] })
-      .getMany();
-    
     let createdCount = 0;
     const CHUNK_SIZE = 100;
     
@@ -327,7 +327,7 @@ const runFollowupReminderJob = async () => {
           
           // Get existing notifications for this chunk of leads to avoid duplicates
           const leadIds = leads.map((l: any) => l.id);
-          const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+          const twoHoursAgo = new Date(now.getTime() - FOLLOWUP_DEDUP_MS);
           
           // Optimize check by selecting only necessary fields
           const existingNotifications = await notificationRepository
@@ -346,58 +346,41 @@ const runFollowupReminderJob = async () => {
           const notificationsToCreate: Notification[] = [];
           
           for (const lead of leads) {
-            const recipientIds: string[] = [];
-            if (lead.assigned_to) recipientIds.push(lead.assigned_to);
-            admins.forEach(a => { if (!recipientIds.includes(a.id)) recipientIds.push(a.id); });
-            
+            if (!shouldNotifyFollowupAssignee(lead)) continue;
+
             const followupTime = new Date(lead.next_followup!);
-            
-            for (const userId of recipientIds) {
-              const cacheKey = `${userId}_${lead.id}`;
-              if (existingSet.has(cacheKey)) continue;
-              
-              // Depending on type, construct the notification
-              let title = "";
-              let message = "";
-              let overdueMinutes: number | undefined = undefined;
-              
-              const isAssignedUser = userId === lead.assigned_to;
-              const assignedText = !isAssignedUser && lead.assigned_name ? ` — Assigned to ${lead.assigned_name}` : '';
-              
-              if (type === NotificationType.FOLLOWUP_UPCOMING) {
-                const minsUntil = Math.round((followupTime.getTime() - now.getTime()) / 60000);
-                title = `Upcoming Follow-up in ${minsUntil} min`;
-                message = `${lead.name} (${lead.phone})${assignedText} has a follow-up scheduled at ${followupTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
-              } else {
-                const minsOverdue = Math.round((now.getTime() - followupTime.getTime()) / 60000);
-                overdueMinutes = minsOverdue;
-                const overdueLabel = minsOverdue >= 60 ? `${Math.round(minsOverdue / 60)}h` : `${minsOverdue}m`;
-                title = `Missed Follow-up (${overdueLabel} overdue)`;
-                message = `${lead.name} (${lead.phone})${assignedText} had a follow-up at ${followupTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} that was missed.`;
-              }
-              
-              const notification = notificationRepository.create({
-                id: uuidv4(),
-                user_id: userId,
-                type: type as NotificationType,
-                priority: NotificationPriority.HIGH,
-                title,
-                message,
-                target_id: lead.id,
-                target_type: "lead",
-                metadata: {
-                  lead_name: lead.name,
-                  lead_phone: lead.phone,
-                  followup_time: lead.next_followup,
-                  assigned_to: lead.assigned_name,
-                  ...(overdueMinutes !== undefined ? { overdue_minutes: overdueMinutes } : {})
-                },
-              });
-              
-              notificationsToCreate.push(notification);
-              // Optimistically add to set to avoid duplicates within the same chunk if any
-              existingSet.add(cacheKey); 
-            }
+            const userId = lead.assigned_to;
+            const cacheKey = followupDedupKey(userId, lead.id);
+            if (existingSet.has(cacheKey)) continue;
+
+            const { title, message, overdueMinutes } = buildFollowupNotice({
+              type,
+              leadName: lead.name,
+              leadPhone: lead.phone,
+              followupTime,
+              now,
+            });
+
+            const notification = notificationRepository.create({
+              id: uuidv4(),
+              user_id: userId,
+              type: type as NotificationType,
+              priority: NotificationPriority.HIGH,
+              title,
+              message,
+              target_id: lead.id,
+              target_type: "lead",
+              metadata: {
+                lead_name: lead.name,
+                lead_phone: lead.phone,
+                followup_time: lead.next_followup,
+                assigned_to: lead.assigned_name,
+                ...(overdueMinutes !== undefined ? { overdue_minutes: overdueMinutes } : {})
+              },
+            });
+
+            notificationsToCreate.push(notification);
+            existingSet.add(cacheKey);
           }
           
           if (notificationsToCreate.length > 0) {
@@ -423,16 +406,21 @@ const runFollowupReminderJob = async () => {
       .createQueryBuilder("lead")
       .where("lead.next_followup > :now", { now: now.toISOString() })
       .andWhere("lead.next_followup <= :soon", { soon: sixtyMinsFromNow.toISOString() })
-      .andWhere("lead.status NOT IN (:...exclude)", { exclude: ["won", "lost"] });
+      .andWhere("lead.assigned_to IS NOT NULL")
+      .andWhere("lead.status NOT IN (:...exclude)", { exclude: [...FOLLOWUP_EXCLUDE_STATUSES] });
       
     const upcomingCount = await processLeads(upcomingQuery, NotificationType.FOLLOWUP_UPCOMING);
 
-    // --- MISSED FOLLOWUPS (past due, within last 24 hours to avoid old spam) ---
+    // --- MISSED FOLLOWUPS ---
+    // Assumption (flag for review): "missed" = next_followup < now, status not won/lost.
+    // Notifications are created for follow-ups missed within the last 24 hours to avoid
+    // re-spamming old items. Only the assigned agent is notified (not admins/managers).
     const missedQuery = leadRepository
       .createQueryBuilder("lead")
       .where("lead.next_followup < :now", { now: now.toISOString() })
       .andWhere("lead.next_followup > :cutoff", { cutoff: twentyFourHoursAgo.toISOString() })
-      .andWhere("lead.status NOT IN (:...exclude)", { exclude: ["won", "lost"] });
+      .andWhere("lead.assigned_to IS NOT NULL")
+      .andWhere("lead.status NOT IN (:...exclude)", { exclude: [...FOLLOWUP_EXCLUDE_STATUSES] });
 
     const missedCount = await processLeads(missedQuery, NotificationType.FOLLOWUP_MISSED);
 
@@ -440,6 +428,7 @@ const runFollowupReminderJob = async () => {
       console.log("Followup reminder job: Processed but no new notifications created");
     } else {
       console.log(`Followup reminder job: Created ${createdCount} new notifications (${upcomingCount} upcoming, ${missedCount} missed)`);
+      await invalidateCache(CACHE_KEYS.NOTIFICATIONS_LIST);
     }
 
   } catch (error) {
@@ -614,6 +603,9 @@ const startServer = async () => {
 
     // Schedule the followup reminder job
     scheduleFollowupReminderJob();
+
+    // Schedule email PDF reports (delay daily, weekly Monday, monthly 1st)
+    scheduleEmailReportJobs();
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Bidinn CRM API server running on http://0.0.0.0:${PORT}`);

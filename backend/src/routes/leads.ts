@@ -12,6 +12,14 @@ import { v4 as uuidv4 } from "uuid";
 import { In } from "typeorm";
 import multer from "multer";
 import * as XLSX from "xlsx";
+import {
+  applySalesRepLeadScope,
+  applyLeadListFilters,
+  canAccessLead,
+  csvEscape,
+  normalizePhone,
+} from "../utils/lead-scope";
+import { notifyAssigneeOfLeads } from "../services/assignment-notify.service";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -107,14 +115,15 @@ router.get("/closed-reasons", authenticateToken, cacheMiddleware(CACHE_KEYS.LEAD
 // Get unique campaigns list
 router.get("/campaigns", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
-    const campaigns = await leadRepository()
+    const query = leadRepository()
       .createQueryBuilder("lead")
       .select("lead.campaign", "campaign")
       .where("lead.campaign IS NOT NULL")
       .andWhere("lead.campaign != ''")
       .distinct(true)
-      .orderBy("lead.campaign", "ASC")
-      .getRawMany();
+      .orderBy("lead.campaign", "ASC");
+    applySalesRepLeadScope(query, req.user!);
+    const campaigns = await query.getRawMany();
       
     res.json(campaigns.map(c => c.campaign));
   } catch (error) {
@@ -130,55 +139,22 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const skip = (page - 1) * limit;
-    
-    // Filter parameters
-    const status = req.query.status as string;
-    const source = req.query.source as string;
-    const campaign = req.query.campaign as string;
-    const assigned_to = req.query.assigned_to as string;
-    const search = req.query.search as string;
     const compact = req.query.compact === 'true';
     const lastSeen = req.query.last_seen as string;
 
     let queryBuilder = leadRepository().createQueryBuilder("lead");
 
     // Sales reps only see their assigned leads
-    if (user.role === UserRole.SALES_REP) {
-      queryBuilder = queryBuilder.where("lead.assigned_to = :userId", { userId: user.id });
-    }
-    
-    // Apply filters
-    if (status && status !== 'all') {
-      queryBuilder = queryBuilder.andWhere("lead.status = :status", { status });
-    }
-    
-    if (source && source !== 'all') {
-      queryBuilder = queryBuilder.andWhere("lead.source = :source", { source });
-    }
-    
-    if (campaign && campaign !== 'all') {
-      queryBuilder = queryBuilder.andWhere("lead.campaign = :campaign", { campaign });
-    }
-    
-    if (assigned_to && assigned_to !== 'all') {
-      queryBuilder = queryBuilder.andWhere("lead.assigned_to = :assigned_to", { assigned_to });
-    }
-    
-    // Search by name, phone, or email
-    if (search && search.trim()) {
-      const searchTerm = `%${search.trim()}%`;
-      queryBuilder = queryBuilder.andWhere(
-        "(lead.name LIKE :search OR lead.phone LIKE :search OR lead.email LIKE :search)",
-        { search: searchTerm }
-      );
-    }
+    applySalesRepLeadScope(queryBuilder, user);
+    // AND across fields; comma-separated values within a field use IN (OR)
+    applyLeadListFilters(queryBuilder, req.query as Record<string, unknown>);
 
     if (lastSeen) {
-      queryBuilder = queryBuilder.andWhere("lead.created_at < :lastSeen", { lastSeen: new Date(lastSeen) });
+      queryBuilder.andWhere("lead.created_at < :lastSeen", { lastSeen: new Date(lastSeen) });
     }
 
     if (compact) {
-      queryBuilder = queryBuilder.select([
+      queryBuilder.select([
         "lead.id",
         "lead.name",
         "lead.phone",
@@ -190,6 +166,8 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_
         "lead.assigned_to",
         "lead.assigned_name",
         "lead.created_at",
+        "lead.last_activity",
+        "lead.next_followup",
         "lead.closed_reason",
       ]);
     }
@@ -243,15 +221,12 @@ router.get("/uncontacted", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_L
     const user = req.user!;
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
-    let queryBuilder = leadRepository()
+    const queryBuilder = leadRepository()
       .createQueryBuilder("lead")
       .where("lead.status = :status", { status: LeadStatus.NEW })
       .andWhere("lead.attempt_count = 0")
       .andWhere("lead.created_at < :oneHourAgo", { oneHourAgo });
-
-    if (user.role === UserRole.SALES_REP) {
-      queryBuilder = queryBuilder.andWhere("lead.assigned_to = :userId", { userId: user.id });
-    }
+    applySalesRepLeadScope(queryBuilder, user);
 
     const leads = await queryBuilder.orderBy("lead.created_at", "ASC").getMany();
     res.json(leads);
@@ -261,66 +236,63 @@ router.get("/uncontacted", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_L
   }
 });
 
-// Export leads as CSV - MUST be before /:id route
-router.get("/export/csv", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+const EXPORT_HEADERS = [
+  "Name", "Phone", "Email", "Source", "Campaign", "City", "Status",
+  "Assigned To", "Attempt Count", "Last Activity", "Next Follow-up", "Notes", "Created At",
+];
+
+async function exportLeadsCsv(req: AuthRequest, res: Response) {
   try {
     const user = req.user!;
-    let queryBuilder = leadRepository().createQueryBuilder("lead");
+    const queryBuilder = leadRepository().createQueryBuilder("lead");
+    applySalesRepLeadScope(queryBuilder, user);
+    applyLeadListFilters(queryBuilder, req.query as Record<string, unknown>);
+    queryBuilder.orderBy("lead.created_at", "DESC");
 
-    const status = req.query.status as string;
-    const source = req.query.source as string;
-    const campaign = req.query.campaign as string;
-    const assigned_to = req.query.assigned_to as string;
-
-    if (user.role === UserRole.SALES_REP) {
-      queryBuilder = queryBuilder.where("lead.assigned_to = :userId", { userId: user.id });
-    }
-    
-    if (status && status !== 'all') {
-      queryBuilder = queryBuilder.andWhere("lead.status = :status", { status });
-    }
-    
-    if (source && source !== 'all') {
-      queryBuilder = queryBuilder.andWhere("lead.source = :source", { source });
-    }
-    
-    if (campaign && campaign !== 'all') {
-      queryBuilder = queryBuilder.andWhere("lead.campaign = :campaign", { campaign });
-    }
-    
-    if (assigned_to && assigned_to !== 'all') {
-      queryBuilder = queryBuilder.andWhere("lead.assigned_to = :assigned_to", { assigned_to });
-    }
-
-    const leads = await queryBuilder.orderBy("lead.created_at", "DESC").getMany();
-
-    // Generate CSV
-    const headers = ["Name", "Phone", "Email", "Source", "Campaign", "City", "Status", "Assigned To", "Created At"];
-    const csvRows = [headers.join(",")];
-
-    leads.forEach((lead) => {
-      const row = [
-        `"${lead.name}"`,
-        `"${lead.phone}"`,
-        `"${lead.email || ""}"`,
-        `"${lead.source}"`,
-        `"${lead.campaign || ""}"`,
-        `"${lead.city || ""}"`,
-        `"${lead.status}"`,
-        `"${lead.assigned_name || "Unassigned"}"`,
-        `"${lead.created_at}"`,
-      ];
-      csvRows.push(row.join(","));
-    });
-
-    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", "attachment; filename=leads_export.csv");
-    res.send(csvRows.join("\n"));
+    res.write(EXPORT_HEADERS.join(",") + "\n");
+
+    const BATCH_SIZE = 1000;
+    let skip = 0;
+    while (true) {
+      const batch = await queryBuilder.clone().skip(skip).take(BATCH_SIZE).getMany();
+      if (batch.length === 0) break;
+      for (const lead of batch) {
+        res.write([
+          csvEscape(lead.name),
+          csvEscape(lead.phone),
+          csvEscape(lead.email),
+          csvEscape(lead.source),
+          csvEscape(lead.campaign),
+          csvEscape(lead.city),
+          csvEscape(lead.status),
+          csvEscape(lead.assigned_name || "Unassigned"),
+          csvEscape(lead.attempt_count),
+          csvEscape(lead.last_activity),
+          csvEscape(lead.next_followup),
+          csvEscape(lead.notes),
+          csvEscape(lead.created_at),
+        ].join(",") + "\n");
+      }
+      skip += BATCH_SIZE;
+      if (batch.length < BATCH_SIZE) break;
+    }
+    res.end();
   } catch (error) {
     console.error("Export leads error:", error);
-    res.status(500).json({ detail: "Internal server error" });
+    if (!res.headersSent) {
+      res.status(500).json({ detail: "Internal server error" });
+    } else {
+      res.end();
+    }
   }
-});
+}
+
+// Frontend and tests call GET /leads/export?format=csv — keep /export/csv as an alias.
+// Do not cache: cache middleware wraps res.json and would break streamed CSV.
+router.get("/export", authenticateToken, exportLeadsCsv);
+router.get("/export/csv", authenticateToken, exportLeadsCsv);
 
 // Rule 3: Check for duplicate leads - endpoint for frontend
 router.post("/check-duplicate", authenticateToken, async (req: AuthRequest, res: Response) => {
@@ -336,10 +308,11 @@ router.post("/check-duplicate", authenticateToken, async (req: AuthRequest, res:
     const params: Record<string, any> = {};
 
     if (phone) {
-      // Normalize phone number for comparison (remove spaces, dashes)
-      const normalizedPhone = phone.replace(/[\s\-\(\)]/g, "");
-      conditions.push("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '') = :phone");
-      params.phone = normalizedPhone;
+      const normalizedPhone = normalizePhone(phone);
+      if (normalizedPhone) {
+        conditions.push("lead.phone_normalized = :phone");
+        params.phone = normalizedPhone;
+      }
     }
 
     if (email) {
@@ -348,7 +321,7 @@ router.post("/check-duplicate", authenticateToken, async (req: AuthRequest, res:
     }
 
     queryBuilder = queryBuilder.where(conditions.join(" OR "), params);
-    const duplicates = await queryBuilder.getMany();
+    const duplicates = conditions.length ? await queryBuilder.getMany() : [];
 
     res.json({
       hasDuplicate: duplicates.length > 0,
@@ -358,7 +331,8 @@ router.post("/check-duplicate", authenticateToken, async (req: AuthRequest, res:
         phone: d.phone,
         email: d.email,
         status: d.status,
-        assigned_name: d.assigned_name,
+        assigned_to: d.assigned_to,
+        assigned_name: d.assigned_name || "Unassigned",
         created_at: d.created_at,
       })),
     });
@@ -455,12 +429,12 @@ router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN
   try {
     console.log("Starting duplicate analysis...");
     
-    // Find all duplicate phone numbers using raw phone (data is already consistent)
     const duplicates = await leadRepository()
       .createQueryBuilder("lead")
-      .select("lead.phone", "phone")
+      .select("lead.phone_normalized", "phone")
       .addSelect("COUNT(*)", "count")
-      .groupBy("lead.phone")
+      .where("lead.phone_normalized IS NOT NULL AND lead.phone_normalized != ''")
+      .groupBy("lead.phone_normalized")
       .having("COUNT(*) > 1")
       .getRawMany();
 
@@ -477,7 +451,7 @@ router.get("/duplicates/analyze", authenticateToken, requireRole([UserRole.ADMIN
       const phone = dup.phone;
       const leads = await leadRepository()
         .createQueryBuilder("lead")
-        .where("lead.phone = :phone", { phone })
+        .where("lead.phone_normalized = :phone", { phone })
         .orderBy("lead.created_at", "ASC")
         .getMany();
 
@@ -531,12 +505,12 @@ router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.AD
     const adminUser = req.user!;
     console.log(`Starting duplicate merge process by ${adminUser.name}...`);
     
-    // Find all duplicate phone numbers using raw phone (data is already consistent)
     const duplicates = await leadRepository()
       .createQueryBuilder("lead")
-      .select("lead.phone", "phone")
+      .select("lead.phone_normalized", "phone")
       .addSelect("COUNT(*)", "count")
-      .groupBy("lead.phone")
+      .where("lead.phone_normalized IS NOT NULL AND lead.phone_normalized != ''")
+      .groupBy("lead.phone_normalized")
       .having("COUNT(*) > 1")
       .getRawMany();
 
@@ -554,10 +528,9 @@ router.post("/duplicates/merge-all", authenticateToken, requireRole([UserRole.AD
         console.log(`Processing duplicate group ${i + 1}/${duplicates.length}...`);
       }
       
-      // Get all leads with this phone, ordered by creation date (oldest first)
       const leads = await leadRepository()
         .createQueryBuilder("lead")
-        .where("lead.phone = :phone", { phone })
+        .where("lead.phone_normalized = :phone", { phone })
         .orderBy("lead.created_at", "ASC")
         .getMany();
 
@@ -693,6 +666,10 @@ router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.LEADS_LIST, CAC
       return res.status(404).json({ detail: "Lead not found" });
     }
 
+    if (!canAccessLead(lead, req.user!)) {
+      return res.status(403).json({ detail: "You can only view leads assigned to you" });
+    }
+
     res.json({
       ...lead,
       closed_reason_label: lead.closed_reason ? CLOSED_REASON_LABELS[lead.closed_reason] : null,
@@ -713,43 +690,48 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
     }
 
     // Rule 3: Check for duplicates - ALWAYS block duplicates
-    const normalizedPhone = phone.replace(/[\s\-\(\)]/g, "");
+    const normalizedPhone = normalizePhone(phone);
     let duplicateQuery = leadRepository().createQueryBuilder("lead");
     
     const conditions: string[] = [];
     const params: Record<string, any> = {};
     
-    // Check phone
-    conditions.push("REPLACE(REPLACE(REPLACE(REPLACE(lead.phone, ' ', ''), '-', ''), '(', ''), ')', '') = :phone");
-    params.phone = normalizedPhone;
+    if (normalizedPhone) {
+      conditions.push("lead.phone_normalized = :phone");
+      params.phone = normalizedPhone;
+    }
     
-    // Check email if provided
     if (email) {
       conditions.push("LOWER(lead.email) = LOWER(:email)");
       params.email = email;
     }
     
     duplicateQuery = duplicateQuery.where(conditions.join(" OR "), params);
-    const duplicates = await duplicateQuery.getMany();
+    const duplicates = conditions.length ? await duplicateQuery.getMany() : [];
     
     if (duplicates.length > 0) {
       const existingLead = duplicates[0];
+      const owner = existingLead.assigned_name || "Unassigned";
+      const duplicatePayload = duplicates.map(d => ({
+        id: d.id,
+        name: d.name,
+        phone: d.phone,
+        email: d.email,
+        status: d.status,
+        assigned_to: d.assigned_to,
+        assigned_name: d.assigned_name || "Unassigned",
+      }));
       return res.status(409).json({
-        detail: "Lead already exists with this phone number. Please contact Admin to access or reassign this lead.",
-        duplicate: {
-          id: existingLead.id,
-          name: existingLead.name,
-          phone: existingLead.phone,
-          email: existingLead.email,
-          status: existingLead.status,
-          assigned_name: existingLead.assigned_name,
-        },
+        detail: `Lead already exists with this phone number. Currently assigned to ${owner}. Resolve internally instead of creating a duplicate.`,
+        duplicate: duplicatePayload[0],
+        duplicates: duplicatePayload,
       });
     }
 
     let assignedName: string | undefined;
+    let assignedUser: User | null = null;
     if (assigned_to) {
-      const assignedUser = await userRepository().findOne({ where: { id: assigned_to } });
+      assignedUser = await userRepository().findOne({ where: { id: assigned_to } });
       if (assignedUser) {
         assignedName = assignedUser.name;
       }
@@ -774,6 +756,17 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 
     await logActivity(req.user!.id, req.user!.name, "created_lead", lead.id, "lead", name);
 
+    if (assignedUser) {
+      await notifyAssigneeOfLeads({
+        assignee: assignedUser,
+        assignerId: req.user!.id,
+        assignerName: req.user!.name,
+        count: 1,
+        leadId: lead.id,
+        leadName: lead.name,
+      });
+    }
+
     res.status(201).json(lead);
   } catch (error) {
     console.error("Create lead error:", error);
@@ -791,7 +784,13 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
       return res.status(404).json({ detail: "Lead not found" });
     }
 
+    if (!canAccessLead(lead, req.user!)) {
+      return res.status(403).json({ detail: "You can only update leads assigned to you" });
+    }
+
     const { name, phone, email, source, campaign, city, status, assigned_to, notes, next_followup, closed_reason, closed_reason_notes } = req.body;
+    const previousAssignedTo = lead.assigned_to;
+    let newlyAssignedUser: User | null = null;
 
     // Handle status change - require notes for any stage change
     if (status && status !== lead.status) {
@@ -823,6 +822,9 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
         if (assignedUser) {
           lead.assigned_to = assigned_to;
           lead.assigned_name = assignedUser.name;
+          if (assigned_to !== previousAssignedTo) {
+            newlyAssignedUser = assignedUser;
+          }
         }
       } else {
         lead.assigned_to = undefined;
@@ -834,6 +836,17 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
     await leadRepository().save(lead);
 
     await logActivity(req.user!.id, req.user!.name, "updated_lead", lead.id, "lead", lead.name);
+
+    if (newlyAssignedUser) {
+      await notifyAssigneeOfLeads({
+        assignee: newlyAssignedUser,
+        assignerId: req.user!.id,
+        assignerName: req.user!.name,
+        count: 1,
+        leadId: lead.id,
+        leadName: lead.name,
+      });
+    }
 
     res.json({
       ...lead,
@@ -861,10 +874,16 @@ router.post("/:id/assign", authenticateToken, async (req: AuthRequest, res: Resp
       return res.status(404).json({ detail: "Lead not found" });
     }
 
+    if (!canAccessLead(lead, req.user!)) {
+      return res.status(403).json({ detail: "You can only assign leads that belong to you" });
+    }
+
     const assignedUser = await userRepository().findOne({ where: { id: userId } });
     if (!assignedUser) {
       return res.status(404).json({ detail: "User not found" });
     }
+
+    const previousAssignedTo = lead.assigned_to;
 
     lead.assigned_to = userId;
     lead.assigned_name = assignedUser.name;
@@ -872,6 +891,17 @@ router.post("/:id/assign", authenticateToken, async (req: AuthRequest, res: Resp
     await leadRepository().save(lead);
 
     await logActivity(req.user!.id, req.user!.name, "assigned_lead", lead.id, "lead", lead.name, `Assigned to ${assignedUser.name}`);
+
+    if (userId !== previousAssignedTo) {
+      await notifyAssigneeOfLeads({
+        assignee: assignedUser,
+        assignerId: req.user!.id,
+        assignerName: req.user!.name,
+        count: 1,
+        leadId: lead.id,
+        leadName: lead.name,
+      });
+    }
 
     res.json(lead);
   } catch (error) {
@@ -909,6 +939,14 @@ router.post("/bulk-assign", authenticateToken, requireRole([UserRole.ADMIN, User
       })
       .whereInIds(lead_ids)
       .execute();
+
+    await notifyAssigneeOfLeads({
+      assignee: assignedUser,
+      assignerId: req.user!.id,
+      assignerName: req.user!.name,
+      count: lead_ids.length,
+      leadId: lead_ids.length === 1 ? lead_ids[0] : undefined,
+    });
 
     res.json({ message: `${lead_ids.length} leads assigned to ${assignedUser.name}` });
   } catch (error) {
@@ -1053,18 +1091,19 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
     // OPTIMIZATION: Fetch ALL existing phone numbers in one query
     const existingLeads = await leadRepository()
       .createQueryBuilder("lead")
-      .select(["lead.phone", "lead.email", "lead.id", "lead.name"])
+      .select(["lead.phone", "lead.phone_normalized", "lead.email", "lead.id", "lead.name", "lead.assigned_name"])
       .getMany();
 
     // Create a Set of normalized phone numbers for O(1) lookup
     const existingPhones = new Set<string>();
     const existingEmails = new Set<string>();
-    const existingLeadMap = new Map<string, { id: string; name: string; phone: string }>();
+    const existingLeadMap = new Map<string, { id: string; name: string; phone: string; assigned_name?: string }>();
 
     for (const lead of existingLeads) {
-      const normalizedPhone = String(lead.phone).replace(/[\s\-\(\)]/g, "");
+      const normalizedPhone = lead.phone_normalized || normalizePhone(lead.phone);
+      if (!normalizedPhone) continue;
       existingPhones.add(normalizedPhone);
-      existingLeadMap.set(normalizedPhone, { id: lead.id, name: lead.name, phone: lead.phone });
+      existingLeadMap.set(normalizedPhone, { id: lead.id, name: lead.name, phone: lead.phone, assigned_name: lead.assigned_name });
       if (lead.email) {
         existingEmails.add(lead.email.toLowerCase());
       }
@@ -1081,7 +1120,7 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
         continue;
       }
 
-      const normalizedPhone = String(data.phone).replace(/[\s\-\(\)]/g, "");
+      const normalizedPhone = normalizePhone(data.phone);
       
       // Check for duplicates using in-memory Sets (O(1) lookup)
       if (existingPhones.has(normalizedPhone)) {
@@ -1096,7 +1135,7 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
       }
 
       // Also check if this phone already exists in the batch being imported (prevent self-duplicates)
-      if (leadsToCreate.some(l => String(l.phone).replace(/[\s\-\(\)]/g, "") === normalizedPhone)) {
+      if (leadsToCreate.some(l => normalizePhone(l.phone) === normalizedPhone)) {
         duplicates.push({ data, existingLead: { phone: data.phone, name: 'Duplicate in file' } });
         continue;
       }
@@ -1105,6 +1144,7 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
         id: uuidv4(),
         name: data.name,
         phone: String(data.phone),
+        phone_normalized: normalizedPhone || null,
         email: data.email || null,
         source: data.source || 'Import',
         campaign: data.campaign || null,
@@ -1149,9 +1189,12 @@ router.post("/import", authenticateToken, requireRole([UserRole.ADMIN, UserRole.
       imported: importedCount, 
       skipped: duplicates.length,
       duplicates: duplicates.length,
+      dedup_rule: "skip",
+      dedup_keys: ["phone", "email"],
+      message: `Imported ${importedCount}. Skipped ${duplicates.length} duplicates (matched existing phone or email — no merge).`,
       errors: errors,
-      leads: leadsToCreate.slice(0, 10), // Return first 10 for preview
-      duplicateDetails: duplicates.length > 0 ? duplicates.slice(0, 10) : undefined,
+      leads: leadsToCreate.slice(0, 10),
+      duplicateDetails: duplicates.length > 0 ? duplicates.slice(0, 20) : undefined,
     });
   } catch (error: any) {
     console.error("Import leads error:", error);

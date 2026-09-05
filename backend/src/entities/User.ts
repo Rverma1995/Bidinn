@@ -33,6 +33,9 @@ export class User {
   @Column({ type: "boolean", default: true })
   is_active: boolean;
 
+  @Column({ type: "varchar", length: 20, nullable: true })
+  tata_extension: string | null;
+
   @CreateDateColumn()
   created_at: Date;
 

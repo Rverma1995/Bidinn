@@ -2,8 +2,9 @@ import { Router, Response } from "express";
 import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
 import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
-import { Activity, Call, Booking, Payment } from "../entities";
+import { Activity, Call, Booking, Payment, Lead } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
+import { canAccessLead } from "../utils/lead-scope";
 
 const router = Router();
 
@@ -22,6 +23,14 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.ACTIVITIES_LIST, C
     const leadId = req.query.lead_id as string;
     
     if (leadId) {
+      const lead = await AppDataSource.getRepository(Lead).findOne({ where: { id: leadId } });
+      if (!lead) {
+        return res.status(404).json({ detail: "Lead not found" });
+      }
+      if (!canAccessLead(lead, req.user!)) {
+        return res.status(403).json({ detail: "You can only view activity for leads assigned to you" });
+      }
+
       // Fetch comprehensive timeline for a specific lead
       const timeline: any[] = [];
       
@@ -53,6 +62,12 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.ACTIVITIES_LIST, C
           id: call.id,
           type: 'call',
           action: `Call - ${formatOutcome(call.outcome)}`,
+          recording_url: call.recording_url,
+          direction: call.direction,
+          tata_call_id: call.tata_call_id,
+          started_at: call.started_at,
+          answered_at: call.answered_at,
+          ended_at: call.ended_at,
           details: call.notes ? `${call.duration_minutes} min • ${call.notes}` : `Duration: ${call.duration_minutes} min`,
           user_name: call.user_name,
           created_at: call.created_at,
@@ -126,8 +141,10 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.ACTIVITIES_LIST, C
 });
 
 // Helper functions
-function formatOutcome(outcome: string): string {
+function formatOutcome(outcome: string | null | undefined): string {
+  if (!outcome) return 'Pending';
   const outcomes: Record<string, string> = {
+    'connected': 'Connected',
     'answered': 'Answered',
     'no_answer': 'No Answer',
     'busy': 'Busy',
@@ -151,6 +168,11 @@ function formatDateRange(checkIn: Date | string | null, checkOut: Date | string 
 router.get("/target/:targetId", authenticateToken, cacheMiddleware(CACHE_KEYS.ACTIVITIES_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
   try {
     const targetId = req.params.targetId as string;
+    const lead = await AppDataSource.getRepository(Lead).findOne({ where: { id: targetId } });
+    if (lead && !canAccessLead(lead, req.user!)) {
+      return res.status(403).json({ detail: "You can only view activity for leads assigned to you" });
+    }
+
     const activities = await activityRepository().find({
       where: { target_id: targetId },
       order: { created_at: "DESC" },

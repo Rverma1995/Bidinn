@@ -156,6 +156,24 @@ export const LEAD_STATUSES = [
   { value: 'lost', label: 'Lost' },
 ];
 
+export const STALLED_STAGE_DAYS = 3;
+
+export const PIPELINE_STAGE_ORDER = ['new', 'not_answered', 'interested', 'followup', 'won'];
+
+export function getStageProgress(status: string): number {
+  const idx = PIPELINE_STAGE_ORDER.indexOf(status);
+  if (status === 'lost' || status === 'not_interested') return 0;
+  if (idx < 0) return 0;
+  return Math.round((idx / (PIPELINE_STAGE_ORDER.length - 1)) * 100);
+}
+
+export function isLeadStalled(lead: { last_activity?: string | Date | null; created_at?: string | Date; status?: string; next_followup?: string | Date | null }): boolean {
+  if (!lead || ['won', 'lost', 'not_interested'].includes(lead.status || '')) return false;
+  const anchor = lead.last_activity || lead.created_at;
+  if (!anchor) return false;
+  const ageMs = Date.now() - new Date(anchor).getTime();
+  return ageMs > STALLED_STAGE_DAYS * 24 * 60 * 60 * 1000;
+}
 export const ACTIVE_PIPELINE_STATUSES = [
   { value: 'new', label: 'New', color: 'blue', icon: 'inbox' },
   { value: 'not_answered', label: 'Not Answered', color: 'amber', icon: 'phone-missed' },
@@ -195,6 +213,16 @@ export const isTransitionAllowed = (fromStatus: string, toStatus: string): { all
   }
   return { allowed: true };
 };
+
+export function formatDuration(minutes: number | null | undefined): string {
+  const m = Math.max(0, Number(minutes) || 0);
+  if (m < 1) return '0 min';
+  if (m === 1) return '1 min';
+  if (m < 60) return `${m} min`;
+  const hours = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
 
 export const CALL_OUTCOMES = [
   { value: 'connected', label: 'Connected' },

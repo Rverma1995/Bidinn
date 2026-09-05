@@ -13,7 +13,7 @@ router.use(invalidateCacheMiddleware([CACHE_KEYS.NOTIFICATIONS_LIST]));
 const notificationRepository = () => AppDataSource.getRepository(Notification);
 
 // Get notifications for current user
-router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.NOTIFICATIONS_LIST, CACHE_TTL.SHORT), async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.NOTIFICATIONS_LIST, CACHE_TTL.TIME_SENSITIVE), async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user!;
     const { unread_only, limit = "50", last_seen } = req.query;
@@ -27,6 +27,7 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.NOTIFICATIONS_LIST
         "notification.type",
         "notification.is_read",
         "notification.target_id",
+        "notification.target_type",
         "notification.created_at"
       ])
       .where("notification.user_id = :userId", { userId: user.id });

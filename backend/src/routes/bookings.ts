@@ -5,6 +5,8 @@ import { AppDataSource } from "../config/data-source";
 import { Booking, PaymentStatus, Lead, Activity, UserRole } from "../entities";
 import { authenticateToken, requireRole, AuthRequest } from "../middleware/auth";
 import { v4 as uuidv4 } from "uuid";
+import { applySalesRepLeadScope, isSalesRep, canAccessLead } from "../utils/lead-scope";
+import { withRemainingBalance } from "../utils/booking-balance";
 
 const router = Router();
 
@@ -48,15 +50,28 @@ router.get("/", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, CAC
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 100;
     const skip = (page - 1) * limit;
+    const paymentStatus = req.query.payment_status as string;
 
-    const [bookings, total] = await bookingRepository().findAndCount({
-      order: { created_at: "DESC" },
-      skip,
-      take: limit,
-    });
+    const queryBuilder = bookingRepository().createQueryBuilder("booking");
+
+    if (isSalesRep(req.user)) {
+      queryBuilder.innerJoin("booking.lead", "lead");
+      applySalesRepLeadScope(queryBuilder, req.user!, "lead");
+    }
+
+    if (paymentStatus && paymentStatus !== "all") {
+      queryBuilder.andWhere("booking.payment_status = :paymentStatus", { paymentStatus });
+    }
+
+    const total = await queryBuilder.getCount();
+    const bookings = await queryBuilder
+      .orderBy("booking.created_at", "DESC")
+      .skip(skip)
+      .take(limit)
+      .getMany();
 
     res.json({
-      bookings,
+      bookings: bookings.map(withRemainingBalance),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
   } catch (error) {
@@ -71,13 +86,19 @@ router.get("/:id", authenticateToken, cacheMiddleware(CACHE_KEYS.BOOKINGS_LIST, 
     const bookingId = req.params.id as string;
     const booking = await bookingRepository().findOne({
       where: { id: bookingId },
+      relations: ["lead"],
     });
 
     if (!booking) {
       return res.status(404).json({ detail: "Booking not found" });
     }
 
-    res.json(booking);
+    if (isSalesRep(req.user) && !canAccessLead({ assigned_to: booking.lead?.assigned_to }, req.user!)) {
+      return res.status(403).json({ detail: "You can only view bookings for leads assigned to you" });
+    }
+
+    const { lead: _lead, ...bookingData } = booking as typeof booking & { lead?: unknown };
+    res.json(withRemainingBalance(bookingData));
   } catch (error) {
     console.error("Get booking error:", error);
     res.status(500).json({ detail: "Internal server error" });
@@ -96,6 +117,9 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
     const lead = await leadRepository().findOne({ where: { id: lead_id } });
     if (!lead) {
       return res.status(404).json({ detail: "Lead not found" });
+    }
+    if (!canAccessLead(lead, req.user!)) {
+      return res.status(403).json({ detail: "You can only create bookings for leads assigned to you" });
     }
 
     const booking = bookingRepository().create({
@@ -129,7 +153,7 @@ router.post("/", authenticateToken, async (req: AuthRequest, res: Response) => {
     });
     await activityRepository().save(activity);
 
-    res.status(201).json(booking);
+    res.status(201).json(withRemainingBalance(booking));
   } catch (error) {
     console.error("Create booking error:", error);
     res.status(500).json({ detail: "Internal server error" });
@@ -160,7 +184,7 @@ router.put("/:id", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANA
 
     await bookingRepository().save(booking);
 
-    res.json(booking);
+    res.json(withRemainingBalance(booking));
   } catch (error) {
     console.error("Update booking error:", error);
     res.status(500).json({ detail: "Internal server error" });

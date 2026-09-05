@@ -464,7 +464,8 @@ export default function BookingsPage() {
                 <TableHead>Check-in</TableHead>
                 <TableHead>Check-out</TableHead>
                 <TableHead>Total Amount</TableHead>
-                <TableHead>Payment Received</TableHead>
+                <TableHead>Collected</TableHead>
+                <TableHead>Remaining</TableHead>
                 <TableHead>Status</TableHead>
                 {canEditDelete && <TableHead className="w-[50px]">Actions</TableHead>}
               </TableRow>
@@ -478,6 +479,12 @@ export default function BookingsPage() {
                   <TableCell>{formatDate(booking.check_out)}</TableCell>
                   <TableCell>{formatCurrency(booking.final_price)}</TableCell>
                   <TableCell>{formatCurrency(booking.payment_amount || 0)}</TableCell>
+                  <TableCell className="font-medium">
+                    {formatCurrency(
+                      booking.remaining_balance ??
+                      Math.max(0, (parseFloat(booking.final_price) || 0) - (parseFloat(booking.payment_amount) || 0))
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge className={getPaymentStatusColor(booking.payment_status)}>
                       {booking.payment_status.charAt(0).toUpperCase() + booking.payment_status.slice(1)}

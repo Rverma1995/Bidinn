@@ -10,6 +10,7 @@ export enum NotificationType {
   FOLLOWUP_UPCOMING = "followup_upcoming",
   FOLLOWUP_MISSED = "followup_missed",
   SYSTEM = "system",
+  UNMATCHED_CALL = "unmatched_call",
 }
 
 export enum NotificationPriority {

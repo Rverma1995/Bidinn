@@ -4,7 +4,6 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Badge } from '../ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,9 +31,31 @@ import {
   X,
   Clock,
   AlertTriangle,
+  UserPlus,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+
+function playMissedFollowupSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.45);
+  } catch (e) {
+    // Autoplay may be blocked until the user interacts with the page
+  }
+}
 
 export function Header({ onMenuClick, showMobileMenu }) {
   const { user, logout, api } = useAuth();
@@ -51,14 +72,18 @@ export function Header({ onMenuClick, showMobileMenu }) {
 
   const showFollowupToast = useCallback((notification) => {
     const isMissed = notification.type === 'followup_missed';
+    const isAssignment = notification.type === 'lead_assignment';
     toast(notification.title, {
       description: notification.message,
       duration: 10000,
-      icon: isMissed ? '🔴' : '🟡',
+      icon: isMissed ? '🔴' : isAssignment ? '👤' : '🟡',
       action: notification.target_id ? {
         label: 'View Lead',
         onClick: () => navigate(`/leads/${notification.target_id}`),
-      } : undefined,
+      } : {
+        label: 'Dashboard',
+        onClick: () => navigate('/'),
+      },
     });
   }, [navigate]);
 
@@ -77,22 +102,31 @@ export function Header({ onMenuClick, showMobileMenu }) {
       const notifList = data.notifications || (Array.isArray(data) ? data : []);
       const count = data.unread_count ?? notifList.filter(n => !n.is_read).length;
 
-      // On first fetch, just seed the seen IDs — don't pop toasts for old ones
+      const FOLLOWUP_TYPES = ['followup_upcoming', 'followup_missed'];
+      const toastTypes = [...FOLLOWUP_TYPES, 'lead_assignment'];
+
+      const maybeToast = (n) => {
+        if (
+          !seenNotifIds.current.has(n.id) &&
+          !n.is_read &&
+          toastTypes.includes(n.type)
+        ) {
+          showFollowupToast(n);
+          if (n.type === 'followup_missed') playMissedFollowupSound();
+        }
+        seenNotifIds.current.add(n.id);
+      };
+
+      // Reload / first paint: still show in-app toasts for unread follow-ups (cap 3)
       if (isFirstFetch.current) {
-        notifList.forEach(n => seenNotifIds.current.add(n.id));
+        const unreadFollowups = notifList.filter(
+          (n) => !n.is_read && FOLLOWUP_TYPES.includes(n.type)
+        );
+        unreadFollowups.slice(0, 3).forEach(maybeToast);
+        notifList.forEach((n) => seenNotifIds.current.add(n.id));
         isFirstFetch.current = false;
       } else if (!isLoadMore) {
-        // Show pop-up toasts for NEW followup notifications we haven't seen
-        notifList.forEach(n => {
-          if (
-            !seenNotifIds.current.has(n.id) &&
-            !n.is_read &&
-            (n.type === 'followup_upcoming' || n.type === 'followup_missed')
-          ) {
-            showFollowupToast(n);
-          }
-          seenNotifIds.current.add(n.id);
-        });
+        notifList.forEach(maybeToast);
       } else {
         notifList.forEach(n => seenNotifIds.current.add(n.id));
       }
@@ -164,12 +198,15 @@ export function Header({ onMenuClick, showMobileMenu }) {
     markAsRead(notification.id);
     if (notification.target_id && notification.target_type === 'lead') {
       navigate(`/leads/${notification.target_id}`);
+    } else if (notification.type === 'lead_assignment') {
+      navigate('/');
     }
   };
 
   const getNotificationIcon = (type) => {
     if (type === 'followup_upcoming') return <Clock className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />;
     if (type === 'followup_missed') return <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />;
+    if (type === 'lead_assignment') return <UserPlus className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />;
     return null;
   };
 
@@ -255,7 +292,7 @@ export function Header({ onMenuClick, showMobileMenu }) {
                       key={notification.id}
                       className={`p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
                         !notification.is_read ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
-                      } ${notification.type === 'followup_missed' ? 'border-l-2 border-l-red-500' : ''} ${notification.type === 'followup_upcoming' ? 'border-l-2 border-l-amber-500' : ''}`}
+                      } ${notification.type === 'followup_missed' ? 'border-l-2 border-l-red-500' : ''} ${notification.type === 'followup_upcoming' ? 'border-l-2 border-l-amber-500' : ''} ${notification.type === 'lead_assignment' ? 'border-l-2 border-l-indigo-500' : ''}`}
                       onClick={() => handleNotificationClick(notification)}
                       data-testid={`notification-item-${notification.id}`}
                     >

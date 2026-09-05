@@ -85,6 +85,7 @@ export default function ReportsPage() {
   const [revenueData, setRevenueData] = useState<any[]>([]);
   const [pipelineStats, setPipelineStats] = useState<PipelineStats>({});
   const [sourceData, setSourceData] = useState<any[]>([]);
+  const [campaignData, setCampaignData] = useState<any>(null);
   const [agentPerformance, setAgentPerformance] = useState<any>(null);
   const [datePreset, setDatePreset] = useState('all');
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -148,12 +149,13 @@ export default function ReportsPage() {
       // For sales reps, we need to filter agent performance to their own data
       const agentParam = isSalesRep && user?.id ? `?agent_id=${user.id}` : '';
       
-      const [statsRes, revenueRes, pipelineRes, sourceRes, agentRes] = await Promise.all([
+      const [statsRes, revenueRes, pipelineRes, sourceRes, agentRes, campaignRes] = await Promise.all([
         api.get('/dashboard/stats'),
         api.get('/dashboard/revenue-trend'),
         api.get('/dashboard/pipeline-stats'),
         api.get('/dashboard/source-performance'),
         api.get(`/dashboard/agent-performance${agentParam}`),
+        api.get('/dashboard/campaign-performance'),
       ]);
 
       setStats(statsRes.data);
@@ -161,6 +163,7 @@ export default function ReportsPage() {
       setPipelineStats(pipelineRes.data);
       setSourceData(sourceRes.data);
       setAgentPerformance(agentRes.data);
+      setCampaignData(campaignRes.data);
     } catch (error) {
       console.error('Failed to fetch report data:', error);
     } finally {
@@ -220,8 +223,8 @@ export default function ReportsPage() {
 
   const sourceChartData = sourceData.map(s => ({
     name: s.source,
-    leads: s.total_leads,
-    won: s.closed_won,
+    leads: s.total_leads ?? s.total,
+    won: s.closed_won ?? s.won,
     rate: s.conversion_rate,
   }));
 
@@ -904,6 +907,82 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
+      {/* Lead Performance Analytics */}
+      <Card data-testid="lead-performance-analytics">
+        <CardHeader>
+          <CardTitle>Lead Performance Analytics</CardTitle>
+          <CardDescription>
+            Channel efficacy and source quality. Campaign ROI needs cost data that is not stored yet.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div>
+            <h3 className="text-sm font-medium mb-3">Channel efficacy (leads / conversions per source)</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2 font-medium">Source</th>
+                    <th className="text-right p-2 font-medium">Leads</th>
+                    <th className="text-right p-2 font-medium">Won</th>
+                    <th className="text-right p-2 font-medium">Conversion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sourceData.map((source) => (
+                    <tr key={source.source} className="border-b">
+                      <td className="p-2">{source.source}</td>
+                      <td className="p-2 text-right">{source.total_leads ?? source.total}</td>
+                      <td className="p-2 text-right">{source.closed_won ?? source.won}</td>
+                      <td className="p-2 text-right">{source.conversion_rate}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium mb-3">Campaign performance</h3>
+            {campaignData && !campaignData.campaign_cost_available && (
+              <p className="text-sm text-amber-700 dark:text-amber-400 mb-3" data-testid="campaign-roi-unavailable">
+                {campaignData.message || 'Campaign cost is not tracked, so ROI cannot be calculated yet.'}
+              </p>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2 font-medium">Campaign</th>
+                    <th className="text-right p-2 font-medium">Leads</th>
+                    <th className="text-right p-2 font-medium">Won</th>
+                    <th className="text-right p-2 font-medium">Conversion</th>
+                    <th className="text-right p-2 font-medium">ROI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(campaignData?.campaigns || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-4 text-center text-muted-foreground">No campaign data</td>
+                    </tr>
+                  ) : (
+                    campaignData.campaigns.map((row) => (
+                      <tr key={row.campaign} className="border-b">
+                        <td className="p-2">{row.campaign}</td>
+                        <td className="p-2 text-right">{row.total_leads ?? row.total}</td>
+                        <td className="p-2 text-right">{row.closed_won ?? row.won}</td>
+                        <td className="p-2 text-right">{row.conversion_rate}%</td>
+                        <td className="p-2 text-right text-muted-foreground">N/A</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Source Conversion Table */}
       <Card>
         <CardHeader>
@@ -926,8 +1005,8 @@ export default function ReportsPage() {
                 {sourceData.map((source) => (
                   <tr key={source.source} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="p-3 font-medium">{source.source}</td>
-                    <td className="p-3 text-right">{source.total_leads}</td>
-                    <td className="p-3 text-right">{source.closed_won}</td>
+                    <td className="p-3 text-right">{source.total_leads ?? source.total}</td>
+                    <td className="p-3 text-right">{source.closed_won ?? source.won}</td>
                     <td className="p-3 text-right">{source.conversion_rate}%</td>
                     <td className="p-3 text-right">
                       <Badge variant={source.conversion_rate > 20 ? 'default' : source.conversion_rate > 10 ? 'secondary' : 'outline'}>

@@ -1,8 +1,9 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, BeforeInsert, Index } from "typeorm";
+import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, BeforeInsert, BeforeUpdate, Index } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { User } from "./User";
 import { Call } from "./Call";
 import { Booking } from "./Booking";
+import { normalizePhone } from "../utils/phone";
 
 // Lead Stages matching frontend utils.ts
 export enum LeadStatus {
@@ -58,12 +59,15 @@ export const STAGES_REQUIRING_REASON: LeadStatus[] = [
 @Index("idx_leads_status", ["status"])
 @Index("idx_leads_created_at", ["created_at"])
 @Index("idx_leads_phone", ["phone"])
+@Index("idx_leads_phone_normalized", ["phone_normalized"])
 @Index("idx_leads_source", ["source"])
 @Index("idx_leads_assigned_status", ["assigned_to", "status"])
 @Index("idx_leads_status_created", ["status", "created_at"])
 @Index("idx_leads_next_followup", ["next_followup"])
 @Index("idx_leads_attempt_count", ["attempt_count"])
 @Index("idx_leads_campaign", ["campaign"])
+@Index("idx_leads_uncontacted", ["status", "attempt_count", "created_at"])
+@Index("idx_leads_email", ["email"])
 export class Lead {
   @PrimaryColumn({ type: "varchar", length: 36 })
   id: string;
@@ -73,6 +77,9 @@ export class Lead {
 
   @Column({ type: "varchar", length: 50 })
   phone: string;
+
+  @Column({ type: "varchar", length: 20, nullable: true })
+  phone_normalized: string | null;
 
   @Column({ type: "varchar", length: 255, nullable: true })
   email: string;
@@ -138,5 +145,11 @@ export class Lead {
     if (!this.id) {
       this.id = uuidv4();
     }
+    this.syncPhoneNormalized();
+  }
+
+  @BeforeUpdate()
+  syncPhoneNormalized() {
+    this.phone_normalized = this.phone ? normalizePhone(this.phone) || null : null;
   }
 }

@@ -1,0 +1,15 @@
+{
+  "name": "bidinn-crm",
+  "private": true,
+  "description": "Bidinn Sales CRM — run frontend and backend together",
+  "scripts": {
+    "setup": "yarn --cwd backend install && yarn --cwd frontend install",
+    "start": "concurrently -n backend,frontend -c cyan,magenta --prefix \"[{name}]\" --prefix-length 10 --kill-others-on-fail \"yarn --cwd backend watch\" \"FORCE_COLOR=1 yarn --cwd frontend start | cat\"",
+    "dev": "yarn start",
+    "start:backend": "yarn --cwd backend watch",
+    "start:frontend": "yarn --cwd frontend start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

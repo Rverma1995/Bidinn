@@ -96,7 +96,7 @@ router.get("/export-database", authenticateToken, requireRole([UserRole.ADMIN]),
       callRepository().find(),
       activityRepository().find(),
       notificationRepository().find(),
-      userRepository().find({ select: ["id", "email", "name", "role", "is_active", "created_at"] }), // Exclude password_hash
+      userRepository().find({ select: ["id", "email", "name", "role", "is_active", "tata_extension", "created_at"] }), // Exclude password_hash
     ]);
 
     const exportData = {
