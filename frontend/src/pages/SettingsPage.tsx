@@ -40,6 +40,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
+import { PwaInstallCard, PushNotificationToggle } from '../components/pwa/PwaSettings';
 
 export default function SettingsPage() {
   const { user, api, isAdmin } = useAuth();
@@ -417,6 +418,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      <PwaInstallCard />
+
       {/* Notifications Section */}
       <Card>
         <CardHeader>
@@ -427,6 +430,7 @@ export default function SettingsPage() {
           <CardDescription>Configure notification preferences</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <PushNotificationToggle />
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>Email Notifications</Label>

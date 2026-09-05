@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
@@ -28,7 +28,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { ClickToCallButton } from '../components/ClickToCallButton';
 import { toast } from 'sonner';
 import {
-  getStatusColor,
   getStatusLabel,
   formatRelativeTime,
   formatCurrency,
@@ -41,13 +40,10 @@ import {
   STATUSES_REQUIRING_ASSIGNMENT,
   isTransitionAllowed,
   isLeadStalled,
-  getStageProgress,
+  cn,
 } from '../lib/utils';
 import {
   Loader2,
-  Clock,
-  Phone,
-  MapPin,
   User,
   ThumbsUp,
   ThumbsDown,
@@ -55,16 +51,27 @@ import {
   Trophy,
   XCircle,
   PhoneCall,
-  PhoneOff,
   PhoneMissed,
-  Voicemail,
-  AlertCircle,
   CheckCircle2,
-  ArrowRight,
-  MoreHorizontal,
   Search,
-  Filter,
+  ArrowRight,
+  Clock,
 } from 'lucide-react';
+
+const UNCONTACTED_DEADLINE_MS = 60 * 60 * 1000;
+
+function formatOverdueDuration(sinceMs: number) {
+  const diffMs = Math.max(0, Date.now() - sinceMs);
+  const hours = Math.floor(diffMs / 3600000);
+  const mins = Math.floor((diffMs % 3600000) / 60000);
+  const secs = Math.floor((diffMs % 60000) / 1000);
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    return `${days}d overdue`;
+  }
+  if (hours > 0) return `${hours}h ${mins}m overdue`;
+  return `${mins}:${secs.toString().padStart(2, '0')} overdue`;
+}
 
 // Quick Action Panel for updating lead after call
 function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
@@ -90,6 +97,14 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
       setClosedReasonNotes('');
     }
   }, [lead]);
+
+  const buildStatusChangeNotes = (outcome: string, status: string, userNotes?: string) => {
+    const trimmed = userNotes?.trim();
+    if (trimmed) return trimmed;
+    const outcomeLabel =
+      CALL_OUTCOMES.find((o) => o.value === outcome)?.label || outcome.replace(/_/g, ' ');
+    return `Quick action: ${outcomeLabel} → ${getStatusLabel(status)}`;
+  };
 
   const handleQuickAction = async (outcome: string, status: string, reason?: string, reasonNotes?: string) => {
     // Check transition rules
@@ -125,9 +140,12 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
         next_followup: nextFollowup || null,
       });
 
-      // Update lead status if changed
+      // Update lead status if changed (backend requires notes on any stage change)
       if (status !== lead.status) {
-        const updateData: any = { status };
+        const updateData: any = {
+          status,
+          notes: buildStatusChangeNotes(outcome, status, notes || reasonNotes),
+        };
         if (reason) {
           updateData.closed_reason = reason;
           updateData.closed_reason_notes = reasonNotes;
@@ -145,6 +163,8 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
       if (rule === 'closed_reason_required') {
         setPendingAction({ outcome, status });
         setClosedReasonDialogOpen(true);
+      } else if (rule === 'notes_required_for_stage_change') {
+        toast.error('Please add notes before changing the lead status');
       } else {
         toast.error(errorDetail);
       }
@@ -424,113 +444,138 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
   );
 }
 
-// Lead Card Component
-function LeadCard({ lead, onCallClick, onCardClick }) {
-  const [countdown, setCountdown] = useState(null);
+// Lead card — readable two-block layout; no overlapping text
+function LeadCard({ lead, onCallClick }) {
+  const [timerState, setTimerState] = useState(null);
   const showCountdown = lead.status === 'new' && lead.attempt_count === 0;
   const stalled = isLeadStalled(lead);
-  const progress = getStageProgress(lead.status);
-  const overdueFollowup = lead.next_followup && new Date(lead.next_followup) < new Date() && !['won', 'lost'].includes(lead.status);
+  const overdueFollowup =
+    lead.next_followup &&
+    new Date(lead.next_followup) < new Date() &&
+    !['won', 'lost'].includes(lead.status);
+  const isFollowupOverdue = overdueFollowup && !showCountdown;
+  const isUncontactedOverdue = showCountdown && lead.is_overdue;
 
   useEffect(() => {
-    if (!showCountdown) return;
-    const updateCountdown = () => setCountdown(getCountdownTime(lead.created_at));
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
+    const tick = () => {
+      if (showCountdown) {
+        const countdown = getCountdownTime(lead.created_at);
+        if (!countdown) {
+          setTimerState(null);
+          return;
+        }
+        if (countdown.expired) {
+          const deadline = new Date(lead.created_at).getTime() + UNCONTACTED_DEADLINE_MS;
+          setTimerState({ text: formatOverdueDuration(deadline), variant: 'overdue' });
+        } else {
+          setTimerState({ text: countdown.text, variant: 'countdown', urgent: countdown.urgent });
+        }
+        return;
+      }
+      if (overdueFollowup && lead.next_followup) {
+        setTimerState({
+          text: formatOverdueDuration(new Date(lead.next_followup).getTime()),
+          variant: 'overdue',
+          label: 'Follow-up',
+        });
+        return;
+      }
+      setTimerState(null);
+    };
+
+    tick();
+    if (!showCountdown && !overdueFollowup) return;
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [lead.created_at, showCountdown]);
+  }, [lead.created_at, lead.next_followup, showCountdown, overdueFollowup]);
+
+  const assignee = lead.assigned_name ? lead.assigned_name.split(' ')[0] : 'Unassigned';
+  const lastTouch = formatRelativeTime(lead.last_activity || lead.created_at);
 
   return (
     <Link
       to={`/leads/${lead.id}`}
-      className={`group block p-3 rounded-xl border bg-white dark:bg-slate-900 transition-all hover:shadow-lg cursor-pointer no-underline text-inherit ${
-        lead.is_overdue || overdueFollowup
-          ? 'border-red-300 dark:border-red-700 ring-1 ring-red-200 dark:ring-red-800'
+      title={`${lead.name} · ${lead.phone}`}
+      className={cn(
+        'group block rounded-lg border bg-white dark:bg-slate-900 overflow-hidden',
+        'transition-all hover:shadow-md hover:border-primary/40 no-underline text-inherit',
+        isUncontactedOverdue || isFollowupOverdue
+          ? 'border-red-200 dark:border-red-800 ring-1 ring-red-100 dark:ring-red-900/40'
           : stalled
-            ? 'border-amber-300 dark:border-amber-700'
-            : 'border-slate-200 dark:border-slate-700 hover:border-primary/50'
-      }`}
+            ? 'border-amber-200 dark:border-amber-800'
+            : 'border-slate-200 dark:border-slate-700'
+      )}
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Avatar className="h-9 w-9 flex-shrink-0">
-            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+      <div className="p-2.5 sm:p-3">
+        <div className="flex gap-2.5 sm:gap-3 items-start">
+          <Avatar className="h-8 w-8 sm:h-9 sm:w-9 shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
               {generateInitials(lead.name)}
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-sm truncate">{lead.name}</h3>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
-              <Phone className="w-3 h-3 flex-shrink-0" />
-              {lead.phone}
+
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <p className="text-sm font-medium leading-snug line-clamp-2 break-words text-foreground">
+              {lead.name}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">{lead.phone}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+              <span className="inline-flex items-center gap-1">
+                <User className="w-3 h-3 shrink-0" />
+                {assignee}
+              </span>
+              <span className="mx-1">·</span>
+              <span>{lastTouch}</span>
             </p>
           </div>
         </div>
-        {showCountdown && countdown && (
-          <Badge className={`text-xs flex-shrink-0 ${
-            countdown.expired
-              ? 'bg-red-500 text-white animate-pulse'
-              : countdown.urgent
-                ? 'bg-amber-500 text-white'
-                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-          }`}>
-            <Clock className="w-3 h-3 mr-1" />
-            {countdown.text}
-          </Badge>
-        )}
-        {stalled && !showCountdown && (
-          <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300 flex-shrink-0">
-            Stalled
-          </Badge>
-        )}
-      </div>
 
-      <div className="h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full mb-2 overflow-hidden">
-        <div className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }} />
-      </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-1 min-w-0">
+            {timerState && (
+              <Badge
+                className={cn(
+                  'text-[10px] font-normal tabular-nums inline-flex items-center gap-1',
+                  timerState.variant === 'overdue'
+                    ? 'bg-red-500 text-white'
+                    : timerState.urgent
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                )}
+              >
+                <Clock className="w-3 h-3 shrink-0" />
+                {timerState.label ? `${timerState.label} ` : ''}
+                {timerState.text}
+              </Badge>
+            )}
+            {stalled && !showCountdown && (
+              <Badge variant="outline" className="text-[10px] font-normal text-amber-700 border-amber-300">
+                Stalled
+              </Badge>
+            )}
+          </div>
 
-      <div className="grid grid-cols-2 gap-1 mb-2 text-[11px] text-muted-foreground">
-        <span className="truncate">Last: {formatRelativeTime(lead.last_activity || lead.created_at)}</span>
-        <span className={`truncate text-right ${overdueFollowup ? 'text-red-600 font-medium' : ''}`}>
-          {!lead.next_followup
-            ? 'No follow-up'
-            : overdueFollowup
-              ? `Overdue ${formatRelativeTime(lead.next_followup)}`
-              : `Next ${new Date(lead.next_followup).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-        <div className="text-xs text-muted-foreground truncate">
-          {lead.assigned_name ? (
-            <span className="flex items-center gap-1">
-              <User className="w-3 h-3" />
-              {lead.assigned_name.split(' ')[0]}
-            </span>
-          ) : (
-            <span className="text-amber-600">Unassigned</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <ClickToCallButton
-            leadId={lead.id}
-            phoneNumber={lead.phone}
-            size="sm"
-            className="h-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-          />
-          <Button
-          size="sm"
-          variant="secondary"
-          className="h-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            onCallClick(lead);
-          }}
-        >
-          <PhoneCall className="w-3 h-3 mr-1" />
-          Log Call
-        </Button>
+          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+            <ClickToCallButton
+              leadId={lead.id}
+              phoneNumber={lead.phone}
+              iconOnly
+              className="h-8 w-8 shrink-0"
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-8 px-2.5 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onCallClick(lead);
+              }}
+            >
+              <PhoneCall className="w-3.5 h-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Log</span>
+            </Button>
+          </div>
         </div>
       </div>
     </Link>
@@ -540,12 +585,10 @@ function LeadCard({ lead, onCallClick, onCardClick }) {
 // Pipeline Column Component
 interface PipelineColumnProps {
   title: string;
-  icon?: React.ComponentType<{ className?: string }>;
   color: string;
   leads: any[];
   count: number;
   onCallClick: (lead: any) => void;
-  onCardClick: (lead: any) => void;
   onDrop: (e: React.DragEvent, newStatus: string) => void;
   status: string;
   page?: number;
@@ -554,7 +597,99 @@ interface PipelineColumnProps {
   onPageChange?: (page: number) => void;
 }
 
-function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, onCardClick, onDrop, status, page = 1, totalPages = 1, loading, onPageChange }: PipelineColumnProps) {
+const KANBAN_STAGES = ACTIVE_PIPELINE_STATUSES.filter(
+  (stage) => stage.value !== 'won' && stage.value !== 'lost'
+);
+
+function ClosedDealsSection({ wonLeads, lostLeads, wonCount, lostCount }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0 mt-3">
+      <Card className="border-green-200 dark:border-green-800">
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-sm flex items-center gap-2 text-green-700 dark:text-green-400">
+            <Trophy className="w-4 h-4" />
+            Won ({wonCount})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 pt-0">
+          <ScrollArea className="h-[140px] sm:h-[160px]">
+            {wonLeads.length === 0 ? (
+              <p className="text-center py-6 text-sm text-muted-foreground">No won deals yet</p>
+            ) : (
+              <div className="space-y-1.5">
+                {wonLeads.slice(0, 10).map((lead) => (
+                  <Link
+                    to={`/leads/${lead.id}`}
+                    key={lead.id}
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-green-50 dark:bg-green-900/10 hover:bg-green-100 dark:hover:bg-green-900/20 no-underline text-inherit"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{lead.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{lead.source || lead.phone}</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <Card className="border-red-200 dark:border-red-900/30">
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-sm flex items-center gap-2 text-red-700 dark:text-red-400">
+            <XCircle className="w-4 h-4" />
+            Lost ({lostCount})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 pt-0">
+          <ScrollArea className="h-[140px] sm:h-[160px]">
+            {lostLeads.length === 0 ? (
+              <p className="text-center py-6 text-sm text-muted-foreground">No lost deals</p>
+            ) : (
+              <div className="space-y-1.5">
+                {lostLeads.slice(0, 10).map((lead) => (
+                  <Link
+                    to={`/leads/${lead.id}`}
+                    key={lead.id}
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 no-underline text-inherit"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <XCircle className="w-4 h-4 text-red-600 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{lead.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{lead.source || lead.phone}</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function PipelineColumn({
+  title,
+  color,
+  leads,
+  count,
+  onCallClick,
+  onDrop,
+  status,
+  page = 1,
+  totalPages = 1,
+  loading,
+  onPageChange,
+}: PipelineColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const colorClasses = {
@@ -568,44 +703,79 @@ function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, o
   };
 
   const columnTint = {
-    blue: 'border-t-blue-500 bg-blue-50/40 dark:bg-blue-950/20',
-    emerald: 'border-t-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20',
-    slate: 'border-t-slate-400 bg-slate-50/50 dark:bg-slate-800/30',
-    amber: 'border-t-amber-500 bg-amber-50/40 dark:bg-amber-950/20',
-    orange: 'border-t-orange-500 bg-orange-50/40 dark:bg-orange-950/20',
-    green: 'border-t-green-500 bg-green-50/40 dark:bg-green-950/20',
-    red: 'border-t-red-500 bg-red-50/40 dark:bg-red-950/20',
+    blue: 'border-t-blue-500 bg-blue-50/30 dark:bg-blue-950/15',
+    emerald: 'border-t-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/15',
+    slate: 'border-t-slate-400 bg-slate-50/40 dark:bg-slate-800/20',
+    amber: 'border-t-amber-500 bg-amber-50/30 dark:bg-amber-950/15',
+    orange: 'border-t-orange-500 bg-orange-50/30 dark:bg-orange-950/15',
+    green: 'border-t-green-500 bg-green-50/30 dark:bg-green-950/15',
+    red: 'border-t-red-500 bg-red-50/30 dark:bg-red-950/15',
   };
 
   return (
     <div
-      className={`flex flex-col flex-1 min-w-[260px] sm:min-w-[300px] max-w-[380px] h-full rounded-2xl border-t-4 ${
-        isDragOver ? 'border-primary border-dashed bg-primary/5' : `${columnTint[color] || 'border-t-slate-300'} border border-slate-200/80 dark:border-slate-700/50`
-      }`}
-      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      className={cn(
+        'flex flex-col flex-shrink-0 h-full rounded-xl border-t-[3px] snap-start',
+        'w-[calc(100vw-2.5rem)] max-w-[300px] sm:w-[272px] md:w-[300px]',
+        isDragOver
+          ? 'border-primary border-dashed bg-primary/5'
+          : cn(
+              columnTint[color] || 'border-t-slate-300 bg-slate-50/30',
+              'border border-slate-200/80 dark:border-slate-700/50'
+            )
+      )}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragOver(true);
+      }}
       onDragLeave={() => setIsDragOver(false)}
-      onDrop={(e) => { e.preventDefault(); setIsDragOver(false); onDrop(e, status); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        onDrop(e, status);
+      }}
     >
-      {/* Column Header */}
-      <div className="p-4 border-b border-slate-200/50 dark:border-slate-700/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${colorClasses[color]}`} />
-            <h3 className="font-semibold">{title}</h3>
+      <div className="px-3 py-2.5 border-b border-slate-200/60 dark:border-slate-700/50 shrink-0 bg-white/50 dark:bg-slate-900/30 rounded-t-xl">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={cn('w-2.5 h-2.5 rounded-full shrink-0', colorClasses[color])} />
+            <h3 className="font-semibold text-sm truncate">{title}</h3>
+            <Badge variant="secondary" className="h-5 px-2 text-[11px] rounded-full tabular-nums">
+              {count}
+            </Badge>
           </div>
-          <Badge variant="secondary" className="rounded-full">
-            {count}
-          </Badge>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-0.5 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 w-6 p-0"
+                disabled={page <= 1 || loading}
+                onClick={() => onPageChange?.(page - 1)}
+              >
+                ‹
+              </Button>
+              <span className="text-[10px] text-muted-foreground tabular-nums min-w-[2.5rem] text-center">
+                {page}/{totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 w-6 p-0"
+                disabled={page >= totalPages || loading}
+                onClick={() => onPageChange?.(page + 1)}
+              >
+                ›
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Cards */}
-      <ScrollArea className="flex-1" style={{ height: 'calc(100% - 60px)' }}>
-        <div className="p-3 space-y-3 pb-8">
+      <ScrollArea className="flex-1 min-h-0 h-0">
+        <div className="p-2 space-y-2">
           {leads.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              No leads in this stage
-            </div>
+            <div className="text-center py-6 text-muted-foreground text-[11px]">No leads</div>
           ) : (
             leads.map((lead) => (
               <div
@@ -616,45 +786,15 @@ function PipelineColumn({ title, icon: Icon, color, leads, count, onCallClick, o
                   e.dataTransfer.setData('fromStatus', lead.status);
                 }}
               >
-                <LeadCard
-                  lead={lead}
-                  onCallClick={onCallClick}
-                  onCardClick={onCardClick}
-                />
+                <LeadCard lead={lead} onCallClick={onCallClick} />
               </div>
             ))
           )}
           {loading && (
-            <div className="text-center py-2 text-xs text-muted-foreground">
-              Loading...
-            </div>
+            <div className="text-center py-1 text-[10px] text-muted-foreground">Loading…</div>
           )}
         </div>
       </ScrollArea>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-b-2xl">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            disabled={page <= 1 || loading}
-            onClick={() => onPageChange?.(page - 1)}
-          >
-            Prev
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            Page {page} of {totalPages}
-          </span>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            disabled={page >= totalPages || loading}
-            onClick={() => onPageChange?.(page + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -720,8 +860,8 @@ export default function PipelinePage() {
 
   const fetchAllLeads = async () => {
     setLoading(true);
-    const statuses = [...ACTIVE_PIPELINE_STATUSES.map(s => s.value), 'won', 'lost'];
-    await Promise.all(statuses.map(s => fetchLeadsForStatus(s)));
+    const statuses = [...KANBAN_STAGES.map((s) => s.value), 'won', 'lost'];
+    await Promise.all(statuses.map((s) => fetchLeadsForStatus(s)));
     setLoading(false);
   };
 
@@ -797,10 +937,6 @@ export default function PipelinePage() {
     setQuickActionOpen(true);
   };
 
-  const handleCardClick = (lead) => {
-    navigate(`/leads/${lead.id}`);
-  };
-
   const handleQuickActionSuccess = () => {
     fetchAllLeads();
     fetchStats();
@@ -818,7 +954,7 @@ export default function PipelinePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-[calc(100dvh-8rem)]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
@@ -828,90 +964,53 @@ export default function PipelinePage() {
   const lostLeads = getLeadsByStatus('lost');
 
   return (
-    <div className="space-y-6 animate-fade-in" data-testid="pipeline-page">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
-          <p className="text-muted-foreground">
-            Track and manage your leads through the sales process
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+    <div
+      className="flex flex-col -m-4 md:-m-6 lg:-m-8 p-2 sm:p-3 md:p-4 animate-fade-in"
+      data-testid="pipeline-page"
+    >
+      {/* Compact toolbar: title, search, inline stats */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center shrink-0 mb-2 sm:mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <h1 className="text-base sm:text-lg font-semibold tracking-tight shrink-0">Pipeline</h1>
+          <div className="relative flex-1 min-w-0 sm:max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search leads..."
+              placeholder="Search name or phone…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-64"
+              className="pl-8 h-8 text-sm w-full"
+              data-testid="pipeline-search"
             />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 sm:ml-auto scrollbar-none">
+          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-950/30 text-xs whitespace-nowrap shrink-0">
+            <User className="w-3.5 h-3.5 text-blue-600" />
+            <span className="text-muted-foreground hidden sm:inline">Active</span>
+            <span className="font-semibold tabular-nums">{stats.active}</span>
+          </div>
+          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-green-50 dark:bg-green-950/30 text-xs whitespace-nowrap shrink-0">
+            <Trophy className="w-3.5 h-3.5 text-green-600" />
+            <span className="text-muted-foreground hidden sm:inline">Won</span>
+            <span className="font-semibold text-green-600 tabular-nums">{stats.won}</span>
+          </div>
+          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-50 dark:bg-red-950/30 text-xs whitespace-nowrap shrink-0">
+            <XCircle className="w-3.5 h-3.5 text-red-600" />
+            <span className="text-muted-foreground hidden sm:inline">Lost</span>
+            <span className="font-semibold text-red-600 tabular-nums">{stats.lost}</span>
+          </div>
+          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/30 text-xs whitespace-nowrap shrink-0">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="font-semibold text-emerald-600 tabular-nums">{formatCurrency(stats.revenue)}</span>
           </div>
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Leads</p>
-                <p className="text-2xl font-bold">
-                  {stats.active}
-                </p>
-              </div>
-              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                <User className="w-5 h-5 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Won</p>
-                <p className="text-2xl font-bold text-green-600">{stats.won}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
-                <Trophy className="w-5 h-5 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Lost</p>
-                <p className="text-2xl font-bold text-red-600">{stats.lost}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
-                <XCircle className="w-5 h-5 text-red-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Revenue</p>
-                <p className="text-2xl font-bold text-emerald-600">{formatCurrency(stats.revenue)}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Pipeline Kanban */}
-      <div className="overflow-x-auto pb-4" style={{ height: 'calc(100vh - 320px)', minHeight: '500px' }}>
-        <div className="flex gap-4 min-w-max h-full">
-          {ACTIVE_PIPELINE_STATUSES.map((stage) => (
+      {/* Kanban board — fixed height so Won/Lost below don't shrink it */}
+      <div className="h-[calc(100dvh-8rem)] min-h-[480px] sm:min-h-[560px] shrink-0 overflow-x-auto overflow-y-hidden rounded-xl border border-slate-200/80 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/20 snap-x snap-mandatory">
+        <div className="flex gap-2 sm:gap-3 h-full min-w-max p-2 sm:p-3">
+          {KANBAN_STAGES.map((stage) => (
             <PipelineColumn
               key={stage.value}
               title={stage.label}
@@ -920,7 +1019,6 @@ export default function PipelinePage() {
               leads={getLeadsByStatus(stage.value)}
               count={columnsPaging[stage.value]?.total ?? getLeadsByStatus(stage.value).length}
               onCallClick={handleCallClick}
-              onCardClick={handleCardClick}
               onDrop={handleDrop}
               page={columnsPaging[stage.value]?.page}
               totalPages={columnsPaging[stage.value]?.totalPages}
@@ -931,80 +1029,12 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      {/* Closed Deals Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Won Deals */}
-        <Card className="border-green-200 dark:border-green-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2 text-green-700 dark:text-green-400">
-              <Trophy className="w-5 h-5" />
-              Won ({stats.won})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[200px]">
-              {wonLeads.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">No won deals yet</p>
-              ) : (
-                <div className="space-y-2">
-                  {wonLeads.slice(0, 10).map((lead) => (
-                    <Link
-                      to={`/leads/${lead.id}`}
-                      key={lead.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/10 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/20 no-underline text-inherit"
-                    >
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                        <div>
-                          <p className="font-medium text-sm">{lead.name}</p>
-                          <p className="text-xs text-muted-foreground">{lead.source}</p>
-                        </div>
-                      </div>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        {/* Lost Deals */}
-        <Card className="border-red-200 dark:border-red-900/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2 text-red-700 dark:text-red-400">
-              <XCircle className="w-5 h-5" />
-              Lost ({stats.lost})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[200px]">
-              {lostLeads.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">No lost deals</p>
-              ) : (
-                <div className="space-y-2">
-                  {lostLeads.slice(0, 10).map((lead) => (
-                    <Link
-                      to={`/leads/${lead.id}`}
-                      key={lead.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/10 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/20 no-underline text-inherit"
-                    >
-                      <div className="flex items-center gap-3">
-                        <XCircle className="w-4 h-4 text-red-600" />
-                        <div>
-                          <p className="font-medium text-sm">{lead.name}</p>
-                          <p className="text-xs text-muted-foreground">{lead.source}</p>
-                        </div>
-                      </div>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
+      <ClosedDealsSection
+        wonLeads={wonLeads}
+        lostLeads={lostLeads}
+        wonCount={stats.won}
+        lostCount={stats.lost}
+      />
 
       {/* Quick Action Panel */}
       <QuickActionPanel

@@ -14,6 +14,7 @@ import PaymentsPage from './pages/PaymentsPage';
 import ReportsPage from './pages/ReportsPage';
 import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
+import { PwaBootstrap } from './pwa/PwaBootstrap';
 import './App.css';
 
 interface ProtectedRouteProps {
@@ -130,6 +131,7 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
+          <PwaBootstrap />
           <AppRoutes />
           <Toaster 
             position="top-right" 

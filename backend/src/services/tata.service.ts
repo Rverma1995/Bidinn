@@ -12,6 +12,7 @@ import {
   mergeWebhookEvent,
 } from "./tata-webhook";
 import { toE164 } from "../utils/phone";
+import { sendPushForNotifications } from "./web-push.service";
 
 const SMARTFLO_API_KEY = () => process.env.TATA_SMARTFLO_API_KEY || "";
 const SMARTFLO_BASE_URL = () => process.env.TATA_SMARTFLO_BASE_URL || "https://api.smartflo.tatatelebusiness.com";
@@ -104,6 +105,7 @@ async function notifyUnmatchedCall(snapshot: CallSnapshot): Promise<void> {
       },
     });
     await notificationRepository.save(notification);
+    void sendPushForNotifications([notification]);
   }
 }
 

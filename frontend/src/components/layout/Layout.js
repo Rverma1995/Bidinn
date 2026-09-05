@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { CommandPalette } from './CommandPalette';
 import { cn } from '../../lib/utils';
 
 export function Layout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
@@ -37,11 +39,13 @@ export function Layout() {
         <Header
           onMenuClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           showMobileMenu={mobileMenuOpen}
+          onOpenCommand={() => setCommandOpen(true)}
         />
         <main className="p-4 md:p-6 lg:p-8" data-testid="main-content">
           <Outlet />
         </main>
       </div>
+      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
     </div>
   );
 }

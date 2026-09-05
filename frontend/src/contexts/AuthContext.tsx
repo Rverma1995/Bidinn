@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { unsubscribeFromPush } from '../pwa/push';
 
 const AuthContext = createContext(null);
 
@@ -63,6 +64,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    void unsubscribeFromPush(api());
     localStorage.removeItem('bidinn_token');
     setToken(null);
     setUser(null);

@@ -20,6 +20,7 @@ import {
   normalizePhone,
 } from "../utils/lead-scope";
 import { notifyAssigneeOfLeads } from "../services/assignment-notify.service";
+import { sendPushForNotifications } from "../services/web-push.service";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -100,6 +101,7 @@ const notifyManagersAndAdmins = async (type: NotificationType, title: string, me
       metadata,
     });
     await notificationRepository().save(notification);
+    void sendPushForNotifications([notification]);
   }
 };
 

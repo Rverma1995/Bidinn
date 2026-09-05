@@ -167,3 +167,19 @@ export interface ImportResult {
   total_rows: number;
   errors: string[];
 }
+
+export interface LeadListFilters {
+  status: string;
+  source: string;
+  campaign: string;
+  assigned_to: string;
+  search: string;
+}
+
+export interface SavedFilter {
+  id: string;
+  user_id: string;
+  name: string;
+  filter_json: LeadListFilters;
+  created_at: string;
+}

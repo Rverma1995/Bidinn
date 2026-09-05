@@ -10,6 +10,7 @@ interface ClickToCallButtonProps {
   disabled?: boolean;
   size?: 'default' | 'sm' | 'lg' | 'icon';
   className?: string;
+  iconOnly?: boolean;
   onSettled?: () => void;
 }
 
@@ -31,6 +32,7 @@ export function ClickToCallButton({
   disabled,
   size = 'sm',
   className,
+  iconOnly = false,
   onSettled,
 }: ClickToCallButtonProps) {
   const { api, user } = useAuth();
@@ -126,13 +128,16 @@ export function ClickToCallButton({
 
   if (!enabled) return null;
 
+  const buttonSize = iconOnly ? 'icon' : size;
+
   return (
     <Button
       variant="outline"
-      size={size}
+      size={buttonSize}
       onClick={handleCall}
       disabled={disabled || calling || !phoneNumber}
-      className={className || 'gap-2'}
+      className={className || (iconOnly ? '' : 'gap-2')}
+      title={iconOnly ? (calling ? statusLabel : `Call ${phoneNumber}`) : undefined}
       data-testid="click-to-call-btn"
     >
       {calling ? (
@@ -140,7 +145,7 @@ export function ClickToCallButton({
       ) : (
         <Phone className="w-4 h-4" />
       )}
-      {statusLabel}
+      {!iconOnly && statusLabel}
     </Button>
   );
 }

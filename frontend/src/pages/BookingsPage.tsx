@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { cn } from '../lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -252,6 +254,8 @@ function CreateBookingDialog({ open, onOpenChange, leads, onSuccess }) {
 
 export default function BookingsPage() {
   const { api, user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const highlightBookingId = searchParams.get('booking');
   const [bookings, setBookings] = useState([]);
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -270,10 +274,25 @@ export default function BookingsPage() {
   const canEditDelete = isAdmin || isManager;
 
   useEffect(() => {
+    if (highlightBookingId) {
+      setSearchQuery('');
+      setStatusFilter('all');
+    }
+  }, [highlightBookingId]);
+
+  useEffect(() => {
     fetchBookings();
     fetchLeads();
     fetchBookingReasons();
   }, [statusFilter]);
+
+  useEffect(() => {
+    if (!highlightBookingId || loading) return;
+    const row = document.querySelector(`[data-testid="booking-row-${highlightBookingId}"]`);
+    if (row) {
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [highlightBookingId, bookings, loading]);
 
   const fetchBookings = async () => {
     try {
@@ -472,7 +491,14 @@ export default function BookingsPage() {
             </TableHeader>
             <TableBody>
               {filteredBookings.map((booking) => (
-                <TableRow key={booking.id} className="table-row-interactive" data-testid={`booking-row-${booking.id}`}>
+                <TableRow
+                  key={booking.id}
+                  className={cn(
+                    'table-row-interactive',
+                    highlightBookingId === booking.id && 'bg-primary/10 ring-1 ring-inset ring-primary/30'
+                  )}
+                  data-testid={`booking-row-${booking.id}`}
+                >
                   <TableCell className="font-medium">{booking.lead_name}</TableCell>
                   <TableCell>{booking.hotel_name}</TableCell>
                   <TableCell>{formatDate(booking.check_in)}</TableCell>

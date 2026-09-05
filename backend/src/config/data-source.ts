@@ -8,6 +8,8 @@ import { Activity } from "../entities/Activity";
 import { MetaConfig } from "../entities/MetaConfig";
 import { Payment } from "../entities/Payment";
 import { Notification } from "../entities/Notification";
+import { SavedFilter } from "../entities/SavedFilter";
+import { PushSubscription } from "../entities/PushSubscription";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -22,7 +24,7 @@ export const AppDataSource = new DataSource({
   // Local empty DBs can set TYPEORM_SYNCHRONIZE=true once to create tables.
   synchronize: process.env.TYPEORM_SYNCHRONIZE === "true",
   // logging: true,
-  entities: [User, Lead, Call, Booking, Activity, MetaConfig, Payment, Notification],
+  entities: [User, Lead, Call, Booking, Activity, MetaConfig, Payment, Notification, SavedFilter, PushSubscription],
   migrations: [],
   subscribers: [],
   charset: "utf8mb4",
@@ -41,6 +43,8 @@ export const initializeDatabase = async (): Promise<void> => {
     console.log("Database connection established successfully");
     await ensureLeadQueryIndexes();
     await ensureTelephonySchema();
+    await ensurePushSchema();
+    await ensureSavedFiltersSchema();
   } catch (error) {
     console.error("Error connecting to database:", error);
     throw error;
@@ -93,6 +97,39 @@ const ensureTelephonySchema = async (): Promise<void> => {
   );
 
   await backfillPhoneNormalized();
+};
+
+const ensurePushSchema = async (): Promise<void> => {
+  await runSchemaSql(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id VARCHAR(36) PRIMARY KEY,
+      user_id VARCHAR(36) NOT NULL,
+      endpoint VARCHAR(768) NOT NULL,
+      p256dh VARCHAR(255) NOT NULL,
+      auth VARCHAR(255) NOT NULL,
+      user_agent VARCHAR(512) NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_push_subscriptions_endpoint (endpoint),
+      INDEX idx_push_subscriptions_user_id (user_id),
+      CONSTRAINT fk_push_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+};
+
+const ensureSavedFiltersSchema = async (): Promise<void> => {
+  await runSchemaSql(`
+    CREATE TABLE IF NOT EXISTS saved_filters (
+      id VARCHAR(36) PRIMARY KEY,
+      user_id VARCHAR(36) NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      filter_json JSON NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_saved_filters_user_id (user_id),
+      CONSTRAINT fk_saved_filters_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
 };
 
 const backfillPhoneNormalized = async (): Promise<void> => {

@@ -17,24 +17,24 @@ import {
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
+import { getVisibleMainNavItems, SETTINGS_NAV_ITEM } from '../../lib/nav';
 
-const navItems = [
-  { path: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'manager', 'team_lead', 'sales_rep'] },
-  { path: '/leads', icon: Users, label: 'Leads', roles: ['admin', 'manager', 'team_lead', 'sales_rep'] },
-  { path: '/pipeline', icon: Kanban, label: 'Pipeline', roles: ['admin', 'manager', 'team_lead', 'sales_rep'] },
-  { path: '/bookings', icon: Calendar, label: 'Bookings', roles: ['admin', 'manager', 'team_lead', 'sales_rep'] },
-  { path: '/payments', icon: CreditCard, label: 'Payments', roles: ['admin', 'manager', 'team_lead'] },
-  { path: '/reports', icon: BarChart3, label: 'Reports', roles: ['admin', 'manager', 'team_lead', 'sales_rep'] },
-  { path: '/team', icon: UserCog, label: 'Team', roles: ['admin', 'manager', 'team_lead'] },
-];
+const NAV_ICONS = {
+  '/': LayoutDashboard,
+  '/leads': Users,
+  '/pipeline': Kanban,
+  '/bookings': Calendar,
+  '/payments': CreditCard,
+  '/reports': BarChart3,
+  '/team': UserCog,
+  '/settings': Settings,
+};
 
 export function Sidebar({ collapsed, onToggle }) {
   const { user } = useAuth();
   const location = useLocation();
 
-  const filteredItems = navItems.filter(item => 
-    item.roles.includes(user?.role)
-  );
+  const filteredItems = getVisibleMainNavItems(user?.role);
 
   return (
     <aside
@@ -68,7 +68,7 @@ export function Sidebar({ collapsed, onToggle }) {
       <ScrollArea className="flex-1 py-4">
         <nav className="space-y-1 px-2">
           {filteredItems.map((item) => {
-            const Icon = item.icon;
+            const Icon = NAV_ICONS[item.path];
             const isActive = location.pathname === item.path || 
               (item.path !== '/' && location.pathname.startsWith(item.path));
             
@@ -100,10 +100,10 @@ export function Sidebar({ collapsed, onToggle }) {
                 Settings
               </p>
               <NavLink
-                to="/settings"
+                to={SETTINGS_NAV_ITEM.path}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                  location.pathname === '/settings'
+                  location.pathname === SETTINGS_NAV_ITEM.path
                     ? "bg-primary text-white shadow-sm"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                 )}

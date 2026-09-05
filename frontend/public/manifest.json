@@ -1,0 +1,37 @@
+{
+  "id": "/",
+  "short_name": "Bidinn CRM",
+  "name": "Bidinn Sales CRM",
+  "description": "Sales CRM for the Bidinn team — leads, pipeline, bookings, and follow-ups.",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "32x32",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "logo512-maskable.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#5C0298",
+  "background_color": "#5C0298",
+  "categories": ["business", "productivity"]
+}

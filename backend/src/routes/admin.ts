@@ -80,6 +80,7 @@ router.post("/seed-data", authenticateToken, requireRole([UserRole.ADMIN]), asyn
 router.get("/features", cacheMiddleware(CACHE_KEYS.ADMIN_STATS, CACHE_TTL.SHORT, false), async (req, res: Response) => {
   res.json({
     telephony_enabled: process.env.TELEPHONY_ENABLED === "true",
+    web_push_enabled: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
   });
 });
 

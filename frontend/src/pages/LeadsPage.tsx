@@ -35,6 +35,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -52,7 +54,6 @@ import {
 import {
   Plus,
   Search,
-  Filter,
   MoreVertical,
   Phone,
   Mail,
@@ -77,8 +78,17 @@ import {
   RefreshCw,
   Bell,
   X,
+  Bookmark,
+  Save,
 } from 'lucide-react';
 import { Checkbox } from '../components/ui/checkbox';
+import {
+  DEFAULT_LEAD_FILTERS,
+  filtersFromSaved,
+  hasActiveLeadFilters,
+  leadFiltersToQueryParams,
+} from '../lib/lead-filters';
+import { SavedFilter } from '../types';
 
 interface CountdownBadgeProps {
   createdAt: string;
@@ -858,12 +868,18 @@ export default function LeadsPage() {
     assigned_to: 'all',
   });
   const [filters, setFilters] = useState({
+    ...DEFAULT_LEAD_FILTERS,
     status: searchParams.get('status') || 'all',
     source: searchParams.get('source') || 'all',
     campaign: searchParams.get('campaign') || 'all',
     assigned_to: searchParams.get('assigned_to') || 'all',
     search: searchParams.get('search') || '',
   });
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(null);
+  const [saveFilterDialogOpen, setSaveFilterDialogOpen] = useState(false);
+  const [saveFilterName, setSaveFilterName] = useState('');
+  const [savingFilter, setSavingFilter] = useState(false);
 
   // Smart polling state
   const [newLeadsAvailable, setNewLeadsAvailable] = useState(false);
@@ -887,11 +903,7 @@ export default function LeadsPage() {
     } else if (showUpcomingOnly) {
       params.set('filter', 'upcoming');
     } else {
-      if (filters.status && filters.status !== 'all') params.set('status', filters.status);
-      if (filters.source && filters.source !== 'all') params.set('source', filters.source);
-      if (filters.campaign && filters.campaign !== 'all') params.set('campaign', filters.campaign);
-      if (filters.assigned_to && filters.assigned_to !== 'all') params.set('assigned_to', filters.assigned_to);
-      if (filters.search) params.set('search', filters.search);
+      leadFiltersToQueryParams(filters).forEach((value, key) => params.set(key, value));
     }
     
     if (currentPage > 1) params.set('page', currentPage.toString());
@@ -910,6 +922,10 @@ export default function LeadsPage() {
     fetchUsers();
     fetchCampaigns();
   }, [filters, showUncontactedOnly, showOverdueOnly, showUpcomingOnly, currentPage]);
+
+  useEffect(() => {
+    fetchSavedFilters();
+  }, []);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -1011,14 +1027,9 @@ export default function LeadsPage() {
           setTotalPages(1);
         }
       } else {
-        const params = new URLSearchParams();
-        params.append('page', currentPage.toString());
-        params.append('limit', pageSize.toString());
-        if (filters.status && filters.status !== 'all') params.append('status', filters.status);
-        if (filters.source && filters.source !== 'all') params.append('source', filters.source);
-        if (filters.campaign && filters.campaign !== 'all') params.append('campaign', filters.campaign);
-        if (filters.assigned_to && filters.assigned_to !== 'all') params.append('assigned_to', filters.assigned_to);
-        if (filters.search) params.append('search', filters.search);
+        const params = leadFiltersToQueryParams(filters);
+        params.set('page', currentPage.toString());
+        params.set('limit', pageSize.toString());
 
         const response = await api.get(`/leads?${params.toString()}`);
         
@@ -1063,6 +1074,66 @@ export default function LeadsPage() {
       setCampaigns(response.data);
     } catch (error) {
       console.error('Failed to fetch campaigns:', error);
+    }
+  };
+
+  const fetchSavedFilters = async () => {
+    try {
+      const response = await api.get('/saved-filters');
+      setSavedFilters(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to fetch saved filters:', error);
+    }
+  };
+
+  const updateFilters = (next: typeof filters) => {
+    setActiveSavedFilterId(null);
+    setFilters(next);
+  };
+
+  const applySavedFilter = (saved: SavedFilter) => {
+    setShowUncontactedOnly(false);
+    setShowOverdueOnly(false);
+    setShowUpcomingOnly(false);
+    setActiveSavedFilterId(saved.id);
+    setFilters(filtersFromSaved(saved.filter_json));
+  };
+
+  const handleSaveCurrentFilter = async () => {
+    const name = saveFilterName.trim();
+    if (!name) {
+      toast.error('Enter a name for this view');
+      return;
+    }
+    setSavingFilter(true);
+    try {
+      const response = await api.post('/saved-filters', {
+        name,
+        filter_json: filters,
+      });
+      const created: SavedFilter = response.data;
+      setSavedFilters((prev) => [created, ...prev.filter((f) => f.id !== created.id)]);
+      setActiveSavedFilterId(created.id);
+      setSaveFilterDialogOpen(false);
+      setSaveFilterName('');
+      toast.success(`Saved "${created.name}"`);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save filter');
+    } finally {
+      setSavingFilter(false);
+    }
+  };
+
+  const handleDeleteSavedFilter = async (saved: SavedFilter, event?: React.MouseEvent) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    try {
+      await api.delete(`/saved-filters/${saved.id}`);
+      setSavedFilters((prev) => prev.filter((f) => f.id !== saved.id));
+      if (activeSavedFilterId === saved.id) setActiveSavedFilterId(null);
+      toast.success(`Deleted "${saved.name}"`);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete saved filter');
     }
   };
 
@@ -1558,14 +1629,14 @@ export default function LeadsPage() {
               <Input
                 placeholder="Search leads..."
                 value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                onChange={(e) => updateFilters({ ...filters, search: e.target.value })}
                 className="pl-9"
                 data-testid="leads-search"
               />
             </div>
             <Select
               value={filters.status}
-              onValueChange={(value) => setFilters({ ...filters, status: value })}
+              onValueChange={(value) => updateFilters({ ...filters, status: value })}
             >
               <SelectTrigger className="w-full sm:w-40" data-testid="status-filter">
                 <SelectValue placeholder="All statuses" />
@@ -1581,7 +1652,7 @@ export default function LeadsPage() {
             </Select>
             <Select
               value={filters.source}
-              onValueChange={(value) => setFilters({ ...filters, source: value })}
+              onValueChange={(value) => updateFilters({ ...filters, source: value })}
             >
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="All sources" />
@@ -1595,7 +1666,7 @@ export default function LeadsPage() {
             </Select>
             <Select
               value={filters.campaign}
-              onValueChange={(value) => setFilters({ ...filters, campaign: value })}
+              onValueChange={(value) => updateFilters({ ...filters, campaign: value })}
             >
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="All campaigns" />
@@ -1605,12 +1676,15 @@ export default function LeadsPage() {
                 {campaigns.map((camp) => (
                   <SelectItem key={camp} value={camp}>{camp}</SelectItem>
                 ))}
+                {filters.campaign !== 'all' && !campaigns.includes(filters.campaign) && (
+                  <SelectItem value={filters.campaign}>{filters.campaign}</SelectItem>
+                )}
               </SelectContent>
             </Select>
             {isTeamLead && (
               <Select
                 value={filters.assigned_to}
-                onValueChange={(value) => setFilters({ ...filters, assigned_to: value })}
+                onValueChange={(value) => updateFilters({ ...filters, assigned_to: value })}
               >
                 <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="All reps" />
@@ -1620,6 +1694,9 @@ export default function LeadsPage() {
                   {salesReps.map((rep) => (
                     <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
                   ))}
+                  {filters.assigned_to !== 'all' && !salesReps.some((r) => r.id === filters.assigned_to) && (
+                    <SelectItem value={filters.assigned_to}>{filters.assigned_to}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             )}
@@ -1640,10 +1717,63 @@ export default function LeadsPage() {
               </Button>
             </div>
             </div>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" data-testid="saved-filters-dropdown">
+                    <Bookmark className="w-4 h-4 mr-2" />
+                    {activeSavedFilterId
+                      ? savedFilters.find((f) => f.id === activeSavedFilterId)?.name || 'Saved views'
+                      : 'Saved views'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64">
+                  <DropdownMenuLabel>Your saved views</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {savedFilters.length === 0 ? (
+                    <DropdownMenuItem disabled>No saved views yet</DropdownMenuItem>
+                  ) : (
+                    savedFilters.map((saved) => (
+                      <DropdownMenuItem
+                        key={saved.id}
+                        className="flex items-center justify-between gap-2"
+                        onSelect={() => applySavedFilter(saved)}
+                        data-testid={`saved-filter-${saved.id}`}
+                      >
+                        <span className="truncate">{saved.name}</span>
+                        <button
+                          type="button"
+                          className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={`Delete ${saved.name}`}
+                          data-testid={`delete-saved-filter-${saved.id}`}
+                          onPointerDown={(event) => event.preventDefault()}
+                          onClick={(event) => handleDeleteSavedFilter(saved, event)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!hasActiveLeadFilters(filters)}
+                onClick={() => {
+                  setSaveFilterName('');
+                  setSaveFilterDialogOpen(true);
+                }}
+                data-testid="save-filter-btn"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save current filter
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground mt-3">
               Filters combine with AND across fields (status + source + campaign + associate). Grouped OR across fields is not supported yet.
             </p>
-            {(filters.status !== 'all' || filters.source !== 'all' || filters.campaign !== 'all' || filters.assigned_to !== 'all' || filters.search) && (
+            {hasActiveLeadFilters(filters) && (
               <div className="flex flex-wrap items-center gap-2 mt-3" data-testid="active-filter-chips">
                 {filters.search && <Badge variant="secondary">Search: {filters.search}</Badge>}
                 {filters.status !== 'all' && <Badge variant="secondary">Status: {getStatusLabel(filters.status)}</Badge>}
@@ -1656,7 +1786,7 @@ export default function LeadsPage() {
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2"
-                  onClick={() => setFilters({ status: 'all', source: 'all', campaign: 'all', assigned_to: 'all', search: '' })}
+                  onClick={() => updateFilters({ ...DEFAULT_LEAD_FILTERS })}
                   data-testid="clear-filters-btn"
                 >
                   <X className="w-3 h-3 mr-1" />
@@ -1667,6 +1797,43 @@ export default function LeadsPage() {
           </CardContent>
       </Card>
       )}
+
+      <Dialog open={saveFilterDialogOpen} onOpenChange={setSaveFilterDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save current filter</DialogTitle>
+            <DialogDescription>
+              This view is only visible to you. Loading it later will restore these same filters.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="saved-filter-name">Name</Label>
+            <Input
+              id="saved-filter-name"
+              value={saveFilterName}
+              onChange={(e) => setSaveFilterName(e.target.value)}
+              placeholder="e.g. New Dubai Website leads"
+              maxLength={100}
+              data-testid="save-filter-name-input"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSaveCurrentFilter();
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveFilterDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveCurrentFilter} disabled={savingFilter} data-testid="save-filter-submit">
+              {savingFilter && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save view
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Results Count */}
       <div className="flex items-center justify-between">

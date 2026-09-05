@@ -48,13 +48,17 @@ Bidinn is an internal sales CRM for a travel/hospitality team. Reps work leads t
 - Scheduled PDF email reports (delay / weekly / monthly) to a fixed recipient list
 - Meta (Facebook/Instagram) Lead Ads webhook ingest
 - Light/dark theme
+- Command palette (`Cmd/Ctrl+K`) to jump to pages, leads, and bookings
+- Installable PWA (manifest + app-shell service worker + optional Web Push)
 
 **What does not ship today**
 
 - Tata Smartflo click-to-call, live call status, or recordings
-- SMS / WhatsApp / mobile app
-- Email for follow-up reminders (those stay in-app, assigned agent only)
+- SMS / WhatsApp / native mobile apps
+- Offline create/edit of leads (PWA caches the app shell only)
+- Email for follow-up reminders (those stay in-app / Web Push, assigned agent only)
 - Google Sheets import/export
+- Socket.IO / SSE (in-app notifications still poll; Web Push covers a closed tab)
 
 ---
 
@@ -73,7 +77,8 @@ Bidinn is an internal sales CRM for a travel/hospitality team. Reps work leads t
 | Cache | Redis (`ioredis`) |
 | File upload | multer (in-memory, used for lead import) |
 | Spreadsheets | `xlsx` |
-| Email | `nodemailer` (SMTP; PDF reports only) |
+| Email | `nodemailer` (SMTP; PDF reports + assignment mail) |
+| Web Push | `web-push` (VAPID; optional) |
 | PDF | Puppeteer (headless Chromium HTML→PDF) |
 | Scheduling | `node-cron` (email reports; other jobs use `setInterval`) |
 | IDs | UUID v4 |
@@ -94,13 +99,14 @@ Default listen port: `8001`
 | Toasts | sonner |
 | Dates | date-fns |
 | Currency | INR (₹) |
+| PWA | CRA Workbox `src/service-worker.ts` (production only) + `public/manifest.json` |
 
 Entry point: `frontend/src/App.tsx`  
 API base: `REACT_APP_BACKEND_URL/api` if set, otherwise relative `/api`
 
 ### Production serving
 
-In production the Express server also serves `frontend/build` and falls back to `index.html` for non-API routes.
+In production the Express server also serves `frontend/build` and falls back to `index.html` for non-API routes. `index.html`, `service-worker.js`, and `manifest.json` are served `Cache-Control: no-store` so a new deploy is not stuck behind a cached shell. Hashed webpack files (`main.abcd1234.js`) are `immutable`.
 
 ---
 
@@ -112,7 +118,7 @@ In production the Express server also serves `frontend/build` and falls back to 
 │  ┌──────────────────┐   ┌──────────────────┐   ┌─────────────┐  │
 │  │ Frontend         │   │ Backend          │   │ MySQL       │  │
 │  │ React 19 + TS    │◄─►│ Express + TS     │◄─►│ TypeORM     │  │
-│  │ pages, layout,   │   │ /api/* routes    │   │ 8 entities  │  │
+│  │ pages, layout,   │   │ /api/* routes    │   │ 9 entities  │  │
 │  │ AuthContext      │   │ JWT + RBAC       │   └─────────────┘  │
 │  └──────────────────┘   │ cron jobs        │                    │
 │                         └────────┬─────────┘   ┌─────────────┐  │
@@ -136,16 +142,17 @@ backend/src/
   config/data-source.ts    # TypeORM MySQL
   middleware/auth.ts       # JWT + requireRole
   middleware/cache.ts      # Redis cache + invalidation
-  entities/                # User, Lead, Call, Booking, Payment, Activity, Notification, MetaConfig
-  routes/                  # auth, users, leads, calls, bookings, payments, dashboard, activities, meta, admin, notifications
+  entities/                # User, Lead, Call, Booking, Payment, Activity, Notification, MetaConfig, SavedFilter
+  routes/                  # auth, users, leads, calls, bookings, payments, dashboard, activities, meta, admin, notifications, saved-filters
   services/                # cache, email, pdf, report-jobs, dashboard-metrics, agent-performance
 
 frontend/src/
   App.tsx                  # routes + role gates
   contexts/AuthContext.tsx
   contexts/ThemeContext.tsx
-  components/layout/       # Sidebar, Header, Layout
+  components/layout/       # Sidebar, Header, Layout, CommandPalette
   pages/                   # 10 screens
+  lib/nav.ts               # role-filtered nav items (Sidebar + command palette)
   lib/utils.ts             # status labels, rules helpers, INR formatting
 ```
 
@@ -172,6 +179,8 @@ frontend/src/
 | `SMTP_USER` / `SMTP_PASSWORD` | No | SMTP auth |
 | `EMAIL_FROM` | No | From header; falls back to `SMTP_USER` then `noreply@bidinn.com` |
 | `REPORT_RECIPIENT_EMAILS` | No | Comma-separated list. Not looked up from `users`. Empty → warning, reports skip send |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | No | Web Push. Generate with `yarn vapid-keys` in `backend/`. Missing → push subscribe returns 503; in-app notifications still work |
+| `VAPID_SUBJECT` | No | `mailto:` or `https:` URL. Default `mailto:noreply@bidinn.in` |
 
 ### Frontend (`frontend/.env`)
 
@@ -235,7 +244,7 @@ Roles (`users.role` enum): `admin`, `manager`, `team_lead`, `sales_rep`
 | Meta config | Yes | Yes | No | No |
 | Export / wipe database | Yes | No | No | No |
 
-Frontend route gates (`App.tsx` + `Sidebar.js`) match the table above. Settings is visible to all roles; Meta and database admin blocks inside Settings are admin/manager (Meta) or admin (DB).
+Frontend route gates (`App.tsx` + `Sidebar.js` / command palette) match the table above. Settings is visible to all roles; Meta and database admin blocks inside Settings are admin/manager (Meta) or admin (DB).
 
 ---
 
@@ -360,6 +369,33 @@ Audit trail. `user_id` may be null for system jobs.
 | metadata | json nullable | |
 | is_read | boolean | default false |
 | created_at | datetime | |
+
+### `saved_filters`
+
+Personal lead-list views. Not shared across users.
+
+| Column | Type | Notes |
+|--------|------|--------|
+| id | varchar(36) PK | UUID |
+| user_id | varchar(36) | FK users.id, CASCADE |
+| name | varchar(100) | Display name |
+| filter_json | json | `{ status, source, campaign, assigned_to, search }` |
+| created_at | datetime | |
+
+Index: `idx_saved_filters_user_id`. Cap 50 rows per user.
+
+### `push_subscriptions`
+
+One row per browser/device endpoint. Re-login on the same device updates `user_id`. Expired endpoints (Web Push 404/410) are deleted on send.
+
+| Column | Type | Notes |
+|--------|------|--------|
+| id | varchar(36) PK | UUID |
+| user_id | varchar(36) | FK users.id, CASCADE |
+| endpoint | varchar(768) unique | Push service URL |
+| p256dh / auth | varchar(255) | Web Push keys |
+| user_agent | varchar(512) nullable | |
+| created_at / updated_at | datetime | |
 
 ### `meta_config`
 
@@ -563,6 +599,26 @@ All JWT-authenticated.
 | PUT | `/mark-all-read` | Mark all read |
 | DELETE | `/:id` | Delete |
 
+### Push — `/api/push`
+
+HTTPS (or localhost) required. No Socket.IO/SSE; this delivers a system notification when the CRM tab is closed.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/vapid-public-key` | Public | `{ enabled, publicKey }` |
+| POST | `/subscribe` | JWT | Body: PushSubscription JSON (`endpoint`, `keys.p256dh`, `keys.auth`) |
+| DELETE | `/subscribe` | JWT | Body or `?endpoint=` to drop this device |
+
+### Saved filters — `/api/saved-filters`
+
+Personal to the JWT user. Applying a saved view on the Leads page sets the existing list filters and calls `GET /leads` with those query params.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Current user's saved views |
+| POST | `/` | Body: `{ name, filter_json }`. Unknown filter keys are dropped. |
+| DELETE | `/:id` | Owner only; 404 if missing or owned by someone else |
+
 ### Meta — `/api/meta`
 
 | Method | Path | Auth | Description |
@@ -577,7 +633,7 @@ All JWT-authenticated.
 
 | Method | Path | Roles | Description |
 |--------|------|-------|-------------|
-| GET | `/features` | Public | `{ telephony_enabled }` from env |
+| GET | `/features` | Public | `{ telephony_enabled, web_push_enabled }` from env |
 | POST | `/run-auto-reset` | Admin | Manual 30-day reset (unassign + status New) |
 | POST | `/seed-data` | Admin | Demo seed |
 | GET | `/export-database` | Admin | JSON backup of core tables |
@@ -608,10 +664,13 @@ Unauthenticated access to protected routes redirects to `/login`. Wrong-role acc
 ### Shared chrome
 
 **Sidebar** (`components/layout/Sidebar.js`)  
-Role-filtered nav: Dashboard, Leads, Pipeline, Bookings, Payments, Reports, Team, Settings.
+Role-filtered nav from `lib/nav.ts`: Dashboard, Leads, Pipeline, Bookings, Payments, Reports, Team, Settings.
 
 **Header** (`components/layout/Header.js`)  
-Search, notification bell (polls `/notifications`, toasts upcoming/missed follow-ups), theme toggle, profile menu, logout.
+Opens the command palette (search button / ⌘K), notification bell (polls `/notifications`, toasts upcoming/missed follow-ups), theme toggle, profile menu, logout.
+
+**Command palette** (`components/layout/CommandPalette.jsx`)  
+Mounted once on `Layout` (not per page). `Cmd/Ctrl+K` or the header search control. Jump targets are the same role-filtered pages as the Sidebar. Typing 2+ characters debounces to `GET /leads?search=` (compact, limit 8 — sales-rep scoping is the existing list API, no `assigned_to` override) and client-filters `GET /bookings` by hotel or lead name. Selecting a lead goes to `/leads/:id`; selecting a booking goes to `/bookings?booking=:id`.
 
 **Auth** (`contexts/AuthContext.tsx`)  
 Axios instance with Bearer token; 401 → logout. Helpers: `isAdmin`, `isManager`, `isTeamLead`.
@@ -633,7 +692,7 @@ Shows KPI cards, upcoming follow-ups (next 24 hours), missed follow-ups, a follo
 
 #### Leads
 
-Paginated table with filters (status, source, campaign, assignee, search).
+Paginated table with filters (status, source, campaign, assignee, search). Combinable AND filters can be saved as personal views (`Save current filter` / `Saved views`) and reapplied by setting the same filter state.
 
 - **Create** — duplicate check on phone (`POST /leads/check-duplicate`); submit blocked if duplicate; optional merge for privileged roles
 - **Assign** — single and bulk
@@ -658,7 +717,7 @@ Kanban columns for active stages. Per-column pagination (`compact=true&limit=50`
 
 #### Bookings
 
-List/filter bookings. Create: lead, hotel, dates, bid/final price, payment status, reason. Admin/manager can edit and delete.
+List/filter bookings. Create: lead, hotel, dates, bid/final price, payment status, reason. Admin/manager can edit and delete. Command-palette jump uses `/bookings?booking=:id` to highlight and scroll to that row.
 
 #### Payments
 
@@ -676,8 +735,23 @@ User list + leaderboard. Admin/manager: create user, edit, change role, reset pa
 
 - Profile + change password
 - Light/dark
+- **Install app** — Chrome/Edge `beforeinstallprompt`; iOS Safari copy for Share → Add to Home Screen
+- **Push notifications** — Web Push subscribe via the service worker (Settings toggle). iOS: only after Home Screen install, 16.4+
 - **Meta Lead Ads:** page ID, app secret, verify token, page access token, activate, Test Connection
 - **Admin:** export database JSON, delete all data (with confirmation)
+
+### Progressive Web App
+
+CRA's Workbox `InjectManifest` compiles `frontend/src/service-worker.ts` in production builds (`src/service-worker.ts` is the CRA opt-in). The SW is **not** registered in `yarn start` (dev).
+
+- **Manifest:** `frontend/public/manifest.json` — name Bidinn Sales CRM, theme `#5C0298`, 192/512 icons, maskable 512
+- **App shell:** hashed JS/CSS are precached; `index.html` is **not** precached. Navigations use NetworkFirst so a new deploy's HTML (new hashed bundles) is fetched while online. `/api/*` is NetworkOnly.
+- **Updates:** a waiting worker shows a "Refresh" toast (`SKIP_WAITING` + reload). Express also `no-store`s `index.html` and `service-worker.js`.
+- **Offline:** repeat visits can load the UI without a network. Creating/editing leads still requires the API.
+- **Install**
+  - **Android Chrome:** install banner or Settings → Install. Full Web Push after the user allows notifications.
+  - **iOS Safari:** no install prompt. Share → Add to Home Screen. Service worker + standalone display work. Web Push only in the Home Screen app on iOS 16.4+ — not in a regular Safari tab. Background sync and some Android-only APIs are unavailable.
+  - **Desktop Chrome/Edge:** install icon in the address bar; same service worker as Android.
 
 ### Frontend types
 
@@ -712,7 +786,7 @@ Cache keys: dashboard stats, leads, users, bookings, activities, calls, notifica
 
 TTL: short = 1 hour for most lists (invalidation on write); time-sensitive keys can use 60 seconds.
 
-Independently, **every** API response is sent with `Cache-Control: no-store` so browsers do not cache CRM data.
+Independently, **every** API response (`/api/*`) is sent with `Cache-Control: no-store` so browsers do not cache CRM data. Static hashed assets may be cached; `index.html` and `service-worker.js` are not.
 
 If Redis is down, cache get/set fail soft and requests still hit MySQL.
 
@@ -765,7 +839,8 @@ The document `docs/Tata_Telephone_Integration.md` describes:
 | `LeadStatus` TS type | Include `not_answered` | Union omits it; runtime UI still has the stage |
 | Hindi display | UTF-8 on new imports | Older rows may still be garbled |
 | Redis dashboard cache | PRD P2 backlog | Already implemented |
-| Email / SMS / WhatsApp / mobile | PRD P3 | Scheduled PDF reports email a fixed ops list. Transactional mail/SMS/WhatsApp to users is not built. |
+| Email / SMS / WhatsApp / native app | PRD P3 | PWA install + optional Web Push. No native iOS/Android binaries. No offline lead CRUD. SMS/WhatsApp not built. |
+| iOS PWA | Full Android-like install + push | Safari: Add to Home Screen only. Push: iOS 16.4+ Home Screen app, not a Safari tab. |
 
 ---
 
@@ -776,6 +851,9 @@ The document `docs/Tata_Telephone_Integration.md` describes:
 | Login | `POST /auth/login` |
 | Session | `GET /auth/me` |
 | Lead list / filters | `GET /leads?...` |
+| Command palette lead jump | `GET /leads?search=&compact=true&limit=8` (same scoping as list) |
+| Command palette booking jump | `GET /bookings?limit=1000` then client filter by hotel / lead name |
+| Saved filter views | `GET/POST/DELETE /saved-filters` |
 | Create lead | `POST /leads` |
 | Edit lead / stage | `PUT /leads/:id` |
 | Assign | `POST /leads/:id/assign` |
