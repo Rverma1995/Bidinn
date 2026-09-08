@@ -34,8 +34,6 @@ import {
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -45,6 +43,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import DailyActivityReport from '../components/dashboard/DailyActivityReport';
 
 const COLORS = ['#4F46E5', '#06B6D4', '#8B5CF6', '#F59E0B', '#F97316', '#10B981', '#EF4444'];
 
@@ -337,6 +336,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      <DailyActivityReport />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

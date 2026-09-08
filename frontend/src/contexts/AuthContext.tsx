@@ -70,6 +70,13 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    if (!token) return null;
+    const response = await api().get('/auth/me');
+    setUser(response.data);
+    return response.data;
+  };
+
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager' || isAdmin;
   const isTeamLead = user?.role === 'team_lead' || isManager;
@@ -80,6 +87,7 @@ export function AuthProvider({ children }) {
     loading,
     login,
     logout,
+    refreshUser,
     api: api(),
     isAdmin,
     isManager,

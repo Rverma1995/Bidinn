@@ -26,6 +26,7 @@ import {
 } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { ClickToCallButton } from '../components/ClickToCallButton';
+import { PostCallWrapUpDialog } from '../components/PostCallWrapUpDialog';
 import { toast } from 'sonner';
 import {
   getStatusLabel,
@@ -445,7 +446,7 @@ function QuickActionPanel({ lead, open, onClose, onSuccess, api }) {
 }
 
 // Lead card — readable two-block layout; no overlapping text
-function LeadCard({ lead, onCallClick }) {
+function LeadCard({ lead, onCallClick, onWrapUpRequired }) {
   const [timerState, setTimerState] = useState(null);
   const showCountdown = lead.status === 'new' && lead.attempt_count === 0;
   const stalled = isLeadStalled(lead);
@@ -559,8 +560,10 @@ function LeadCard({ lead, onCallClick }) {
             <ClickToCallButton
               leadId={lead.id}
               phoneNumber={lead.phone}
+              lead={{ id: lead.id, name: lead.name, phone: lead.phone, status: lead.status }}
               iconOnly
               className="h-8 w-8 shrink-0"
+              onWrapUpRequired={onWrapUpRequired}
             />
             <Button
               size="sm"
@@ -589,6 +592,7 @@ interface PipelineColumnProps {
   leads: any[];
   count: number;
   onCallClick: (lead: any) => void;
+  onWrapUpRequired?: (payload: { call: any; lead: any }) => void;
   onDrop: (e: React.DragEvent, newStatus: string) => void;
   status: string;
   page?: number;
@@ -683,6 +687,7 @@ function PipelineColumn({
   leads,
   count,
   onCallClick,
+  onWrapUpRequired,
   onDrop,
   status,
   page = 1,
@@ -786,7 +791,7 @@ function PipelineColumn({
                   e.dataTransfer.setData('fromStatus', lead.status);
                 }}
               >
-                <LeadCard lead={lead} onCallClick={onCallClick} />
+                <LeadCard lead={lead} onCallClick={onCallClick} onWrapUpRequired={onWrapUpRequired} />
               </div>
             ))
           )}
@@ -807,6 +812,9 @@ export default function PipelinePage() {
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState(null);
   const [quickActionOpen, setQuickActionOpen] = useState(false);
+  const [wrapUpOpen, setWrapUpOpen] = useState(false);
+  const [wrapUpCall, setWrapUpCall] = useState(null);
+  const [wrapUpLead, setWrapUpLead] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({ won: 0, lost: 0, revenue: 0, active: 0 });
 
@@ -942,6 +950,19 @@ export default function PipelinePage() {
     fetchStats();
   };
 
+  const handleWrapUpRequired = ({ call, lead }) => {
+    setWrapUpCall(call);
+    setWrapUpLead(lead);
+    setWrapUpOpen(true);
+  };
+
+  const handleWrapUpSuccess = () => {
+    fetchAllLeads();
+    fetchStats();
+    setWrapUpCall(null);
+    setWrapUpLead(null);
+  };
+
   const getLeadsByStatus = (status) => {
     return leads.filter(l => {
       const matchesStatus = l.status === status;
@@ -1019,6 +1040,7 @@ export default function PipelinePage() {
               leads={getLeadsByStatus(stage.value)}
               count={columnsPaging[stage.value]?.total ?? getLeadsByStatus(stage.value).length}
               onCallClick={handleCallClick}
+              onWrapUpRequired={handleWrapUpRequired}
               onDrop={handleDrop}
               page={columnsPaging[stage.value]?.page}
               totalPages={columnsPaging[stage.value]?.totalPages}
@@ -1046,6 +1068,14 @@ export default function PipelinePage() {
         }}
         onSuccess={handleQuickActionSuccess}
         api={api}
+      />
+
+      <PostCallWrapUpDialog
+        open={wrapUpOpen}
+        onOpenChange={setWrapUpOpen}
+        call={wrapUpCall}
+        lead={wrapUpLead}
+        onSuccess={handleWrapUpSuccess}
       />
     </div>
   );

@@ -64,6 +64,8 @@ import {
 } from 'lucide-react';
 import { Lead, Activity, CallLog, User as UserType } from '../types';
 import { ClickToCallButton } from '../components/ClickToCallButton';
+import { PostCallWrapUpDialog } from '../components/PostCallWrapUpDialog';
+import { CallRecordingPlayer } from '../components/CallRecordingPlayer';
 
 interface EditLeadData {
   name?: string;
@@ -459,6 +461,8 @@ export default function LeadDetailPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [logCallOpen, setLogCallOpen] = useState(false);
+  const [wrapUpOpen, setWrapUpOpen] = useState(false);
+  const [wrapUpCall, setWrapUpCall] = useState(null);
   const [editData, setEditData] = useState<EditLeadData>({});
   const [closedReasonDialogOpen, setClosedReasonDialogOpen] = useState(false);
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
@@ -652,6 +656,14 @@ export default function LeadDetailPage() {
           <ClickToCallButton
             leadId={id}
             phoneNumber={lead.phone}
+            lead={{ id: lead.id, name: lead.name, phone: lead.phone, status: lead.status }}
+            onWrapUpRequired={({ call }) => {
+              setWrapUpCall(call);
+              setWrapUpOpen(true);
+            }}
+            onInitiated={() => {
+              fetchCalls();
+            }}
             onSettled={() => {
               fetchCalls();
               fetchLead();
@@ -935,9 +947,7 @@ export default function LeadDetailPage() {
                             {call.answered_at && <p>Answered {formatDateTime(call.answered_at)}</p>}
                             {call.ended_at && <p>Ended {formatDateTime(call.ended_at)}</p>}
                             {call.recording_url && (
-                              <audio className="mt-2 w-full max-w-md" controls src={call.recording_url} preload="none">
-                                Your browser does not support audio playback.
-                              </audio>
+                              <CallRecordingPlayer url={call.recording_url} durationMinutes={call.duration_minutes} />
                             )}
                           </div>
                         ) : (
@@ -961,7 +971,7 @@ export default function LeadDetailPage() {
             <CardContent className="p-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                  <p className="text-2xl font-bold">{lead.attempt_count}</p>
+                  <p className="text-2xl font-bold">{Math.max(lead.attempt_count || 0, calls.length)}</p>
                   <p className="text-xs text-muted-foreground">Call Attempts</p>
                 </div>
                 <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
@@ -1095,6 +1105,18 @@ export default function LeadDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PostCallWrapUpDialog
+        open={wrapUpOpen}
+        onOpenChange={setWrapUpOpen}
+        call={wrapUpCall}
+        lead={lead ? { id: lead.id, name: lead.name, phone: lead.phone, status: lead.status } : null}
+        onSuccess={() => {
+          fetchCalls();
+          fetchLead();
+          fetchTimeline();
+        }}
+      />
     </div>
   );
 }

@@ -10,12 +10,38 @@ import {
   extractCustomerNumber,
   isTerminalEvent,
   mergeWebhookEvent,
+  normalizeSmartfloWebhookPayload,
 } from "./tata-webhook";
-import { toE164 } from "../utils/phone";
+import {
+  cdrRecordToPatch,
+  formatSmartfloCdrDate,
+  matchLiveCall,
+  pickSmartfloCdrRecord,
+  SmartfloLiveState,
+} from "./tata-cdr";
+import { toSmartfloAgentNumber, toSmartfloCallerId, toSmartfloDestinationNumber } from "../utils/phone";
 import { sendPushForNotifications } from "./web-push.service";
 
-const SMARTFLO_API_KEY = () => process.env.TATA_SMARTFLO_API_KEY || "";
-const SMARTFLO_BASE_URL = () => process.env.TATA_SMARTFLO_BASE_URL || "https://api.smartflo.tatatelebusiness.com";
+const SMARTFLO_API_KEY = () => {
+  const raw = (process.env.TATA_SMARTFLO_API_KEY || "").trim();
+  if (raw.toLowerCase().startsWith("bearer ")) {
+    return raw.slice(7).trim();
+  }
+  return raw;
+};
+
+function assertValidSmartfloApiToken(token: string): void {
+  if (!token) return;
+  if (!/^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) {
+    const err: any = new Error(
+      "TATA_SMARTFLO_API_KEY is invalid. Copy the API token from Smartflo → API Connect (it should start with eyJ...)."
+    );
+    err.status = 503;
+    throw err;
+  }
+}
+const SMARTFLO_BASE_URL = () =>
+  process.env.TATA_SMARTFLO_BASE_URL || "https://api-smartflo.tatateleservices.com";
 const WEBHOOK_SECRET = () => process.env.TATA_SMARTFLO_WEBHOOK_SECRET || "";
 const CALLER_ID = () => process.env.TATA_SMARTFLO_CALLER_ID || "";
 const MOCK_MODE = () => process.env.TATA_SMARTFLO_MOCK === "true";
@@ -139,15 +165,174 @@ function applySnapshotToCall(call: Call, snapshot: CallSnapshot): void {
 /**
  * Upsert a calls row by tata_call_id. Never silently drops an unmatched recording.
  */
+async function findCallByTataIds(
+  callRepository: ReturnType<typeof AppDataSource.getRepository<Call>>,
+  refId?: string | null,
+  telephonyId?: string | null
+): Promise<Call | null> {
+  if (refId) {
+    const byRef = await callRepository.findOne({ where: { tata_call_id: refId } });
+    if (byRef) return byRef;
+  }
+  if (telephonyId && telephonyId !== refId) {
+    return callRepository.findOne({ where: { tata_call_id: telephonyId } });
+  }
+  return null;
+}
+
+async function smartfloGetJson(pathAndQuery: string): Promise<{ ok: boolean; body: any }> {
+  try {
+    const response = await fetch(`${SMARTFLO_BASE_URL()}${pathAndQuery}`, {
+      headers: {
+        Authorization: `Bearer ${SMARTFLO_API_KEY()}`,
+        Accept: "application/json",
+      },
+    });
+    const body = await response.json().catch(() => ({}));
+    return { ok: response.ok, body };
+  } catch {
+    return { ok: false, body: {} };
+  }
+}
+
+async function fetchSmartfloCdrRows(params: URLSearchParams): Promise<Array<Record<string, unknown>>> {
+  const { ok, body } = await smartfloGetJson(`/v1/call/records?${params.toString()}`);
+  if (!ok || !Array.isArray(body?.results)) return [];
+  return body.results as Array<Record<string, unknown>>;
+}
+
+async function fetchSmartfloLiveCalls(): Promise<Array<Record<string, unknown>>> {
+  const { ok, body } = await smartfloGetJson("/v1/live_calls");
+  if (!ok) return [];
+  if (Array.isArray(body)) return body as Array<Record<string, unknown>>;
+  if (Array.isArray(body?.calls)) return body.calls as Array<Record<string, unknown>>;
+  return [];
+}
+
+function attachLiveState<T extends Call>(call: T, liveState: SmartfloLiveState | null): T & { live_state: SmartfloLiveState | null } {
+  return Object.assign(call, { live_state: liveState });
+}
+
+async function finalizeCdrCall(call: Call, hadTerminalOutcome: boolean): Promise<void> {
+  if (hadTerminalOutcome || !call.outcome || !call.ended_at || !call.lead_id) return;
+  const lead = await AppDataSource.getRepository(Lead).findOne({ where: { id: call.lead_id } });
+  if (!lead) return;
+
+  if (call.outcome === CallOutcome.CONNECTED && call.answered_at) {
+    call.wrap_up_completed = false;
+    await AppDataSource.getRepository(Call).save(call);
+    return;
+  }
+
+  call.wrap_up_completed = true;
+  await AppDataSource.getRepository(Call).save(call);
+  await applyCallCompletion({
+    lead,
+    userId: call.user_id,
+    userName: call.user_name,
+    outcome: call.outcome,
+    details: `Outcome: ${call.outcome}${call.recording_url ? " (recording attached)" : ""}`,
+  });
+}
+
+/** Poll Smartflo CDR / live calls when webhooks are unavailable (e.g. local dev). */
+export async function syncCallFromSmartfloCdr(tataCallId: string): Promise<(Call & { live_state?: SmartfloLiveState | null }) | null> {
+  const callRepository = AppDataSource.getRepository(Call);
+  const call = await callRepository.findOne({ where: { tata_call_id: tataCallId } });
+  if (!call) return call;
+  if (call.ended_at) return attachLiveState(call, null);
+
+  if (MOCK_MODE() || !SMARTFLO_API_KEY()) return attachLiveState(call, null);
+
+  const started = call.started_at || call.created_at;
+  const destination = toSmartfloDestinationNumber(call.customer_phone);
+  let liveState: SmartfloLiveState | null = null;
+
+  const liveCalls = await fetchSmartfloLiveCalls();
+  if (liveCalls.length) {
+    let agentExtension: string | null = null;
+    if (call.user_id) {
+      const agent = await AppDataSource.getRepository(User).findOne({ where: { id: call.user_id } });
+      agentExtension = agent?.tata_extension || null;
+    }
+    const live = matchLiveCall(liveCalls, {
+      customerPhone: call.customer_phone,
+      agentExtension,
+    });
+    if (live) {
+      liveState = live.state;
+      if (live.state === "live" && !call.answered_at) {
+        call.answered_at = new Date();
+        await callRepository.save(call);
+      }
+    }
+  }
+
+  if (!destination) return attachLiveState(call, liveState);
+
+  const window = {
+    from_date: formatSmartfloCdrDate(new Date(started.getTime() - 5 * 60 * 1000)),
+    to_date: formatSmartfloCdrDate(new Date(Date.now() + 2 * 60 * 1000)),
+    direction: "outbound",
+    limit: "50",
+    page: "1",
+  };
+  let rows = await fetchSmartfloCdrRows(
+    new URLSearchParams({ ...window, destination })
+  );
+  if (!rows.some((row) => String(row.ref_id || "") === tataCallId)) {
+    const withCaller = await fetchSmartfloCdrRows(
+      new URLSearchParams({ ...window, callerid: destination })
+    );
+    rows = rows.concat(withCaller);
+  }
+
+  const record = pickSmartfloCdrRecord(rows, {
+    tataCallId,
+    customerPhone: call.customer_phone,
+    startedMs: started.getTime(),
+  });
+  if (!record) return attachLiveState(call, liveState);
+
+  const hadTerminalOutcome = !!call.outcome && !!call.ended_at;
+  const patch = cdrRecordToPatch(record, started);
+  if (patch.answered_at && !call.answered_at) call.answered_at = patch.answered_at;
+  if (patch.outcome) call.outcome = patch.outcome;
+  if (patch.recording_url) call.recording_url = patch.recording_url;
+  if (patch.duration_minutes) call.duration_minutes = patch.duration_minutes;
+  if (patch.ended_at) {
+    call.ended_at = patch.ended_at;
+    call.wrap_up_completed = patch.wrap_up_completed;
+  }
+
+  await callRepository.save(call);
+  await finalizeCdrCall(call, hadTerminalOutcome);
+  return attachLiveState(call, call.ended_at ? null : liveState);
+}
+
+export async function syncPendingTataCallsForLead(leadId: string): Promise<void> {
+  const pending = await AppDataSource.getRepository(Call).find({
+    where: { lead_id: leadId },
+    order: { created_at: "DESC" },
+    take: 20,
+  });
+  const open = pending.filter((c) => c.tata_call_id && !c.ended_at).slice(0, 5);
+  for (const row of open) {
+    await syncCallFromSmartfloCdr(row.tata_call_id!);
+  }
+}
+
 export async function upsertTataWebhookEvent(payload: TataWebhookPayload): Promise<Call> {
   const data = payload.data || {};
-  const callId = data.call_id;
-  if (!callId) {
-    throw new Error("Webhook missing data.call_id");
+  const refId = data.ref_id || null;
+  const telephonyId = data.call_id || null;
+  const lookupId = refId || telephonyId;
+  if (!lookupId) {
+    throw new Error("Webhook missing call_id or ref_id");
   }
 
   const callRepository = AppDataSource.getRepository(Call);
-  let call = await callRepository.findOne({ where: { tata_call_id: callId } });
+  let call = await findCallByTataIds(callRepository, refId, telephonyId);
 
   const existingSnapshot: CallSnapshot | null = call
     ? {
@@ -178,7 +363,7 @@ export async function upsertTataWebhookEvent(payload: TataWebhookPayload): Promi
   if (!call) {
     call = callRepository.create({
       id: uuidv4(),
-      tata_call_id: callId,
+      tata_call_id: lookupId,
       lead_id: resolution.lead?.id || null,
       user_id: agent?.id || null,
       user_name: agent?.name || "Tata Smartflo",
@@ -211,7 +396,7 @@ export async function upsertTataWebhookEvent(payload: TataWebhookPayload): Promi
   } catch (error: any) {
     // Unique race: another event inserted first — reload and patch.
     if (error?.code === "ER_DUP_ENTRY" || error?.errno === 1062) {
-      const existing = await callRepository.findOne({ where: { tata_call_id: callId } });
+      const existing = await findCallByTataIds(callRepository, refId, telephonyId);
       if (existing) {
         applySnapshotToCall(existing, snapshot);
         if (!existing.lead_id && resolution.lead) existing.lead_id = resolution.lead.id;
@@ -234,13 +419,25 @@ export async function upsertTataWebhookEvent(payload: TataWebhookPayload): Promi
   }
 
   if (resolution.lead && snapshot.outcome && !hadTerminalOutcome) {
-    await applyCallCompletion({
-      lead: resolution.lead,
-      userId: call.user_id,
-      userName: call.user_name,
-      outcome: snapshot.outcome,
-      details: `Outcome: ${snapshot.outcome}${snapshot.recording_url ? " (recording attached)" : ""}`,
-    });
+    const wasAnswered =
+      !!snapshot.answered_at ||
+      (snapshot.outcome === CallOutcome.CONNECTED && (snapshot.duration_minutes || 0) > 0);
+
+    if (wasAnswered && snapshot.outcome === CallOutcome.CONNECTED) {
+      call.wrap_up_completed = false;
+      call.outcome = CallOutcome.CONNECTED;
+      await callRepository.save(call);
+    } else {
+      call.wrap_up_completed = true;
+      await callRepository.save(call);
+      await applyCallCompletion({
+        lead: resolution.lead,
+        userId: call.user_id,
+        userName: call.user_name,
+        outcome: snapshot.outcome,
+        details: `Outcome: ${snapshot.outcome}${snapshot.recording_url ? " (recording attached)" : ""}`,
+      });
+    }
   }
 
   return call;
@@ -256,8 +453,15 @@ export async function initiateClickToCall(params: {
     throw err;
   }
 
-  const customerNumber = toE164(params.lead.phone);
-  if (!customerNumber) {
+  const agentNumber = toSmartfloAgentNumber(params.user.tata_extension);
+  if (!agentNumber) {
+    const err: any = new Error("Agent extension is not a valid Smartflo agent number");
+    err.status = 400;
+    throw err;
+  }
+
+  const destinationNumber = toSmartfloDestinationNumber(params.lead.phone);
+  if (!destinationNumber) {
     const err: any = new Error("Lead has no valid phone number");
     err.status = 400;
     throw err;
@@ -275,36 +479,63 @@ export async function initiateClickToCall(params: {
     mock = true;
     tataCallId = `mock-${uuidv4()}`;
   } else {
-    const body: Record<string, unknown> = {
-      agent_number: params.user.tata_extension,
-      customer_number: customerNumber,
-      reference_id: params.lead.id,
-      record_call: true,
-    };
-    if (CALLER_ID()) body.caller_id = CALLER_ID();
+    const apiToken = SMARTFLO_API_KEY();
+    assertValidSmartfloApiToken(apiToken);
 
-    const response = await fetch(`${SMARTFLO_BASE_URL()}/v1/click_to_call`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${SMARTFLO_API_KEY()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+    const body: Record<string, unknown> = {
+      agent_number: agentNumber,
+      destination_number: destinationNumber,
+      async: 1,
+    };
+    const callerId = toSmartfloCallerId(CALLER_ID());
+    if (callerId) body.caller_id = callerId;
+
+    let response: Response;
+    try {
+      response = await fetch(`${SMARTFLO_BASE_URL()}/v1/click_to_call`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (networkError: any) {
+      const cause = networkError?.cause as { code?: string } | undefined;
+      const err: any = new Error(
+        cause?.code === "ENOTFOUND"
+          ? `Cannot reach Tata Smartflo API (${SMARTFLO_BASE_URL()}). Check TATA_SMARTFLO_BASE_URL and network connectivity.`
+          : `Tata Smartflo API request failed: ${networkError?.message || "network error"}`
+      );
+      err.status = 502;
+      throw err;
+    }
 
     const data = (await response.json().catch(() => ({}))) as {
-      status?: string;
+      success?: boolean;
+      ref_id?: string;
       call_id?: string;
       message?: string;
+      status?: string;
       error_code?: string;
     };
 
-    if (!response.ok || data.status === "error" || !data.call_id) {
-      const err: any = new Error(data.message || "Failed to initiate call");
+    const callRef = data.ref_id || data.call_id;
+    if (!response.ok || data.success === false || !callRef) {
+      let message = data.message || "Failed to initiate call";
+      if (/DID Selected|Outbound calling is disabled/i.test(message)) {
+        message +=
+          " Set TATA_SMARTFLO_CALLER_ID to a valid outbound-enabled DID from Smartflo, or leave it empty to use your account default.";
+      }
+      const err: any = new Error(message);
       err.status = response.status >= 400 ? response.status : 502;
       throw err;
     }
-    tataCallId = data.call_id;
+    tataCallId = callRef;
+    console.log(
+      `Click-to-call queued ref_id=${tataCallId} agent=${agentNumber} destination=${destinationNumber}`
+    );
   }
 
   const callRepository = AppDataSource.getRepository(Call);
@@ -319,6 +550,7 @@ export async function initiateClickToCall(params: {
     tata_call_id: tataCallId,
     started_at: new Date(),
     customer_phone: params.lead.phone,
+    wrap_up_completed: false,
   });
   try {
     await callRepository.save(call);
@@ -330,6 +562,25 @@ export async function initiateClickToCall(params: {
       }
     }
     throw error;
+  }
+
+  if (mock) {
+    const savedCallId = call.id;
+    setTimeout(async () => {
+      try {
+        const row = await callRepository.findOne({ where: { id: savedCallId } });
+        if (!row || row.ended_at) return;
+        const ended = new Date();
+        row.answered_at = ended;
+        row.ended_at = ended;
+        row.duration_minutes = 2;
+        row.outcome = CallOutcome.CONNECTED;
+        row.wrap_up_completed = false;
+        await callRepository.save(row);
+      } catch (err) {
+        console.error("Mock call completion error:", err);
+      }
+    }, 4000);
   }
 
   return { call_id: tataCallId, call, mock };

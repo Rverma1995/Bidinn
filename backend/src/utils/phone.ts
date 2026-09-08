@@ -22,6 +22,30 @@ export function normalizePhone(raw: string | null | undefined): string {
   return digits;
 }
 
+/** Smartflo agent_number: registered mobile (10-digit), agent ID (050…), or softphone extension (060…). */
+export function toSmartfloAgentNumber(raw: string | null | undefined): string {
+  if (raw == null) return "";
+  const trimmed = String(raw).trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return "";
+  if (/^0[56]0\d+/.test(digits)) return digits;
+  if (digits.length < 10) return digits;
+  const mobile = normalizePhone(trimmed);
+  if (mobile.length === 10) return mobile;
+  return digits;
+}
+
+/** Smartflo click-to-call destination — bare digits, typically 10-digit Indian mobile. */
+export function toSmartfloDestinationNumber(raw: string | null | undefined): string {
+  return normalizePhone(raw);
+}
+
+/** Smartflo caller ID / DID — digits only, e.g. 919876543210. */
+export function toSmartfloCallerId(raw: string | null | undefined): string {
+  if (raw == null) return "";
+  return String(raw).replace(/\D/g, "");
+}
+
 /** E.164 for Tata click-to-call. 10-digit Indian numbers become +91XXXXXXXXXX. */
 export function toE164(raw: string | null | undefined): string {
   const normalized = normalizePhone(raw);

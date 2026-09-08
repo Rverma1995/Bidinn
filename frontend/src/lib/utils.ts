@@ -19,6 +19,15 @@ export function formatNumber(num) {
   return new Intl.NumberFormat('en-US').format(num);
 }
 
+export function formatCallDuration(minutes) {
+  if (minutes == null || Number.isNaN(minutes)) return '—';
+  const m = Math.round(minutes);
+  if (m < 60) return `${m}m`;
+  const hours = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
 export function formatDate(dateString) {
   if (!dateString) return '-';
   const date = new Date(dateString);

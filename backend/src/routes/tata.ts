@@ -5,8 +5,13 @@ import { AppDataSource } from "../config/data-source";
 import { Call, Lead, User } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
 import { canAccessLead } from "../utils/lead-scope";
-import { initiateClickToCall, upsertTataWebhookEvent, verifyTataWebhookSignature } from "../services/tata.service";
-import { TataWebhookPayload } from "../services/tata-webhook";
+import {
+  initiateClickToCall,
+  syncCallFromSmartfloCdr,
+  upsertTataWebhookEvent,
+  verifyTataWebhookSignature,
+} from "../services/tata.service";
+import { normalizeSmartfloWebhookPayload } from "../services/tata-webhook";
 
 const router = Router();
 
@@ -65,9 +70,9 @@ router.post("/webhook", async (req: Request & { rawBody?: Buffer }, res: Respons
       }
     }
 
-    const payload = req.body as TataWebhookPayload;
-    if (!payload?.event || !payload?.data?.call_id) {
-      return res.status(400).json({ detail: "event and data.call_id are required" });
+    const payload = normalizeSmartfloWebhookPayload(req.body as Record<string, unknown>);
+    if (!payload?.event || !payload.data?.call_id) {
+      return res.status(400).json({ detail: "event and call_id/ref_id are required" });
     }
 
     const call = await upsertTataWebhookEvent(payload);
@@ -75,6 +80,26 @@ router.post("/webhook", async (req: Request & { rawBody?: Buffer }, res: Respons
   } catch (error) {
     console.error("Tata webhook error:", error);
     res.status(500).json({ detail: "Webhook processing failed" });
+  }
+});
+
+router.post("/sync-call/:tataCallId", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const tataCallId = req.params.tataCallId as string;
+    const call = await syncCallFromSmartfloCdr(tataCallId);
+    if (!call) {
+      return res.status(404).json({ detail: "Call not found" });
+    }
+    if (call.lead_id) {
+      const lead = await leadRepository().findOne({ where: { id: call.lead_id } });
+      if (lead && !canAccessLead(lead, req.user!)) {
+        return res.status(403).json({ detail: "You can only sync calls for leads assigned to you" });
+      }
+    }
+    res.json(call);
+  } catch (error) {
+    console.error("Sync Tata call error:", error);
+    res.status(500).json({ detail: "Failed to sync call status" });
   }
 });
 
