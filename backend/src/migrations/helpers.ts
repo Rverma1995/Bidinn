@@ -61,3 +61,38 @@ export async function addColumnIfNotExists(
   }
   await queryRunner.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
 }
+
+export async function foreignKeyExists(
+  queryRunner: QueryRunner,
+  table: string,
+  constraintName: string
+): Promise<boolean> {
+  const rows = await queryRunner.query(
+    `SELECT COUNT(*) AS c FROM information_schema.table_constraints
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND constraint_name = ?
+       AND constraint_type = 'FOREIGN KEY'`,
+    [table, constraintName]
+  );
+  return Number(rows[0]?.c ?? 0) > 0;
+}
+
+export async function addForeignKeyIfNotExists(
+  queryRunner: QueryRunner,
+  table: string,
+  constraintName: string,
+  column: string,
+  referencedTable: string,
+  referencedColumn: string,
+  onDelete = "CASCADE"
+): Promise<void> {
+  if (await foreignKeyExists(queryRunner, table, constraintName)) {
+    return;
+  }
+  await queryRunner.query(
+    `ALTER TABLE \`${table}\` ADD CONSTRAINT \`${constraintName}\`
+     FOREIGN KEY (\`${column}\`) REFERENCES \`${referencedTable}\`(\`${referencedColumn}\`)
+     ON DELETE ${onDelete} ON UPDATE NO ACTION`
+  );
+}

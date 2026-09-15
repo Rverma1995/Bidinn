@@ -14,6 +14,7 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "migrate": "ts-node scripts/migrate.ts",
+    "db:migrate": "ts-node scripts/migrate.ts",
     "predeploy": "npm run migrate",
     "test:unit": "ts-node --transpile-only tests/unit/phone.test.ts && ts-node --transpile-only tests/unit/tata-webhook.test.ts && ts-node --transpile-only tests/unit/tata-cdr.test.ts && ts-node --transpile-only tests/unit/tata-signature.test.ts && ts-node --transpile-only tests/unit/lead-scope.test.ts && ts-node --transpile-only tests/unit/lead-rules.test.ts && ts-node --transpile-only tests/unit/assignment-notify.test.ts && ts-node --transpile-only tests/unit/followup-notify.test.ts && ts-node --transpile-only tests/unit/booking-balance.test.ts && ts-node --transpile-only tests/unit/report-recipients.test.ts && ts-node --transpile-only tests/unit/report-metrics.test.ts && ts-node --transpile-only tests/unit/report-jobs.test.ts && ts-node --transpile-only tests/unit/saved-filters.test.ts && ts-node --transpile-only tests/unit/web-push.test.ts && ts-node --transpile-only tests/unit/migrations.test.ts && ts-node --transpile-only tests/unit/daily-activity-report.test.ts && ts-node --transpile-only tests/unit/call-wrap-up.test.ts",
     "vapid-keys": "node -e \"console.log(JSON.stringify(require('web-push').generateVAPIDKeys(), null, 2))\"",
