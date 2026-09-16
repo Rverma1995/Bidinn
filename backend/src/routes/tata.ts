@@ -9,7 +9,7 @@ import {
   initiateClickToCall,
   syncCallFromSmartfloCdr,
   upsertTataWebhookEvent,
-  verifyTataWebhookSignature,
+  verifyTataWebhookAuth,
 } from "../services/tata.service";
 import { normalizeSmartfloWebhookPayload } from "../services/tata-webhook";
 
@@ -58,16 +58,21 @@ router.post("/click-to-call", authenticateToken, async (req: AuthRequest, res: R
 
 router.post("/webhook", async (req: Request & { rawBody?: Buffer }, res: Response) => {
   try {
-    const signature =
-      (req.headers["x-smartflo-signature"] as string) ||
-      (req.body && req.body.signature);
-
-    if (process.env.TATA_SMARTFLO_WEBHOOK_SECRET) {
-      const bodyToVerify = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
-      if (!verifyTataWebhookSignature(bodyToVerify, signature)) {
-        console.warn("Invalid Tata webhook signature");
-        return res.status(403).json({ detail: "Invalid signature" });
-      }
+    const bodyToVerify = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+    const bodySignature = req.body && typeof req.body.signature === "string" ? req.body.signature : undefined;
+    if (
+      !verifyTataWebhookAuth(bodyToVerify, {
+        "x-smartflo-signature": req.headers["x-smartflo-signature"] as string | undefined,
+        "x-bidinn-webhook-token": req.headers["x-bidinn-webhook-token"] as string | undefined,
+        "x-webhook-secret": req.headers["x-webhook-secret"] as string | undefined,
+        authorization: req.headers.authorization as string | undefined,
+      }, bodySignature)
+    ) {
+      console.warn("Invalid Tata webhook auth");
+      return res.status(403).json({
+        detail:
+          "Invalid webhook auth. Set header x-bidinn-webhook-token to your TATA_SMARTFLO_WEBHOOK_SECRET value in Smartflo, or send x-smartflo-signature: sha256=<hmac>.",
+      });
     }
 
     const payload = normalizeSmartfloWebhookPayload(req.body as Record<string, unknown>);

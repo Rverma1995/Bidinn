@@ -63,7 +63,7 @@ export function CommandPalette({ open, onOpenChange }) {
 
   useEffect(() => {
     const onKeyDown = (event) => {
-      if (event.key.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey) || event.altKey) {
+      if (!event.key || event.key.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey) || event.altKey) {
         return;
       }
       event.preventDefault();

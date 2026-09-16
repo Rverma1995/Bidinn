@@ -67,6 +67,61 @@ export function signTataPayload(rawBody: string | Buffer, secret: string): strin
   return "sha256=" + crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
 }
 
+function timingSafeEqualString(a: string, b: string): boolean {
+  try {
+    const left = Buffer.from(a);
+    const right = Buffer.from(b);
+    if (left.length !== right.length) return false;
+    return crypto.timingSafeEqual(left, right);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Smartflo webhooks do not compute HMAC signatures. In the portal you can add a static
+ * header (e.g. x-bidinn-webhook-token) whose value matches TATA_SMARTFLO_WEBHOOK_SECRET.
+ * HMAC via x-smartflo-signature: sha256=... is still supported for manual/testing use.
+ */
+export function verifyTataWebhookAuth(
+  rawBody: Buffer | string,
+  headers: {
+    "x-smartflo-signature"?: string;
+    "x-bidinn-webhook-token"?: string;
+    "x-webhook-secret"?: string;
+    authorization?: string;
+  },
+  bodySignature?: string
+): boolean {
+  const secret = WEBHOOK_SECRET();
+  if (!secret) return true;
+
+  const signature = headers["x-smartflo-signature"] || bodySignature;
+  const bearer = headers.authorization?.replace(/^Bearer\s+/i, "").trim();
+  const staticCandidates = [
+    headers["x-bidinn-webhook-token"],
+    headers["x-webhook-secret"],
+    bearer,
+    // Smartflo "Headers" UI: static shared secret (may be 64-char hex — not an HMAC digest)
+    signature,
+  ].filter(Boolean) as string[];
+
+  if (staticCandidates.some((candidate) => timingSafeEqualString(candidate, secret))) {
+    return true;
+  }
+
+  if (signature?.startsWith("sha256=")) {
+    return verifyTataWebhookSignature(rawBody, signature);
+  }
+
+  // Bare 64-char hex: only accept if it is the real HMAC of this body (not a static secret)
+  if (signature && /^[a-f0-9]{64}$/i.test(signature)) {
+    return verifyTataWebhookSignature(rawBody, signature);
+  }
+
+  return false;
+}
+
 async function findAgentByExtension(extension: string | null | undefined): Promise<User | null> {
   if (!extension) return null;
   return AppDataSource.getRepository(User).findOne({ where: { tata_extension: extension } });
