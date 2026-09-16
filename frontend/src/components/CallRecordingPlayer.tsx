@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatDuration } from '../lib/utils';
 
 interface CallRecordingPlayerProps {
   url: string;
+  durationSeconds?: number | null;
   durationMinutes?: number | null;
 }
 
@@ -13,9 +14,15 @@ function formatAudioTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function CallRecordingPlayer({ url, durationMinutes }: CallRecordingPlayerProps) {
+export function CallRecordingPlayer({ url, durationSeconds, durationMinutes }: CallRecordingPlayerProps) {
   const [currentTime, setCurrentTime] = useState(0);
-  const [totalSeconds, setTotalSeconds] = useState<number | null>(null);
+  const [totalSeconds, setTotalSeconds] = useState<number | null>(durationSeconds ?? null);
+
+  useEffect(() => {
+    if (durationSeconds != null && durationSeconds > 0) {
+      setTotalSeconds(durationSeconds);
+    }
+  }, [durationSeconds]);
 
   const totalLabel =
     totalSeconds != null

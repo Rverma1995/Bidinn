@@ -13,13 +13,14 @@ import {
   normalizeSmartfloWebhookPayload,
 } from "./tata-webhook";
 import {
+  callNeedsCdrResync,
   cdrRecordToPatch,
   formatSmartfloCdrDate,
   matchLiveCall,
   pickSmartfloCdrRecord,
   SmartfloLiveState,
 } from "./tata-cdr";
-import { toSmartfloAgentNumber, toSmartfloCallerId, toSmartfloDestinationNumber } from "../utils/phone";
+import { toSmartfloAgentNumber, toSmartfloCallerId, toSmartfloClickToCallDestination, toSmartfloDestinationNumber } from "../utils/phone";
 import { sendPushForNotifications } from "./web-push.service";
 
 const SMARTFLO_API_KEY = () => {
@@ -268,16 +269,20 @@ function attachLiveState<T extends Call>(call: T, liveState: SmartfloLiveState |
   return Object.assign(call, { live_state: liveState });
 }
 
-async function finalizeCdrCall(call: Call, hadTerminalOutcome: boolean): Promise<void> {
-  if (hadTerminalOutcome || !call.outcome || !call.ended_at || !call.lead_id) return;
-  const lead = await AppDataSource.getRepository(Lead).findOne({ where: { id: call.lead_id } });
-  if (!lead) return;
+async function finalizeCdrCall(call: Call, alreadyHadOutcome: boolean): Promise<void> {
+  if (!call.outcome || !call.ended_at || !call.lead_id) return;
 
   if (call.outcome === CallOutcome.CONNECTED && call.answered_at) {
-    call.wrap_up_completed = false;
-    await AppDataSource.getRepository(Call).save(call);
+    if (!call.wrap_up_completed) {
+      await AppDataSource.getRepository(Call).save(call);
+    }
     return;
   }
+
+  if (alreadyHadOutcome || call.wrap_up_completed) return;
+
+  const lead = await AppDataSource.getRepository(Lead).findOne({ where: { id: call.lead_id } });
+  if (!lead) return;
 
   call.wrap_up_completed = true;
   await AppDataSource.getRepository(Call).save(call);
@@ -287,6 +292,7 @@ async function finalizeCdrCall(call: Call, hadTerminalOutcome: boolean): Promise
     userName: call.user_name,
     outcome: call.outcome,
     details: `Outcome: ${call.outcome}${call.recording_url ? " (recording attached)" : ""}`,
+    incrementAttempt: true,
   });
 }
 
@@ -295,7 +301,7 @@ export async function syncCallFromSmartfloCdr(tataCallId: string): Promise<(Call
   const callRepository = AppDataSource.getRepository(Call);
   const call = await callRepository.findOne({ where: { tata_call_id: tataCallId } });
   if (!call) return call;
-  if (call.ended_at) return attachLiveState(call, null);
+  if (call.ended_at && !callNeedsCdrResync(call)) return attachLiveState(call, null);
 
   if (MOCK_MODE() || !SMARTFLO_API_KEY()) return attachLiveState(call, null);
 
@@ -319,6 +325,10 @@ export async function syncCallFromSmartfloCdr(tataCallId: string): Promise<(Call
       if (live.state === "live" && !call.answered_at) {
         call.answered_at = new Date();
         await callRepository.save(call);
+      }
+      // Do not close this click-to-call from an older CDR while Smartflo still shows it ringing.
+      if (live.state !== "live") {
+        return attachLiveState(call, liveState);
       }
     }
   }
@@ -349,19 +359,26 @@ export async function syncCallFromSmartfloCdr(tataCallId: string): Promise<(Call
   });
   if (!record) return attachLiveState(call, liveState);
 
-  const hadTerminalOutcome = !!call.outcome && !!call.ended_at;
+  const refMatches = String(record.ref_id || "") === tataCallId;
+  // While the agent/DID is still ringing, a nearby older CDR must not close this call.
+  if (!refMatches && (liveState || Date.now() - started.getTime() < 20_000)) {
+    return attachLiveState(call, liveState);
+  }
+
+  const alreadyHadOutcome = !!call.outcome && !!call.ended_at;
   const patch = cdrRecordToPatch(record, started);
-  if (patch.answered_at && !call.answered_at) call.answered_at = patch.answered_at;
+  if (patch.started_at) call.started_at = patch.started_at;
+  if (patch.answered_at) call.answered_at = patch.answered_at;
   if (patch.outcome) call.outcome = patch.outcome;
   if (patch.recording_url) call.recording_url = patch.recording_url;
-  if (patch.duration_minutes) call.duration_minutes = patch.duration_minutes;
+  call.duration_minutes = patch.duration_minutes;
   if (patch.ended_at) {
     call.ended_at = patch.ended_at;
     call.wrap_up_completed = patch.wrap_up_completed;
   }
 
   await callRepository.save(call);
-  await finalizeCdrCall(call, hadTerminalOutcome);
+  await finalizeCdrCall(call, alreadyHadOutcome);
   return attachLiveState(call, call.ended_at ? null : liveState);
 }
 
@@ -371,7 +388,7 @@ export async function syncPendingTataCallsForLead(leadId: string): Promise<void>
     order: { created_at: "DESC" },
     take: 20,
   });
-  const open = pending.filter((c) => c.tata_call_id && !c.ended_at).slice(0, 5);
+  const open = pending.filter((c) => c.tata_call_id && callNeedsCdrResync(c)).slice(0, 3);
   for (const row of open) {
     await syncCallFromSmartfloCdr(row.tata_call_id!);
   }
@@ -515,7 +532,7 @@ export async function initiateClickToCall(params: {
     throw err;
   }
 
-  const destinationNumber = toSmartfloDestinationNumber(params.lead.phone);
+  const destinationNumber = toSmartfloClickToCallDestination(params.lead.phone);
   if (!destinationNumber) {
     const err: any = new Error("Lead has no valid phone number");
     err.status = 400;
@@ -569,20 +586,23 @@ export async function initiateClickToCall(params: {
 
     const data = (await response.json().catch(() => ({}))) as {
       success?: boolean;
+      ok?: boolean;
       ref_id?: string;
       call_id?: string;
       message?: string;
+      error?: string;
       status?: string;
       error_code?: string;
     };
 
     const callRef = data.ref_id || data.call_id;
-    if (!response.ok || data.success === false || !callRef) {
-      let message = data.message || "Failed to initiate call";
+    if (!response.ok || data.success === false || data.ok === false || !callRef) {
+      let message = data.message || data.error || "Failed to initiate call";
       if (/DID Selected|Outbound calling is disabled/i.test(message)) {
         message +=
           " Set TATA_SMARTFLO_CALLER_ID to a valid outbound-enabled DID from Smartflo, or leave it empty to use your account default.";
       }
+      console.warn("Click-to-call rejected by Smartflo:", response.status, data);
       const err: any = new Error(message);
       err.status = response.status >= 400 ? response.status : 502;
       throw err;

@@ -4,7 +4,9 @@ import {
   toE164,
   toSmartfloAgentNumber,
   toSmartfloCallerId,
+  toSmartfloClickToCallDestination,
   toSmartfloDestinationNumber,
+  isSmartfloDialerExtension,
   secondsToMinutes,
 } from "../../src/utils/phone";
 
@@ -75,6 +77,14 @@ test("toE164 empty / already-plus / non-Indian", () => {
 test("toSmartfloDestinationNumber", () => {
   assert.strictEqual(toSmartfloDestinationNumber("+91 98765-43210"), "9876543210");
   assert.strictEqual(toSmartfloDestinationNumber(""), "");
+});
+
+test("toSmartfloClickToCallDestination uses 91 country code", () => {
+  assert.strictEqual(toSmartfloClickToCallDestination("+91 95652-88935"), "919565288935");
+  assert.strictEqual(toSmartfloClickToCallDestination("9565288935"), "919565288935");
+  assert.strictEqual(toSmartfloClickToCallDestination(""), "");
+  assert.strictEqual(isSmartfloDialerExtension("0606665530054"), true);
+  assert.strictEqual(isSmartfloDialerExtension("9240202666"), false);
 });
 
 test("toSmartfloAgentNumber", () => {

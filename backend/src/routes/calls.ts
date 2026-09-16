@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { cacheMiddleware, invalidateCacheMiddleware } from "../middleware/cache";
+import { cacheMiddleware, invalidateCache, invalidateCacheMiddleware } from "../middleware/cache";
 import { CACHE_KEYS, CACHE_TTL } from "../config/cache.constants";
 import { AppDataSource } from "../config/data-source";
 import { Call, CallOutcome, Lead } from "../entities";
@@ -30,15 +30,22 @@ router.get("/lead/:leadId", authenticateToken, async (req: AuthRequest, res: Res
       return res.status(403).json({ detail: "You can only view calls for leads assigned to you" });
     }
 
-    await syncPendingTataCallsForLead(leadId).catch((err) => {
-      console.warn("Pending Tata call sync failed:", err);
-    });
-
     const calls = await callRepository().find({
       where: { lead_id: leadId },
       order: { created_at: "DESC" },
     });
+
+    if ((lead.attempt_count || 0) > calls.length) {
+      lead.attempt_count = calls.length;
+      await leadRepository().save(lead);
+      void invalidateCache(CACHE_KEYS.LEADS_LIST).catch(() => undefined);
+      void invalidateCache(CACHE_KEYS.DASHBOARD_STATS).catch(() => undefined);
+    }
+
     res.json(calls);
+    void syncPendingTataCallsForLead(leadId).catch((err) => {
+      console.warn("Pending Tata call sync failed:", err);
+    });
   } catch (error) {
     console.error("Get calls error:", error);
     res.status(500).json({ detail: "Internal server error" });

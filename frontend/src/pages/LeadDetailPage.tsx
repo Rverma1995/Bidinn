@@ -29,8 +29,11 @@ import { toast } from 'sonner';
 import {
   formatDate,
   formatDateTime,
+  formatDateTimeSeconds,
   formatRelativeTime,
   formatDuration,
+  formatDurationSeconds,
+  getCallDurationSeconds,
   getStatusColor,
   getStatusLabel,
   generateInitials,
@@ -929,7 +932,10 @@ export default function LeadDetailPage() {
                             {call.outcome ? call.outcome.replace('_', ' ') : 'Pending'}
                           </Badge>
                           <span className="text-sm text-muted-foreground">
-                            {formatDuration(call.duration_minutes)}
+                            {(() => {
+                              const sec = getCallDurationSeconds(call);
+                              return sec != null ? formatDurationSeconds(sec) : formatDuration(call.duration_minutes);
+                            })()}
                           </span>
                           {call.tata_call_id && call.direction && (
                             <span className="text-xs text-muted-foreground capitalize">
@@ -943,11 +949,14 @@ export default function LeadDetailPage() {
                         {call.tata_call_id ? (
                           <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
                             <p>{call.user_name} · {formatDateTime(call.created_at)}</p>
-                            {call.started_at && <p>Started {formatDateTime(call.started_at)}</p>}
-                            {call.answered_at && <p>Answered {formatDateTime(call.answered_at)}</p>}
-                            {call.ended_at && <p>Ended {formatDateTime(call.ended_at)}</p>}
+                            {call.started_at && <p>Started {formatDateTimeSeconds(call.started_at)}</p>}
+                            {call.answered_at && <p>Answered {formatDateTimeSeconds(call.answered_at)}</p>}
+                            {call.ended_at && <p>Ended {formatDateTimeSeconds(call.ended_at)}</p>}
                             {call.recording_url && (
-                              <CallRecordingPlayer url={call.recording_url} durationMinutes={call.duration_minutes} />
+                              <CallRecordingPlayer
+                                url={call.recording_url}
+                                durationSeconds={getCallDurationSeconds(call)}
+                              />
                             )}
                           </div>
                         ) : (
@@ -971,7 +980,7 @@ export default function LeadDetailPage() {
             <CardContent className="p-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                  <p className="text-2xl font-bold">{Math.max(lead.attempt_count || 0, calls.length)}</p>
+                  <p className="text-2xl font-bold">{calls.length}</p>
                   <p className="text-xs text-muted-foreground">Call Attempts</p>
                 </div>
                 <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">

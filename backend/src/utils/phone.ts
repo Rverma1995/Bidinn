@@ -40,6 +40,22 @@ export function toSmartfloDestinationNumber(raw: string | null | undefined): str
   return normalizePhone(raw);
 }
 
+/**
+ * Number Tata actually dials on the customer leg.
+ * 10-digit Indian mobiles must include country code 91. Without it, ClickToCall
+ * for a 060 softphone dials +0XXXXXXXXXX (chanunavail) after the agent answers.
+ */
+export function toSmartfloClickToCallDestination(raw: string | null | undefined): string {
+  const ten = normalizePhone(raw);
+  if (!ten) return "";
+  if (ten.length === 10) return `91${ten}`;
+  return ten;
+}
+
+export function isSmartfloDialerExtension(raw: string | null | undefined): boolean {
+  return /^0[56]0\d+/.test(String(raw || "").replace(/\D/g, ""));
+}
+
 /** Smartflo caller ID / DID — digits only, e.g. 919876543210. */
 export function toSmartfloCallerId(raw: string | null | undefined): string {
   if (raw == null) return "";
