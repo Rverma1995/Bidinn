@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { formatDuration } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
+import { Button } from './ui/button';
 
 interface CallRecordingPlayerProps {
-  url: string;
+  callId: string;
+  url?: string | null;
   durationSeconds?: number | null;
   durationMinutes?: number | null;
 }
@@ -14,7 +17,16 @@ function formatAudioTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function CallRecordingPlayer({ url, durationSeconds, durationMinutes }: CallRecordingPlayerProps) {
+export function CallRecordingPlayer({
+  callId,
+  durationSeconds,
+  durationMinutes,
+}: CallRecordingPlayerProps) {
+  const { api } = useAuth();
+  const [started, setStarted] = useState(false);
+  const [loadId, setLoadId] = useState(0);
+  const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState<number | null>(durationSeconds ?? null);
 
@@ -23,6 +35,32 @@ export function CallRecordingPlayer({ url, durationSeconds, durationMinutes }: C
       setTotalSeconds(durationSeconds);
     }
   }, [durationSeconds]);
+
+  useEffect(() => {
+    if (!started) return;
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    setError(null);
+    setSrc(null);
+    setCurrentTime(0);
+
+    (async () => {
+      try {
+        const response = await api.get(`/tata/recording/${callId}`, { responseType: 'blob' });
+        if (cancelled) return;
+        const blob = new Blob([response.data], { type: 'audio/mpeg' });
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      } catch {
+        if (!cancelled) setError('Recording could not be loaded');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [api, callId, started, loadId]);
 
   const totalLabel =
     totalSeconds != null
@@ -37,23 +75,49 @@ export function CallRecordingPlayer({ url, durationSeconds, durationMinutes }: C
         <span>Recording</span>
         {totalLabel && (
           <span className="tabular-nums">
-            {formatAudioTime(currentTime)} / {totalLabel}
+            {src ? `${formatAudioTime(currentTime)} / ${totalLabel}` : totalLabel}
           </span>
         )}
       </div>
-      <audio
-        className="w-full max-w-md"
-        controls
-        src={url}
-        preload="metadata"
-        onLoadedMetadata={(e) => {
-          const duration = e.currentTarget.duration;
-          if (Number.isFinite(duration)) setTotalSeconds(duration);
-        }}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-      >
-        Your browser does not support audio playback.
-      </audio>
+      {error ? (
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-destructive">{error}</p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => {
+              setStarted(true);
+              setLoadId((n) => n + 1);
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : !started ? (
+        <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => setStarted(true)}>
+          Play recording
+        </Button>
+      ) : src ? (
+        <audio
+          className="w-full max-w-md"
+          controls
+          autoPlay
+          src={src}
+          preload="metadata"
+          onLoadedMetadata={(e) => {
+            const duration = e.currentTarget.duration;
+            if (Number.isFinite(duration) && duration > 0) setTotalSeconds(duration);
+          }}
+          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onError={() => setError('Recording could not be played')}
+        >
+          Your browser does not support audio playback.
+        </audio>
+      ) : (
+        <p className="text-xs text-muted-foreground">Loading recording…</p>
+      )}
     </div>
   );
 }

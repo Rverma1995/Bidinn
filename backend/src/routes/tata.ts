@@ -6,6 +6,7 @@ import { Call, Lead, User } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
 import { canAccessLead } from "../utils/lead-scope";
 import {
+  fetchCallRecording,
   initiateClickToCall,
   syncCallFromSmartfloCdr,
   upsertTataWebhookEvent,
@@ -85,6 +86,37 @@ router.post("/webhook", async (req: Request & { rawBody?: Buffer }, res: Respons
   } catch (error) {
     console.error("Tata webhook error:", error);
     res.status(500).json({ detail: "Webhook processing failed" });
+  }
+});
+
+router.get("/recording/:callId", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const callId = req.params.callId as string;
+    const call = await callRepository().findOne({ where: { id: callId } });
+    if (!call?.recording_url) {
+      return res.status(404).json({ detail: "Recording not found" });
+    }
+    if (call.lead_id) {
+      const lead = await leadRepository().findOne({ where: { id: call.lead_id } });
+      if (lead && !canAccessLead(lead, req.user!)) {
+        return res.status(403).json({ detail: "You can only listen to recordings for leads assigned to you" });
+      }
+    }
+
+    const recording = await fetchCallRecording(callId);
+    if (!recording) {
+      return res.status(404).json({ detail: "Recording not found" });
+    }
+
+    res.setHeader("Content-Type", recording.contentType);
+    res.setHeader("Content-Length", String(recording.bytes.length));
+    res.setHeader("Content-Disposition", 'inline; filename="call-recording.mp3"');
+    res.setHeader("Accept-Ranges", "none");
+    res.send(recording.bytes);
+  } catch (error: any) {
+    console.error("Get Tata recording error:", error);
+    const status = error.status && error.status >= 400 ? error.status : 500;
+    res.status(status).json({ detail: error.message || "Failed to load recording" });
   }
 });
 

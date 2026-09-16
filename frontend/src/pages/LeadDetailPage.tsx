@@ -954,6 +954,7 @@ export default function LeadDetailPage() {
                             {call.ended_at && <p>Ended {formatDateTimeSeconds(call.ended_at)}</p>}
                             {call.recording_url && (
                               <CallRecordingPlayer
+                                callId={call.id}
                                 url={call.recording_url}
                                 durationSeconds={getCallDurationSeconds(call)}
                               />

@@ -269,6 +269,34 @@ function attachLiveState<T extends Call>(call: T, liveState: SmartfloLiveState |
   return Object.assign(call, { live_state: liveState });
 }
 
+function sniffAudioContentType(bytes: Buffer): string {
+  if (bytes.length >= 3 && bytes.toString("ascii", 0, 3) === "ID3") return "audio/mpeg";
+  if (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) return "audio/mpeg";
+  if (bytes.length >= 4 && bytes.toString("ascii", 0, 4) === "RIFF") return "audio/wav";
+  if (bytes.length >= 4 && bytes.toString("ascii", 0, 4) === "OggS") return "audio/ogg";
+  return "audio/mpeg";
+}
+
+export async function fetchCallRecording(
+  callId: string
+): Promise<{ bytes: Buffer; contentType: string } | null> {
+  const call = await AppDataSource.getRepository(Call).findOne({ where: { id: callId } });
+  if (!call?.recording_url) return null;
+
+  const response = await fetch(call.recording_url, {
+    headers: { Accept: "*/*" },
+    redirect: "follow",
+  });
+  if (!response.ok) {
+    throw Object.assign(new Error("Recording is not available from Tata"), { status: 502 });
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length) {
+    throw Object.assign(new Error("Recording file is empty"), { status: 502 });
+  }
+  return { bytes, contentType: sniffAudioContentType(bytes) };
+}
+
 async function finalizeCdrCall(call: Call, alreadyHadOutcome: boolean): Promise<void> {
   if (!call.outcome || !call.ended_at || !call.lead_id) return;
 
