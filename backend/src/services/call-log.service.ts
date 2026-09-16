@@ -14,11 +14,15 @@ export async function applyCallCompletion(params: {
   outcome: CallOutcome | string;
   nextFollowup?: Date;
   details?: string;
+  /** Set false when attempt_count was already incremented (e.g. click-to-call initiate). */
+  incrementAttempt?: boolean;
 }): Promise<void> {
   const leadRepository = AppDataSource.getRepository(Lead);
   const activityRepository = AppDataSource.getRepository(Activity);
 
-  params.lead.attempt_count = (params.lead.attempt_count || 0) + 1;
+  if (params.incrementAttempt !== false) {
+    params.lead.attempt_count = (params.lead.attempt_count || 0) + 1;
+  }
   params.lead.last_activity = new Date();
   if (params.nextFollowup) {
     params.lead.next_followup = params.nextFollowup;

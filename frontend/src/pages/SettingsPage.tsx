@@ -22,6 +22,7 @@ import {
   Key,
   Eye,
   EyeOff,
+  Phone,
   Facebook,
   CheckCircle2,
   ExternalLink,
@@ -40,9 +41,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
+import { PwaInstallCard, PushNotificationToggle } from '../components/pwa/PwaSettings';
 
 export default function SettingsPage() {
-  const { user, api, isAdmin } = useAuth();
+  const { user, api, isAdmin, refreshUser } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -73,6 +75,12 @@ export default function SettingsPage() {
     page_id: '',
   });
   const [telephonyEnabled, setTelephonyEnabled] = useState(false);
+  const [tataExtension, setTataExtension] = useState('');
+  const [savingExtension, setSavingExtension] = useState(false);
+
+  useEffect(() => {
+    setTataExtension(user?.tata_extension || '');
+  }, [user?.tata_extension]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -87,6 +95,25 @@ export default function SettingsPage() {
       setTelephonyEnabled(!!response.data?.telephony_enabled);
     } catch (error) {
       console.error('Failed to fetch feature flags:', error);
+    }
+  };
+
+  const handleSaveTataExtension = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = tataExtension.trim();
+    if (!trimmed) {
+      toast.error('Enter your Smartflo agent extension (e.g. 1001)');
+      return;
+    }
+    setSavingExtension(true);
+    try {
+      await api.put(`/users/${user.id}`, { tata_extension: trimmed });
+      await refreshUser();
+      toast.success('Tata extension saved — click-to-call is ready');
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to save Tata extension');
+    } finally {
+      setSavingExtension(false);
     }
   };
 
@@ -319,6 +346,42 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {telephonyEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="w-5 h-5" />
+              Click-to-Call
+            </CardTitle>
+            <CardDescription>
+              Link your Tata Smartflo agent extension so outbound calls ring your phone first
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveTataExtension} className="space-y-4 max-w-md">
+              <div className="space-y-2">
+                <Label htmlFor="tataExtension">Tata Extension</Label>
+                <Input
+                  id="tataExtension"
+                  placeholder="e.g. 9240202666 or 0501234567"
+                  value={tataExtension}
+                  onChange={(e) => setTataExtension(e.target.value)}
+                  data-testid="settings-tata-extension-input"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your registered mobile (10 digits), Smartflo agent ID (050…), or softphone extension (060…).
+                  Must match the agent configured in Smartflo — this is what rings when you click Call.
+                </p>
+              </div>
+              <Button type="submit" disabled={savingExtension} data-testid="save-tata-extension-btn">
+                {savingExtension && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save Extension
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Change Password Section */}
       <Card>
         <CardHeader>
@@ -417,6 +480,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      <PwaInstallCard />
+
       {/* Notifications Section */}
       <Card>
         <CardHeader>
@@ -427,6 +492,7 @@ export default function SettingsPage() {
           <CardDescription>Configure notification preferences</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <PushNotificationToggle />
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>Email Notifications</Label>

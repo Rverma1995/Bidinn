@@ -1,6 +1,10 @@
 import "reflect-metadata";
 import assert from "assert";
-import { signTataPayload, verifyTataWebhookSignature } from "../../src/services/tata.service";
+import {
+  signTataPayload,
+  verifyTataWebhookAuth,
+  verifyTataWebhookSignature,
+} from "../../src/services/tata.service";
 
 function test(name: string, fn: () => void) {
   fn();
@@ -55,6 +59,37 @@ test("tampered body fails even with a previously valid signature", () => {
   withSecret(SECRET, () => {
     const sig = signTataPayload(BODY, SECRET);
     assert.strictEqual(verifyTataWebhookSignature(BODY + " ", sig), false);
+  });
+});
+
+test("static x-bidinn-webhook-token matching secret is accepted (Smartflo custom header)", () => {
+  withSecret(SECRET, () => {
+    assert.strictEqual(
+      verifyTataWebhookAuth(BODY, { "x-bidinn-webhook-token": SECRET }),
+      true
+    );
+    assert.strictEqual(
+      verifyTataWebhookAuth(BODY, { "x-smartflo-signature": SECRET }),
+      true
+    );
+    assert.strictEqual(
+      verifyTataWebhookAuth(BODY, { "x-bidinn-webhook-token": "wrong" }),
+      false
+    );
+  });
+});
+
+test("64-char hex webhook secret in header is static token, not mistaken for HMAC", () => {
+  const hexSecret = "ede6f054f8b687a2145d4278a3aac4cfe27d5464cee37e2de09188b082d5da26";
+  withSecret(hexSecret, () => {
+    assert.strictEqual(
+      verifyTataWebhookAuth(BODY, { "x-smartflo-signature": hexSecret }),
+      true
+    );
+    assert.strictEqual(
+      verifyTataWebhookAuth(BODY, { "x-smartflo-signature": "sha256=deadbeef" }),
+      false
+    );
   });
 });
 

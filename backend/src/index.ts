@@ -26,17 +26,22 @@ import leadRoutes from "./routes/leads";
 import callRoutes from "./routes/calls";
 import bookingRoutes from "./routes/bookings";
 import dashboardRoutes from "./routes/dashboard";
+import reportsRoutes from "./routes/reports";
 import activityRoutes from "./routes/activities";
 import metaRoutes from "./routes/meta";
 import paymentRoutes from "./routes/payments";
 import adminRoutes from "./routes/admin";
 import notificationRoutes from "./routes/notifications";
+import savedFilterRoutes from "./routes/saved-filters";
 import tataRoutes from "./routes/tata";
+import pushRoutes from "./routes/push";
 import { cacheService } from "./services/cache.service";
 import { idleLeadsQuery } from "./services/delay-leads.service";
 import { scheduleEmailReportJobs } from "./services/report-jobs.service";
+import { sendPushForNotifications } from "./services/web-push.service";
 import { invalidateCache } from "./middleware/cache";
 import { CACHE_KEYS } from "./config/cache.constants";
+import { cacheControlForStaticFile } from "./utils/static-cache";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "8001");
@@ -47,7 +52,7 @@ app.use(
   cors({
     origin: corsOrigins === "*" ? "*" : corsOrigins.split(","),
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
@@ -66,7 +71,7 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Disable caching for all API responses to ensure fresh data
-app.use((req: Request, res: Response, next: NextFunction) => {
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
   res.set({
     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
     'Pragma': 'no-cache',
@@ -89,11 +94,14 @@ app.use("/api/leads", leadRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/reports", reportsRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/meta", metaRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/push", pushRoutes);
+app.use("/api/saved-filters", savedFilterRoutes);
 
 if (process.env.TELEPHONY_ENABLED === "true") {
   app.use("/api/tata", tataRoutes);
@@ -129,12 +137,24 @@ app.use("/api/*", (req: Request, res: Response) => {
   res.status(404).json({ detail: "Not found" });
 });
 
-// Serve frontend static files in production
+// Serve frontend static files in production.
+// index.html + service-worker.js are no-store so a new deploy is picked up;
+// hashed webpack files are immutable.
 const frontendPath = path.join(__dirname, "../../frontend/build");
-app.use(express.static(frontendPath));
+app.use(
+  express.static(frontendPath, {
+    setHeaders: (res, filePath) => {
+      const cacheControl = cacheControlForStaticFile(filePath);
+      if (cacheControl) {
+        res.setHeader("Cache-Control", cacheControl);
+      }
+    },
+  })
+);
 
 // Catch-all route to serve React app for non-API requests
 app.get("*", (req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
@@ -254,6 +274,7 @@ const runIdleLeadEscalationJob = async () => {
         },
       });
       await notificationRepository.save(notification);
+      void sendPushForNotifications([notification]);
     }
 
     // Log activity for tracking (use null for user_id for system activities)
@@ -385,6 +406,7 @@ const runFollowupReminderJob = async () => {
           
           if (notificationsToCreate.length > 0) {
             await notificationRepository.save(notificationsToCreate);
+            void sendPushForNotifications(notificationsToCreate);
             createdCount += notificationsToCreate.length;
             localCount += notificationsToCreate.length;
           }

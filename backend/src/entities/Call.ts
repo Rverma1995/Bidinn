@@ -67,6 +67,9 @@ export class Call {
   @Column({ type: "varchar", length: 50, nullable: true })
   customer_phone: string | null;
 
+  @Column({ type: "boolean", default: false })
+  wrap_up_completed: boolean;
+
   @CreateDateColumn()
   created_at: Date;
 

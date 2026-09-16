@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { unsubscribeFromPush } from '../pwa/push';
 
 const AuthContext = createContext(null);
 
@@ -63,9 +64,17 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    void unsubscribeFromPush(api());
     localStorage.removeItem('bidinn_token');
     setToken(null);
     setUser(null);
+  };
+
+  const refreshUser = async () => {
+    if (!token) return null;
+    const response = await api().get('/auth/me');
+    setUser(response.data);
+    return response.data;
   };
 
   const isAdmin = user?.role === 'admin';
@@ -78,6 +87,7 @@ export function AuthProvider({ children }) {
     loading,
     login,
     logout,
+    refreshUser,
     api: api(),
     isAdmin,
     isManager,

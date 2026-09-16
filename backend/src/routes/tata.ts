@@ -5,8 +5,14 @@ import { AppDataSource } from "../config/data-source";
 import { Call, Lead, User } from "../entities";
 import { authenticateToken, AuthRequest } from "../middleware/auth";
 import { canAccessLead } from "../utils/lead-scope";
-import { initiateClickToCall, upsertTataWebhookEvent, verifyTataWebhookSignature } from "../services/tata.service";
-import { TataWebhookPayload } from "../services/tata-webhook";
+import {
+  fetchCallRecording,
+  initiateClickToCall,
+  syncCallFromSmartfloCdr,
+  upsertTataWebhookEvent,
+  verifyTataWebhookAuth,
+} from "../services/tata.service";
+import { normalizeSmartfloWebhookPayload } from "../services/tata-webhook";
 
 const router = Router();
 
@@ -53,21 +59,26 @@ router.post("/click-to-call", authenticateToken, async (req: AuthRequest, res: R
 
 router.post("/webhook", async (req: Request & { rawBody?: Buffer }, res: Response) => {
   try {
-    const signature =
-      (req.headers["x-smartflo-signature"] as string) ||
-      (req.body && req.body.signature);
-
-    if (process.env.TATA_SMARTFLO_WEBHOOK_SECRET) {
-      const bodyToVerify = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
-      if (!verifyTataWebhookSignature(bodyToVerify, signature)) {
-        console.warn("Invalid Tata webhook signature");
-        return res.status(403).json({ detail: "Invalid signature" });
-      }
+    const bodyToVerify = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+    const bodySignature = req.body && typeof req.body.signature === "string" ? req.body.signature : undefined;
+    if (
+      !verifyTataWebhookAuth(bodyToVerify, {
+        "x-smartflo-signature": req.headers["x-smartflo-signature"] as string | undefined,
+        "x-bidinn-webhook-token": req.headers["x-bidinn-webhook-token"] as string | undefined,
+        "x-webhook-secret": req.headers["x-webhook-secret"] as string | undefined,
+        authorization: req.headers.authorization as string | undefined,
+      }, bodySignature)
+    ) {
+      console.warn("Invalid Tata webhook auth");
+      return res.status(403).json({
+        detail:
+          "Invalid webhook auth. Set header x-bidinn-webhook-token to your TATA_SMARTFLO_WEBHOOK_SECRET value in Smartflo, or send x-smartflo-signature: sha256=<hmac>.",
+      });
     }
 
-    const payload = req.body as TataWebhookPayload;
-    if (!payload?.event || !payload?.data?.call_id) {
-      return res.status(400).json({ detail: "event and data.call_id are required" });
+    const payload = normalizeSmartfloWebhookPayload(req.body as Record<string, unknown>);
+    if (!payload?.event || !payload.data?.call_id) {
+      return res.status(400).json({ detail: "event and call_id/ref_id are required" });
     }
 
     const call = await upsertTataWebhookEvent(payload);
@@ -75,6 +86,57 @@ router.post("/webhook", async (req: Request & { rawBody?: Buffer }, res: Respons
   } catch (error) {
     console.error("Tata webhook error:", error);
     res.status(500).json({ detail: "Webhook processing failed" });
+  }
+});
+
+router.get("/recording/:callId", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const callId = req.params.callId as string;
+    const call = await callRepository().findOne({ where: { id: callId } });
+    if (!call?.recording_url) {
+      return res.status(404).json({ detail: "Recording not found" });
+    }
+    if (call.lead_id) {
+      const lead = await leadRepository().findOne({ where: { id: call.lead_id } });
+      if (lead && !canAccessLead(lead, req.user!)) {
+        return res.status(403).json({ detail: "You can only listen to recordings for leads assigned to you" });
+      }
+    }
+
+    const recording = await fetchCallRecording(callId);
+    if (!recording) {
+      return res.status(404).json({ detail: "Recording not found" });
+    }
+
+    res.setHeader("Content-Type", recording.contentType);
+    res.setHeader("Content-Length", String(recording.bytes.length));
+    res.setHeader("Content-Disposition", 'inline; filename="call-recording.mp3"');
+    res.setHeader("Accept-Ranges", "none");
+    res.send(recording.bytes);
+  } catch (error: any) {
+    console.error("Get Tata recording error:", error);
+    const status = error.status && error.status >= 400 ? error.status : 500;
+    res.status(status).json({ detail: error.message || "Failed to load recording" });
+  }
+});
+
+router.post("/sync-call/:tataCallId", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const tataCallId = req.params.tataCallId as string;
+    const call = await syncCallFromSmartfloCdr(tataCallId);
+    if (!call) {
+      return res.status(404).json({ detail: "Call not found" });
+    }
+    if (call.lead_id) {
+      const lead = await leadRepository().findOne({ where: { id: call.lead_id } });
+      if (lead && !canAccessLead(lead, req.user!)) {
+        return res.status(403).json({ detail: "You can only sync calls for leads assigned to you" });
+      }
+    }
+    res.json(call);
+  } catch (error) {
+    console.error("Sync Tata call error:", error);
+    res.status(500).json({ detail: "Failed to sync call status" });
   }
 });
 

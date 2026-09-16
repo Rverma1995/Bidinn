@@ -6,3 +6,5 @@ export { Activity } from "./Activity";
 export { MetaConfig } from "./MetaConfig";
 export { Payment } from "./Payment";
 export { Notification, NotificationType, NotificationPriority } from "./Notification";
+export { PushSubscription } from "./PushSubscription";
+export { SavedFilter } from "./SavedFilter";

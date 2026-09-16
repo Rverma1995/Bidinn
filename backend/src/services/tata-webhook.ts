@@ -7,6 +7,7 @@ export type TataWebhookEvent = "call.started" | "call.answered" | "call.ended" |
 
 export interface TataWebhookData {
   call_id?: string;
+  ref_id?: string;
   direction?: CallDirection | string;
   caller_number?: string;
   called_number?: string;
@@ -121,9 +122,66 @@ function emptySnapshot(callId: string): CallSnapshot {
  * Pure merge of one webhook event onto an existing (or new) call row.
  * Later events patch; they never fork a second identity for the same tata_call_id.
  */
+/** Map Smartflo portal webhook bodies (flat variables) into the CRM webhook shape. */
+export function normalizeSmartfloWebhookPayload(body: Record<string, unknown>): TataWebhookPayload | null {
+  if (!body || typeof body !== "object") return null;
+
+  if (body.event && body.data && typeof body.data === "object") {
+    return body as TataWebhookPayload;
+  }
+
+  const flat = body as Record<string, unknown>;
+  const refId = String(flat.ref_id || flat.refId || "").trim();
+  const telephonyId = String(flat.call_id || flat.callId || "").trim();
+  const id = refId || telephonyId;
+  if (!id) return null;
+
+  const status = String(flat.call_status || flat.status || "").toLowerCase();
+  const endStamp = flat.end_stamp || flat.endStamp;
+  const answerStamp = flat.answer_stamp || flat.answerStamp;
+  const hangupCause = flat.hangup_cause;
+
+  let event = "call.started";
+  if (endStamp || hangupCause) {
+    event = status.includes("miss") ? "call.missed" : "call.ended";
+  } else if (answerStamp || status === "answered" || status.includes("answered")) {
+    event = "call.answered";
+  }
+
+  const customId = flat.custom_identifier;
+  const leadFromCustom =
+    customId && typeof customId === "object" && "lead_id" in customId
+      ? String((customId as { lead_id?: string }).lead_id || "")
+      : "";
+
+  const durationRaw = flat.duration ?? flat.billsec ?? flat.answered_seconds;
+
+  return {
+    event,
+    timestamp: String(endStamp || answerStamp || flat.start_stamp || new Date().toISOString()),
+    data: {
+      call_id: id,
+      ref_id: refId || undefined,
+      direction: String(flat.direction || "outbound").includes("click_to_call") ? "outbound" : String(flat.direction || "outbound"),
+      customer_number: String(
+        flat.call_to_number ||
+          flat.customer_number_with_prefix ||
+          flat.customer_no_with_prefix ||
+          flat.client_number ||
+          ""
+      ),
+      agent_number: String(flat.answered_agent_number || flat.answer_agent_number || flat.agent_number || ""),
+      reference_id: String(flat.lead_id || flat.reference_id || leadFromCustom || ""),
+      duration: durationRaw != null && durationRaw !== "" ? Number(durationRaw) : undefined,
+      status,
+      recording_url: flat.recording_url ? String(flat.recording_url) : undefined,
+    },
+  };
+}
+
 export function mergeWebhookEvent(existing: CallSnapshot | null, payload: TataWebhookPayload): CallSnapshot {
   const data = payload.data || {};
-  const callId = data.call_id || existing?.tata_call_id || "";
+  const callId = data.ref_id || data.call_id || existing?.tata_call_id || "";
   const merged: CallSnapshot = existing ? { ...existing } : emptySnapshot(callId);
   merged.tata_call_id = callId;
 

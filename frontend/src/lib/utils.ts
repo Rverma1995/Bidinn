@@ -19,6 +19,15 @@ export function formatNumber(num) {
   return new Intl.NumberFormat('en-US').format(num);
 }
 
+export function formatCallDuration(minutes) {
+  if (minutes == null || Number.isNaN(minutes)) return '—';
+  const m = Math.round(minutes);
+  if (m < 60) return `${m}m`;
+  const hours = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
 export function formatDate(dateString) {
   if (!dateString) return '-';
   const date = new Date(dateString);
@@ -39,6 +48,51 @@ export function formatDateTime(dateString) {
     minute: '2-digit',
     hour12: true
   });
+}
+
+export function formatDateTimeSeconds(dateString: string | null | undefined): string {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+}
+
+export function formatDurationSeconds(totalSeconds: number | null | undefined): string {
+  const s = Math.max(0, Math.round(Number(totalSeconds) || 0));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rest = s % 60;
+  return rest ? `${m}m ${rest}s` : `${m}m`;
+}
+
+export function getCallDurationSeconds(call: {
+  started_at?: string | null;
+  answered_at?: string | null;
+  ended_at?: string | null;
+  duration_minutes?: number | null;
+}): number | null {
+  if (call.answered_at && call.ended_at) {
+    const sec = Math.round(
+      (new Date(call.ended_at).getTime() - new Date(call.answered_at).getTime()) / 1000
+    );
+    if (sec > 0) return sec;
+  }
+  if (call.started_at && call.ended_at) {
+    const sec = Math.round(
+      (new Date(call.ended_at).getTime() - new Date(call.started_at).getTime()) / 1000
+    );
+    if (sec > 0) return sec;
+  }
+  if (call.duration_minutes && call.duration_minutes > 0) {
+    return call.duration_minutes * 60;
+  }
+  return null;
 }
 
 export function formatRelativeTime(dateString: string | null | undefined): string {

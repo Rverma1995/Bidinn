@@ -1,5 +1,14 @@
 import assert from "assert";
-import { normalizePhone, toE164, secondsToMinutes } from "../../src/utils/phone";
+import {
+  normalizePhone,
+  toE164,
+  toSmartfloAgentNumber,
+  toSmartfloCallerId,
+  toSmartfloClickToCallDestination,
+  toSmartfloDestinationNumber,
+  isSmartfloDialerExtension,
+  secondsToMinutes,
+} from "../../src/utils/phone";
 
 function test(name: string, fn: () => void) {
   fn();
@@ -63,6 +72,32 @@ test("toE164 empty / already-plus / non-Indian", () => {
   assert.strictEqual(toE164(undefined), "");
   assert.strictEqual(toE164("+1-555-111-0001"), "+15551110001");
   assert.strictEqual(toE164("15551110001"), "+15551110001");
+});
+
+test("toSmartfloDestinationNumber", () => {
+  assert.strictEqual(toSmartfloDestinationNumber("+91 98765-43210"), "9876543210");
+  assert.strictEqual(toSmartfloDestinationNumber(""), "");
+});
+
+test("toSmartfloClickToCallDestination uses 91 country code", () => {
+  assert.strictEqual(toSmartfloClickToCallDestination("+91 95652-88935"), "919565288935");
+  assert.strictEqual(toSmartfloClickToCallDestination("9565288935"), "919565288935");
+  assert.strictEqual(toSmartfloClickToCallDestination(""), "");
+  assert.strictEqual(isSmartfloDialerExtension("0606665530054"), true);
+  assert.strictEqual(isSmartfloDialerExtension("9240202666"), false);
+});
+
+test("toSmartfloAgentNumber", () => {
+  assert.strictEqual(toSmartfloAgentNumber("+919240202666"), "9240202666");
+  assert.strictEqual(toSmartfloAgentNumber("0501234567"), "0501234567");
+  assert.strictEqual(toSmartfloAgentNumber("1001"), "1001");
+  assert.strictEqual(toSmartfloAgentNumber(""), "");
+});
+
+test("toSmartfloCallerId", () => {
+  assert.strictEqual(toSmartfloCallerId("+919826000000"), "919826000000");
+  assert.strictEqual(toSmartfloCallerId("08069412345"), "08069412345");
+  assert.strictEqual(toSmartfloCallerId(""), "");
 });
 
 test("secondsToMinutes", () => {

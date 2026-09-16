@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import {
   DropdownMenu,
@@ -57,13 +56,13 @@ function playMissedFollowupSound() {
   }
 }
 
-export function Header({ onMenuClick, showMobileMenu }) {
+export function Header({ onMenuClick, showMobileMenu, onOpenCommand }) {
   const { user, logout, api } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   const seenNotifIds = useRef(new Set());
   const isFirstFetch = useRef(true);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
@@ -224,17 +223,30 @@ export function Header({ onMenuClick, showMobileMenu }) {
           {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </Button>
         
-        <div className="relative hidden sm:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search leads, bookings..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-64 pl-9 h-9 bg-slate-50 dark:bg-slate-800 border-0"
-            data-testid="search-input"
-          />
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="sm:hidden"
+          onClick={onOpenCommand}
+          data-testid="command-palette-mobile-btn"
+          aria-label="Open search"
+        >
+          <Search className="w-5 h-5" />
+        </Button>
+        <button
+          type="button"
+          onClick={onOpenCommand}
+          className="relative hidden sm:flex items-center gap-2 h-9 w-64 rounded-md bg-slate-50 dark:bg-slate-800 px-3 text-sm text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-left"
+          data-testid="search-input"
+          aria-keyshortcuts="Meta+K Control+K"
+        >
+          <Search className="w-4 h-4 shrink-0" />
+          <span className="flex-1 truncate">Search leads, bookings...</span>
+          <kbd className="pointer-events-none hidden md:inline-flex h-5 select-none items-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+            {isMac ? '⌘K' : 'Ctrl+K'}
+          </kbd>
+        </button>
       </div>
 
       {/* Right side - Actions */}

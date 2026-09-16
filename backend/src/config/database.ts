@@ -161,6 +161,19 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Create saved_filters table (personal lead-list views)
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS saved_filters (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        filter_json JSON NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_saved_filters_user_id (user_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
     // Create meta_config table for Facebook Lead Ads integration
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS meta_config (

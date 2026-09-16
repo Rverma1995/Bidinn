@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { AppDataSource } from "../config/data-source";
 import { Notification, NotificationPriority, NotificationType, User } from "../entities";
 import { emailService } from "./email.service";
+import { sendPushForNotifications } from "./web-push.service";
 
 export interface AssignmentNotifyOpts {
   assignee: Pick<User, "id" | "email" | "name" | "is_active"> | User | null | undefined;
@@ -72,6 +73,16 @@ export async function notifyAssigneeOfLeads(opts: AssignmentNotifyOpts & { assig
   } catch (error) {
     console.error("Failed to create assignment notification:", error);
   }
+
+  void sendPushForNotifications([
+    {
+      user_id: opts.assignee.id,
+      title,
+      message,
+      target_id: opts.leadId,
+      target_type,
+    },
+  ]);
 
   if (!opts.assignee.email) return;
 

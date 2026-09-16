@@ -7,6 +7,7 @@ import {
   mapTataStatusToOutcome,
   mergeWebhookEvent,
   isTerminalEvent,
+  normalizeSmartfloWebhookPayload,
   CallSnapshot,
   TataWebhookPayload,
 } from "../../src/services/tata-webhook";
@@ -307,6 +308,32 @@ test("pickMostRecentlyActive treats invalid dates as oldest and still flags ambi
 test("missing call_id still produces a snapshot object (upsert rejects separately)", () => {
   const snap = mergeWebhookEvent(null, { event: "call.started", data: {} });
   assert.strictEqual(snap.tata_call_id, "");
+});
+
+test("normalizeSmartfloWebhookPayload maps flat hangup body with ref_id", () => {
+  const payload = normalizeSmartfloWebhookPayload({
+    ref_id: "ref-abc",
+    call_id: "1715235734.129662",
+    call_status: "answered",
+    end_stamp: "2026-09-08 16:30:00",
+    duration: 120,
+    recording_url: "https://example.com/rec.mp3",
+    call_to_number: "919565288925",
+    answered_agent_number: "9240202666",
+  });
+  assert.ok(payload);
+  assert.strictEqual(payload!.event, "call.ended");
+  assert.strictEqual(payload!.data!.call_id, "ref-abc");
+  assert.strictEqual(payload!.data!.ref_id, "ref-abc");
+  assert.strictEqual(payload!.data!.recording_url, "https://example.com/rec.mp3");
+});
+
+test("mergeWebhookEvent prefers ref_id over telephony call_id", () => {
+  const snap = mergeWebhookEvent(null, {
+    event: "call.answered",
+    data: { call_id: "1715235734.129662", ref_id: "ref-abc" },
+  });
+  assert.strictEqual(snap.tata_call_id, "ref-abc");
 });
 
 console.log("All Tata webhook / phone-match tests passed");

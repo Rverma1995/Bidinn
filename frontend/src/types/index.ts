@@ -51,6 +51,8 @@ export interface CallLog {
   answered_at?: string | null;
   ended_at?: string | null;
   customer_phone?: string | null;
+  wrap_up_completed?: boolean;
+  live_state?: 'ringing_agent' | 'calling_customer' | 'live' | null;
 }
 
 export type CallOutcome = 'connected' | 'no_answer' | 'busy' | 'voicemail' | 'wrong_number' | 'callback_requested';
@@ -166,4 +168,56 @@ export interface ImportResult {
   skipped: number;
   total_rows: number;
   errors: string[];
+}
+
+export interface LeadListFilters {
+  status: string;
+  source: string;
+  campaign: string;
+  assigned_to: string;
+  search: string;
+}
+
+export interface SavedFilter {
+  id: string;
+  user_id: string;
+  name: string;
+  filter_json: LeadListFilters;
+  created_at: string;
+}
+
+export type DailyActivityRange = 'today' | 'week' | 'month' | 'year';
+
+export interface DailyActivityStageBreakdown {
+  status: string;
+  count: number;
+}
+
+export interface DailyActivityAgentCalls {
+  agent_id: string;
+  agent_name: string;
+  call_count: number;
+}
+
+export interface DailyActivityAgentCallTime {
+  agent_id: string;
+  agent_name: string;
+  total_duration_minutes: number;
+  total_duration_seconds: number;
+}
+
+export interface DailyActivityReport {
+  range: DailyActivityRange;
+  start_date: string;
+  end_date: string;
+  range_label: string;
+  view_scope: 'all' | 'self';
+  total_leads_generated: number;
+  leads_contacted: {
+    total: number;
+    by_stage: DailyActivityStageBreakdown[];
+  };
+  calls_by_agent: DailyActivityAgentCalls[];
+  call_time_available: boolean;
+  call_time_by_agent: DailyActivityAgentCallTime[];
 }

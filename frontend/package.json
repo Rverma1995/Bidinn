@@ -58,7 +58,8 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test"
+    "test": "craco test",
+    "test:pwa": "node ../backend/node_modules/ts-node/dist/bin.js --transpile-only --compiler-options '{\"module\":\"commonjs\",\"esModuleInterop\":true}' src/pwa/run-cache-policy-tests.ts"
   },
   "browserslist": {
     "production": [
