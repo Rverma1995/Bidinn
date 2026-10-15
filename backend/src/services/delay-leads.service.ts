@@ -56,9 +56,14 @@ export async function fetchIdleLeads(now = new Date()): Promise<DelayLeadInput[]
  */
 export async function fetchAgentAvgFirstCallMinutes(): Promise<Map<string, number>> {
   try {
+    const isPostgres = (AppDataSource.options?.type as string) === "postgres";
+    const timeDiffExpr = isPostgres
+      ? "AVG(EXTRACT(EPOCH FROM (first_call.first_at - lead.created_at)) / 60)"
+      : "AVG(TIMESTAMPDIFF(MINUTE, lead.created_at, first_call.first_at))";
+
     const rows: Array<{ agent_id: string; avg_minutes: string | number | null }> = await AppDataSource.query(
       `SELECT lead.assigned_to AS agent_id,
-              AVG(TIMESTAMPDIFF(MINUTE, lead.created_at, first_call.first_at)) AS avg_minutes
+              ${timeDiffExpr} AS avg_minutes
        FROM leads lead
        INNER JOIN (
          SELECT lead_id, MIN(created_at) AS first_at

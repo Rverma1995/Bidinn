@@ -1,6 +1,5 @@
 import "reflect-metadata";
 import assert from "assert";
-import mysql from "mysql2/promise";
 import { DataSource, MigrationInterface, QueryRunner } from "typeorm";
 import dotenv from "dotenv";
 import path from "path";
@@ -12,15 +11,15 @@ class AddMigrationTestColumn1788864000999 implements MigrationInterface {
 
   async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      ALTER TABLE \`_migration_test_guard\`
-      ADD COLUMN \`extra\` varchar(50) NULL
+      ALTER TABLE "_migration_test_guard"
+      ADD COLUMN "extra" varchar(50) NULL
     `);
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      ALTER TABLE \`_migration_test_guard\`
-      DROP COLUMN \`extra\`
+      ALTER TABLE "_migration_test_guard"
+      DROP COLUMN "extra"
     `);
   }
 }
@@ -36,62 +35,63 @@ function test(name: string, fn: () => Promise<void> | void) {
 }
 
 async function main(): Promise<void> {
-  const host = process.env.DB_HOST || "127.0.0.1";
-  const port = parseInt(process.env.DB_PORT || "3306", 10);
-  const user = process.env.DB_USERNAME || "root";
-  const password = process.env.DB_PASSWORD ?? "";
-  const testDatabase = process.env.MIGRATION_TEST_DATABASE || "bidinncrm_migration_test";
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  const isSsl =
+    process.env.DB_SSL === "true" ||
+    (databaseUrl && (databaseUrl.includes("sslmode=require") || databaseUrl.includes("neon.tech")));
 
-  let adminConnection: mysql.Connection | null = null;
-  try {
-    adminConnection = await mysql.createConnection({
-      host,
-      port,
-      user,
-      password,
-      multipleStatements: true,
+  let dataSource: DataSource;
+  if (databaseUrl) {
+    dataSource = new DataSource({
+      type: "postgres",
+      url: databaseUrl,
+      ssl: isSsl ? { rejectUnauthorized: false } : false,
+      synchronize: false,
+      migrationsRun: false,
+      entities: [],
+      migrations: [AddMigrationTestColumn1788864000999],
     });
+  } else {
+    dataSource = new DataSource({
+      type: "postgres",
+      host: process.env.DB_HOST || "localhost",
+      port: parseInt(process.env.DB_PORT || "5432", 10),
+      username: process.env.DB_USERNAME || process.env.DB_USER || "postgres",
+      password: process.env.DB_PASSWORD || "",
+      database: process.env.DB_DATABASE || process.env.DB_NAME || "bidinncrm",
+      ssl: isSsl ? { rejectUnauthorized: false } : false,
+      synchronize: false,
+      migrationsRun: false,
+      entities: [],
+      migrations: [AddMigrationTestColumn1788864000999],
+    });
+  }
+
+  try {
+    await dataSource.initialize();
   } catch (error) {
-    console.log("SKIP: MySQL is not available for migration tests");
+    console.log("SKIP: PostgreSQL is not available for migration tests");
     return;
   }
 
-  await adminConnection.query(`CREATE DATABASE IF NOT EXISTS \`${testDatabase}\``);
-
-  const dataSource = new DataSource({
-    type: "mysql",
-    host,
-    port,
-    username: user,
-    password,
-    database: testDatabase,
-    synchronize: false,
-    migrationsRun: false,
-    entities: [],
-    migrations: [AddMigrationTestColumn1788864000999],
-    charset: "utf8mb4",
-  });
-
   await test("migration preserves existing rows", async () => {
-    await dataSource.initialize();
-
     await dataSource.query(`
-      CREATE TABLE IF NOT EXISTS \`_migration_test_guard\` (
-        \`id\` int NOT NULL,
-        \`name\` varchar(100) NOT NULL,
-        PRIMARY KEY (\`id\`)
+      CREATE TABLE IF NOT EXISTS "_migration_test_guard" (
+        "id" int NOT NULL,
+        "name" varchar(100) NOT NULL,
+        PRIMARY KEY ("id")
       )
     `);
-    await dataSource.query("DELETE FROM `_migration_test_guard`");
+    await dataSource.query('DELETE FROM "_migration_test_guard"');
     await dataSource.query(
-      "INSERT INTO `_migration_test_guard` (`id`, `name`) VALUES (?, ?)",
+      'INSERT INTO "_migration_test_guard" ("id", "name") VALUES ($1, $2)',
       [1, "keep-me"]
     );
 
     await dataSource.runMigrations({ transaction: "each" });
 
     const rows = await dataSource.query(
-      "SELECT `id`, `name`, `extra` FROM `_migration_test_guard` WHERE `id` = 1"
+      'SELECT "id", "name", "extra" FROM "_migration_test_guard" WHERE "id" = 1'
     );
     assert.strictEqual(rows.length, 1);
     assert.strictEqual(rows[0].name, "keep-me");
@@ -101,24 +101,21 @@ async function main(): Promise<void> {
 
     const columns = await dataSource.query(
       `SELECT COUNT(*) AS c FROM information_schema.columns
-       WHERE table_schema = DATABASE()
+       WHERE table_schema = current_schema()
          AND table_name = '_migration_test_guard'
          AND column_name = 'extra'`
     );
     assert.strictEqual(Number(columns[0].c), 0);
 
     const rowsAfterRevert = await dataSource.query(
-      "SELECT `id`, `name` FROM `_migration_test_guard` WHERE `id` = 1"
+      'SELECT "id", "name" FROM "_migration_test_guard" WHERE "id" = 1'
     );
     assert.strictEqual(rowsAfterRevert.length, 1);
     assert.strictEqual(rowsAfterRevert[0].name, "keep-me");
 
-    await dataSource.query("DROP TABLE IF EXISTS `_migration_test_guard`");
+    await dataSource.query('DROP TABLE IF EXISTS "_migration_test_guard"');
     await dataSource.destroy();
   });
-
-  await adminConnection.query(`DROP DATABASE IF EXISTS \`${testDatabase}\``);
-  await adminConnection.end();
 }
 
 main().catch((error) => {

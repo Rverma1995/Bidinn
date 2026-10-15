@@ -14,6 +14,10 @@ export class Prod1789474844325 implements MigrationInterface {
   name = "Prod1789474844325";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if ((queryRunner.connection.options.type as string) !== "mysql") {
+      // Legacy MySQL-specific migration; safely skipped on PostgreSQL
+      return;
+    }
     if (!(await tableExists(queryRunner, "saved_filters"))) {
       await queryRunner.query(`
         CREATE TABLE \`saved_filters\` (

@@ -80,8 +80,8 @@ function resolveBackupDir(): string {
 }
 
 type BackupRunner =
-  | { mode: "local"; binary: string }
-  | { mode: "docker"; container: string };
+  | { mode: "local"; binary: string; dialect: "postgres" | "mysql" }
+  | { mode: "docker"; container: string; dialect: "postgres" | "mysql" };
 
 function isExecutable(filePath: string): boolean {
   try {
@@ -90,6 +90,39 @@ function isExecutable(filePath: string): boolean {
   } catch {
     return false;
   }
+}
+
+function resolveLocalPgDump(): string | null {
+  const configured = process.env.PGDUMP_PATH?.trim();
+  if (configured && isExecutable(configured)) {
+    return configured;
+  }
+
+  const which = spawnSync("which", ["pg_dump"], { encoding: "utf8" });
+  if (which.status === 0 && which.stdout.trim()) {
+    return which.stdout.trim();
+  }
+
+  const candidates = [
+    "/opt/homebrew/opt/postgresql@18/bin/pg_dump",
+    "/Applications/Postgres.app/Contents/Versions/17/bin/pg_dump",
+    "/Applications/Postgres.app/Contents/Versions/16/bin/pg_dump",
+    "/Applications/Postgres.app/Contents/Versions/15/bin/pg_dump",
+    "/opt/homebrew/opt/libpq/bin/pg_dump",
+    "/opt/homebrew/opt/postgresql@17/bin/pg_dump",
+    "/opt/homebrew/opt/postgresql@16/bin/pg_dump",
+    "/opt/homebrew/bin/pg_dump",
+    "/usr/local/opt/libpq/bin/pg_dump",
+    "/usr/local/bin/pg_dump",
+  ];
+
+  for (const candidate of candidates) {
+    if (isExecutable(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
 }
 
 function resolveLocalMysqldump(): string | null {
@@ -103,15 +136,7 @@ function resolveLocalMysqldump(): string | null {
     return which.stdout.trim();
   }
 
-  const brewPrefixes = [
-    spawnSync("brew", ["--prefix", "mysql-client"], { encoding: "utf8" }),
-    spawnSync("brew", ["--prefix", "mysql"], { encoding: "utf8" }),
-  ]
-    .map((result) => result.stdout.trim())
-    .filter(Boolean);
-
   const candidates = [
-    ...brewPrefixes.map((prefix) => path.join(prefix, "bin", "mysqldump")),
     "/opt/homebrew/opt/mysql-client/bin/mysqldump",
     "/opt/homebrew/opt/mysql/bin/mysqldump",
     "/usr/local/opt/mysql-client/bin/mysqldump",
@@ -128,68 +153,26 @@ function resolveLocalMysqldump(): string | null {
   return null;
 }
 
-function resolveDockerMysqlContainer(): string | null {
-  const configured = process.env.MYSQL_BACKUP_DOCKER_CONTAINER?.trim();
-  if (configured) {
-    return configured;
-  }
-
-  const dockerCheck = spawnSync("docker", ["info"], { encoding: "utf8" });
-  if (dockerCheck.status !== 0) {
-    return null;
-  }
-
-  const host = process.env.DB_HOST || "127.0.0.1";
-  if (!["127.0.0.1", "localhost", "::1"].includes(host)) {
-    return null;
-  }
-
-  const listed = spawnSync("docker", ["ps", "--format", "{{.Names}}\t{{.Image}}"], {
-    encoding: "utf8",
-  });
-  if (listed.status !== 0 || !listed.stdout.trim()) {
-    return null;
-  }
-
-  const mysqlContainers = listed.stdout
-    .trim()
-    .split("\n")
-    .map((line) => {
-      const [name, image] = line.split("\t");
-      return { name, image: image ?? "" };
-    })
-    .filter(
-      ({ name, image }) =>
-        /mysql|mariadb/i.test(image) || /mysql|mariadb/i.test(name)
+function resolveBackupRunner(dialect: "postgres" | "mysql"): BackupRunner {
+  if (dialect === "postgres") {
+    const localBinary = resolveLocalPgDump();
+    if (localBinary) {
+      return { mode: "local", binary: localBinary, dialect: "postgres" };
+    }
+    throw new Error(
+      "pg_dump not found. Install PostgreSQL client tools (e.g. `brew install libpq` or Postgres.app), " +
+        "or set PGDUMP_PATH in your environment."
     );
-
-  if (mysqlContainers.length === 0) {
-    return null;
   }
 
-  const preferred = mysqlContainers.find(({ name }) => /bidinn|crm/i.test(name));
-  return preferred?.name ?? mysqlContainers[0].name;
-}
-
-function resolveBackupRunner(): BackupRunner {
   const localBinary = resolveLocalMysqldump();
   if (localBinary) {
-    return { mode: "local", binary: localBinary };
-  }
-
-  const container = resolveDockerMysqlContainer();
-  if (container) {
-    const probe = spawnSync("docker", ["exec", container, "mysqldump", "--version"], {
-      encoding: "utf8",
-    });
-    if (probe.status === 0) {
-      return { mode: "docker", container };
-    }
+    return { mode: "local", binary: localBinary, dialect: "mysql" };
   }
 
   throw new Error(
     "mysqldump not found. Install MySQL client tools (e.g. `brew install mysql-client`), " +
-      "set MYSQLDUMP_PATH, or set MYSQL_BACKUP_DOCKER_CONTAINER for Docker-based backups."
+      "or set MYSQLDUMP_PATH in your environment."
   );
 }
 
@@ -232,8 +215,53 @@ async function getPendingMigrationFiles(): Promise<string[]> {
   return pending;
 }
 
-function runBackup(backupPath: string): BackupRunner {
-  const runner = resolveBackupRunner();
+function runBackup(backupPath: string, dialect: "postgres" | "mysql"): BackupRunner {
+  const runner = resolveBackupRunner(dialect);
+  if (runner.mode !== "local") {
+    throw new Error("Docker backup mode not supported");
+  }
+
+  if (dialect === "postgres") {
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    const outputFd = fs.openSync(backupPath, "w");
+
+    let result;
+    if (databaseUrl) {
+      result = spawnSync(runner.binary, ["--clean", "--if-exists", "--no-owner", "--no-privileges", `--dbname=${databaseUrl}`], {
+        stdio: ["ignore", outputFd, "pipe"],
+        maxBuffer: 50 * 1024 * 1024,
+      });
+    } else {
+      const host = process.env.DB_HOST || "localhost";
+      const port = process.env.DB_PORT || "5432";
+      const username = process.env.DB_USERNAME || process.env.DB_USER || "postgres";
+      const password = process.env.DB_PASSWORD ?? "";
+      const database = process.env.DB_DATABASE || process.env.DB_NAME || "bidinncrm";
+
+      result = spawnSync(
+        runner.binary,
+        ["-h", host, "-p", port, "-U", username, "-d", database, "--clean", "--if-exists", "--no-owner", "--no-privileges"],
+        {
+          stdio: ["ignore", outputFd, "pipe"],
+          env: { ...process.env, PGPASSWORD: password },
+          maxBuffer: 50 * 1024 * 1024,
+        }
+      );
+    }
+    fs.closeSync(outputFd);
+
+    if (result.status !== 0) {
+      if (fs.existsSync(backupPath)) {
+        fs.unlinkSync(backupPath);
+      }
+      const stderr = result.stderr?.toString().trim();
+      const details = stderr || result.error?.message || `exit code ${result.status ?? "unknown"}`;
+      throw new Error(`Database backup failed: ${details}`);
+    }
+
+    return runner;
+  }
+
   const host = process.env.DB_HOST || "127.0.0.1";
   const port = process.env.DB_PORT || "3306";
   const username = process.env.DB_USERNAME;
@@ -253,58 +281,48 @@ function runBackup(backupPath: string): BackupRunner {
     database,
   ];
 
-  const result =
-    runner.mode === "local"
-      ? (() => {
-          const outputFd = fs.openSync(backupPath, "w");
-          const dump = spawnSync(runner.binary, [`-h${host}`, `-P${port}`, ...dumpArgs], {
-            stdio: ["ignore", outputFd, "pipe"],
-            env: { ...process.env, MYSQL_PWD: password },
-            maxBuffer: 10 * 1024 * 1024,
-          });
-          fs.closeSync(outputFd);
-          return dump;
-        })()
-      : (() => {
-          const outputFd = fs.openSync(backupPath, "w");
-          const dump = spawnSync(
-            "docker",
-            ["exec", "-e", `MYSQL_PWD=${password}`, runner.container, "mysqldump", ...dumpArgs],
-            { stdio: ["ignore", outputFd, "pipe"], maxBuffer: 10 * 1024 * 1024 }
-          );
-          fs.closeSync(outputFd);
-          return dump;
-        })();
+  const outputFd = fs.openSync(backupPath, "w");
+  const dump = spawnSync(runner.binary, [`-h${host}`, `-P${port}`, ...dumpArgs], {
+    stdio: ["ignore", outputFd, "pipe"],
+    env: { ...process.env, MYSQL_PWD: password },
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  fs.closeSync(outputFd);
 
-  if (result.status !== 0) {
+  if (dump.status !== 0) {
     if (fs.existsSync(backupPath)) {
       fs.unlinkSync(backupPath);
     }
-    const stderr = result.stderr?.toString().trim();
-    const details = stderr || result.error?.message || `exit code ${result.status ?? "unknown"}`;
+    const stderr = dump.stderr?.toString().trim();
+    const details = stderr || dump.error?.message || `exit code ${dump.status ?? "unknown"}`;
     throw new Error(`Database backup failed: ${details}`);
   }
 
   return runner;
 }
 
-function printRestoreInstructions(backupPath: string, runner?: BackupRunner): void {
-  const host = process.env.DB_HOST || "127.0.0.1";
-  const port = process.env.DB_PORT || "3306";
-  const username = process.env.DB_USERNAME || "root";
-  const database = process.env.DB_DATABASE || "bidinncrm";
-
+function printRestoreInstructions(backupPath: string, dialect: "postgres" | "mysql"): void {
   console.error("\nMigration failed. Your pre-migration backup is here:");
   console.error(`  ${backupPath}`);
   console.error("\nRestore manually with:");
-  if (runner?.mode === "docker") {
-    console.error(
-      `  docker exec -i ${runner.container} mysql -u ${username} -p ${database} < ${backupPath}`
-    );
+
+  if (dialect === "postgres") {
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    if (databaseUrl) {
+      console.error(`  psql "${databaseUrl}" < ${backupPath}`);
+    } else {
+      const host = process.env.DB_HOST || "localhost";
+      const port = process.env.DB_PORT || "5432";
+      const username = process.env.DB_USERNAME || process.env.DB_USER || "postgres";
+      const database = process.env.DB_DATABASE || process.env.DB_NAME || "bidinncrm";
+      console.error(`  psql -h ${host} -p ${port} -U ${username} -d ${database} < ${backupPath}`);
+    }
   } else {
-    console.error(
-      `  mysql -h ${host} -P ${port} -u ${username} -p ${database} < ${backupPath}`
-    );
+    const host = process.env.DB_HOST || "127.0.0.1";
+    const port = process.env.DB_PORT || "3306";
+    const username = process.env.DB_USERNAME || "root";
+    const database = process.env.DB_DATABASE || "bidinncrm";
+    console.error(`  mysql -h ${host} -P ${port} -u ${username} -p ${database} < ${backupPath}`);
   }
 }
 
@@ -312,6 +330,7 @@ async function main(): Promise<void> {
   const force = process.argv.includes("--force");
   const skipBackup =
     process.argv.includes("--skip-backup") || process.env.MIGRATION_SKIP_BACKUP === "true";
+  const dialect: "postgres" | "mysql" = (AppDataSource.options.type as "postgres" | "mysql") || "postgres";
 
   let backupPath: string | null = null;
   let backupRunner: BackupRunner | undefined;
@@ -319,20 +338,16 @@ async function main(): Promise<void> {
   if (skipBackup) {
     console.log("Step 1/3: Skipping database backup (--skip-backup).");
     console.log(
-      "Note: skipping backup does not skip safety checks. Migrations still run in InnoDB transactions and destructive SQL is still blocked."
+      "Note: skipping backup does not skip safety checks. Migrations still run in transactions and destructive SQL is still blocked."
     );
   } else {
     const backupDir = resolveBackupDir();
     fs.mkdirSync(backupDir, { recursive: true });
     backupPath = path.join(backupDir, `pre-migration-${formatTimestamp()}.sql`);
 
-    console.log("Step 1/3: Creating database backup...");
-    backupRunner = runBackup(backupPath);
-    if (backupRunner.mode === "docker") {
-      console.log(`Backup created via Docker container "${backupRunner.container}": ${backupPath}`);
-    } else {
-      console.log(`Backup created: ${backupPath}`);
-    }
+    console.log(`Step 1/3: Creating database backup using ${dialect === "postgres" ? "pg_dump" : "mysqldump"}...`);
+    backupRunner = runBackup(backupPath, dialect);
+    console.log(`Backup created: ${backupPath}`);
   }
 
   let initialized = false;
@@ -391,7 +406,7 @@ async function main(): Promise<void> {
   } catch (error) {
     console.error("\nMigration failed:", error instanceof Error ? error.message : error);
     if (backupPath) {
-      printRestoreInstructions(backupPath, backupRunner);
+      printRestoreInstructions(backupPath, dialect);
     } else {
       console.error(
         "No backup was taken. If the database is in a bad state, restore from an external backup or run `npm run migration:revert`."

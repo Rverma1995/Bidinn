@@ -67,8 +67,10 @@ export function applyLeadListFilters<T extends ObjectLiteral>(
     queryBuilder.andWhere(`${alias}.assigned_to IN (:...filterAssignees)`, { filterAssignees: assignedTo });
   }
   if (search) {
+    const isPostgres = (queryBuilder.connection?.options?.type as string) === "postgres";
+    const op = isPostgres ? "ILIKE" : "LIKE";
     queryBuilder.andWhere(
-      `(${alias}.name LIKE :search OR ${alias}.phone LIKE :search OR ${alias}.email LIKE :search)`,
+      `(${alias}.name ${op} :search OR ${alias}.phone ${op} :search OR ${alias}.email ${op} :search)`,
       { search: `%${search}%` }
     );
   }

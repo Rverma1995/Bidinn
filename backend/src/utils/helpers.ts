@@ -3,7 +3,6 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../config/database';
 import { LeadStatus, LeadResponse, Lead } from '../types';
-import { RowDataPacket } from 'mysql2';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bidinn-secret-key';
 const JWT_EXPIRATION_HOURS = 24;
@@ -29,9 +28,11 @@ export const generateUUID = (): string => {
   return uuidv4();
 };
 
-export const formatDateForMySQL = (date: Date): string => {
+export const formatDateForSQL = (date: Date): string => {
   return date.toISOString().slice(0, 19).replace('T', ' ');
 };
+
+export const formatDateForMySQL = formatDateForSQL;
 
 export const calculateLeadMetrics = (lead: Lead): LeadResponse => {
   const createdAt = new Date(lead.created_at);
@@ -58,11 +59,11 @@ export const addActivity = async (
   userName?: string
 ): Promise<void> => {
   const id = generateUUID();
-  const createdAt = formatDateForMySQL(new Date());
+  const now = new Date();
   
-  await pool.execute(
-    'INSERT INTO activities (id, lead_id, user_id, user_name, action, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [id, leadId, userId || null, userName || null, action, details || null, createdAt]
+  await pool.query(
+    'INSERT INTO activities (id, target_id, target_type, user_id, user_name, action, details, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+    [id, leadId, 'lead', userId || null, userName || null, action, details || null, now]
   );
 };
 
@@ -74,10 +75,10 @@ export const createNotification = async (
   leadId?: string
 ): Promise<void> => {
   const id = generateUUID();
-  const createdAt = formatDateForMySQL(new Date());
+  const now = new Date();
   
-  await pool.execute(
-    'INSERT INTO notifications (id, user_id, title, message, type, is_read, lead_id, created_at) VALUES (?, ?, ?, ?, ?, FALSE, ?, ?)',
-    [id, userId, title, message, type, leadId || null, createdAt]
+  await pool.query(
+    'INSERT INTO notifications (id, user_id, title, message, type, is_read, target_id, target_type, created_at) VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8)',
+    [id, userId, title, message, type, leadId || null, leadId ? 'lead' : null, now]
   );
 };

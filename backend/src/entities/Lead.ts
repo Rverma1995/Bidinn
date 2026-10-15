@@ -105,10 +105,10 @@ export class Lead {
   @Column({ type: "int", default: 0 })
   attempt_count: number;
 
-  @Column({ type: "datetime", nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   last_activity: Date;
 
-  @Column({ type: "datetime", nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   next_followup: Date | undefined;
 
   @Column({ type: "text", nullable: true })

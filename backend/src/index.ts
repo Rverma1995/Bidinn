@@ -631,7 +631,7 @@ const startServer = async () => {
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Bidinn CRM API server running on http://0.0.0.0:${PORT}`);
-      console.log(`Using TypeORM with MySQL database`);
+      console.log(`Using TypeORM with ${AppDataSource.options.type} database`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);

@@ -43,7 +43,7 @@ export class Call {
   @Column({ type: "text", nullable: true })
   notes: string;
 
-  @Column({ type: "datetime", nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   next_followup: Date | undefined;
 
   @Column({ type: "varchar", length: 100, nullable: true })
@@ -55,13 +55,13 @@ export class Call {
   @Column({ type: "text", nullable: true })
   recording_url: string | null;
 
-  @Column({ type: "datetime", nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   started_at: Date | null;
 
-  @Column({ type: "datetime", nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   answered_at: Date | null;
 
-  @Column({ type: "datetime", nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   ended_at: Date | null;
 
   @Column({ type: "varchar", length: 50, nullable: true })

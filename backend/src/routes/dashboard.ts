@@ -296,23 +296,41 @@ router.get("/lead-counts", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOA
     const startDate = start_date ? new Date(start_date as string) : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
     
     // Determine grouping format based on group_by parameter
-    let dateFormat = '%Y-%m-%d'; // daily by default
+    const isPg = leadRepository().metadata.connection.options.type === "postgres";
+    let periodExpr: string;
     let groupLabel = 'day';
     
-    if (group_by === 'weekly') {
-      dateFormat = '%Y-%u'; // Year-Week number
-      groupLabel = 'week';
-    } else if (group_by === 'monthly') {
-      dateFormat = '%Y-%m';
-      groupLabel = 'month';
-    } else if (group_by === 'yearly') {
-      dateFormat = '%Y';
-      groupLabel = 'year';
+    if (isPg) {
+      let pgFormat = 'YYYY-MM-DD';
+      if (group_by === 'weekly') {
+        pgFormat = 'YYYY-IW';
+        groupLabel = 'week';
+      } else if (group_by === 'monthly') {
+        pgFormat = 'YYYY-MM';
+        groupLabel = 'month';
+      } else if (group_by === 'yearly') {
+        pgFormat = 'YYYY';
+        groupLabel = 'year';
+      }
+      periodExpr = `TO_CHAR(lead.created_at, '${pgFormat}')`;
+    } else {
+      let dateFormat = '%Y-%m-%d';
+      if (group_by === 'weekly') {
+        dateFormat = '%Y-%u';
+        groupLabel = 'week';
+      } else if (group_by === 'monthly') {
+        dateFormat = '%Y-%m';
+        groupLabel = 'month';
+      } else if (group_by === 'yearly') {
+        dateFormat = '%Y';
+        groupLabel = 'year';
+      }
+      periodExpr = `DATE_FORMAT(lead.created_at, '${dateFormat}')`;
     }
     
     const countsQuery = leadRepository()
       .createQueryBuilder("lead")
-      .select(`DATE_FORMAT(lead.created_at, '${dateFormat}')`, "period")
+      .select(periodExpr, "period")
       .addSelect("COUNT(*)", "count")
       .addSelect("SUM(CASE WHEN lead.status = 'won' THEN 1 ELSE 0 END)", "won")
       .addSelect("SUM(CASE WHEN lead.status = 'lost' THEN 1 ELSE 0 END)", "lost")
@@ -320,8 +338,8 @@ router.get("/lead-counts", authenticateToken, cacheMiddleware(CACHE_KEYS.DASHBOA
       .addSelect("SUM(CASE WHEN lead.status = 'new' THEN 1 ELSE 0 END)", "new_status")
       .where("lead.created_at >= :startDate", { startDate })
       .andWhere("lead.created_at <= :endDate", { endDate })
-      .groupBy("period")
-      .orderBy("period", "ASC");
+      .groupBy(periodExpr)
+      .orderBy(periodExpr, "ASC");
     applySalesRepLeadScope(countsQuery, req.user!);
     const results = await countsQuery.getRawMany();
     
