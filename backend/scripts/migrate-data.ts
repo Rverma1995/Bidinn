@@ -52,7 +52,7 @@ const TABLE_CONFIGS: TableMigrationConfig[] = [
     batchSize: 1000,
     transform: (r) => [
       r.id,
-      r.email,
+      r.email ? r.email.trim().toLowerCase() : r.email,
       r.name,
       r.password_hash,
       r.role,

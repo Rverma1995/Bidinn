@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, OneToMany, BeforeInsert, Index } from "typeorm";
+import { Entity, PrimaryColumn, Column, CreateDateColumn, OneToMany, BeforeInsert, BeforeUpdate, Index } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { Lead } from "./Lead";
 import { Call } from "./Call";
@@ -57,4 +57,13 @@ export class User {
       this.id = uuidv4();
     }
   }
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  normalizeEmail() {
+    if (this.email) {
+      this.email = this.email.trim().toLowerCase();
+    }
+  }
 }
+

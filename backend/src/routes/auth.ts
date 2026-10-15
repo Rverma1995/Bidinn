@@ -16,8 +16,11 @@ router.post("/login", async (req: Request, res: Response) => {
     if (!email || !password) {
       return res.status(400).json({ detail: "Email and password required" });
     }
-
-    const user = await userRepository().findOne({ where: { email } });
+    const normalizedEmail = (email || "").trim().toLowerCase();
+    const user = await userRepository()
+      .createQueryBuilder("user")
+      .where("LOWER(user.email) = :email", { email: normalizedEmail })
+      .getOne();
 
     if (!user) {
       return res.status(401).json({ detail: "Invalid credentials" });

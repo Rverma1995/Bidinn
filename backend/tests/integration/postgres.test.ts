@@ -40,18 +40,19 @@ async function main() {
   await ds.initialize();
   console.log("PASS: PostgreSQL DataSource initialized and pool active");
 
-  const testUserEmail = `pg_test_${Date.now()}@bidinn.com`;
+  const testUserRawEmail = `PG_TEST_${Date.now()}@BidInn.COM`;
+  const expectedEmail = testUserRawEmail.toLowerCase();
   let testUserId = "";
   let testLeadId = "";
   let testBookingId = "";
 
   try {
-    // 1. User CRUD
-    await test("PostgreSQL: User entity CRUD", async () => {
+    // 1. User CRUD & email lowercase normalization hook
+    await test("PostgreSQL: User entity CRUD and email lowercase normalization", async () => {
       const userRepo = ds.getRepository(User);
       const user = userRepo.create({
         id: uuidv4(),
-        email: testUserEmail,
+        email: testUserRawEmail,
         name: "PostgreSQL Integration Tester",
         password_hash: "hash123",
         role: UserRole.SALES_REP,
@@ -63,7 +64,7 @@ async function main() {
 
       const fetched = await userRepo.findOneBy({ id: testUserId });
       assert.ok(fetched, "User should be found");
-      assert.strictEqual(fetched.email, testUserEmail);
+      assert.strictEqual(fetched.email, expectedEmail, "Email must be automatically lowercased");
       assert.strictEqual(fetched.role, UserRole.SALES_REP);
       assert.strictEqual(fetched.is_active, true);
 

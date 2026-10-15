@@ -63,7 +63,11 @@ router.post("/", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGE
       return res.status(403).json({ detail: "Managers cannot create admin users" });
     }
 
-    const existingUser = await userRepository().findOne({ where: { email } });
+    const normalizedEmail = (email || "").trim().toLowerCase();
+    const existingUser = await userRepository()
+      .createQueryBuilder("user")
+      .where("LOWER(user.email) = :email", { email: normalizedEmail })
+      .getOne();
     if (existingUser) {
       return res.status(400).json({ detail: "Email already exists" });
     }
@@ -72,7 +76,7 @@ router.post("/", authenticateToken, requireRole([UserRole.ADMIN, UserRole.MANAGE
 
     const user = userRepository().create({
       id: uuidv4(),
-      email,
+      email: normalizedEmail,
       name,
       password_hash: hashedPassword,
       role: role || UserRole.SALES_REP,
@@ -118,12 +122,16 @@ router.put("/:id", authenticateToken, async (req: AuthRequest, res: Response) =>
     }
 
     // Check if email is being changed to an existing email
-    if (email && email !== user.email) {
-      const existingUser = await userRepository().findOne({ where: { email } });
+    if (email && email.trim().toLowerCase() !== user.email.toLowerCase()) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const existingUser = await userRepository()
+        .createQueryBuilder("user")
+        .where("LOWER(user.email) = :email AND user.id != :id", { email: normalizedEmail, id: user.id })
+        .getOne();
       if (existingUser) {
         return res.status(400).json({ detail: "Email already in use" });
       }
-      user.email = email;
+      user.email = normalizedEmail;
     }
 
     if (name) user.name = name;
