@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -86,7 +86,11 @@ import {
   DEFAULT_LEAD_FILTERS,
   filtersFromSaved,
   hasActiveLeadFilters,
+  leadDetailLocationState,
   leadFiltersToQueryParams,
+  leadListStateToSearchParams,
+  persistLeadListState,
+  resolveLeadListState,
 } from '../lib/lead-filters';
 import { SavedFilter } from '../types';
 
@@ -141,9 +145,30 @@ interface LeadCardProps {
   onLogCall?: () => void;
 }
 
+function LeadDetailLink({
+  leadId,
+  className,
+  children,
+}: {
+  leadId: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const location = useLocation();
+  return (
+    <Link
+      to={`/leads/${leadId}`}
+      state={leadDetailLocationState(location.search)}
+      className={className}
+    >
+      {children}
+    </Link>
+  );
+}
+
 function LeadCard({ lead, onClick, onLogCall }: LeadCardProps) {
   return (
-    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
+    <LeadDetailLink leadId={lead.id} className="block no-underline text-inherit">
     <Card 
       className={`card-hover cursor-pointer pipeline-${lead.status} ${
         lead.is_overdue ? 'ring-2 ring-red-500' : ''
@@ -205,7 +230,7 @@ function LeadCard({ lead, onClick, onLogCall }: LeadCardProps) {
         )}
       </CardContent>
     </Card>
-    </Link>
+    </LeadDetailLink>
   );
 }
 
@@ -834,7 +859,9 @@ function ImportLeadsDialog({ open, onOpenChange, onSuccess }) {
 export default function LeadsPage() {
   const { api, user, isTeamLead } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [initialListState] = useState(() => resolveLeadListState(searchParams));
   const [leads, setLeads] = useState([]);
   const [users, setUsers] = useState([]);
   const [campaigns, setCampaigns] = useState<string[]>([]);
@@ -842,9 +869,9 @@ export default function LeadsPage() {
   const [viewMode, setViewMode] = useState('table');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [showUncontactedOnly, setShowUncontactedOnly] = useState(searchParams.get('filter') === 'uncontacted');
-  const [showOverdueOnly, setShowOverdueOnly] = useState(searchParams.get('filter') === 'overdue');
-  const [showUpcomingOnly, setShowUpcomingOnly] = useState(searchParams.get('filter') === 'upcoming');
+  const [showUncontactedOnly, setShowUncontactedOnly] = useState(initialListState.showUncontactedOnly);
+  const [showOverdueOnly, setShowOverdueOnly] = useState(initialListState.showOverdueOnly);
+  const [showUpcomingOnly, setShowUpcomingOnly] = useState(initialListState.showUpcomingOnly);
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
   const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
@@ -857,7 +884,7 @@ export default function LeadsPage() {
   const [bulkNotesAppend, setBulkNotesAppend] = useState(true);
   const [bulkAssignee, setBulkAssignee] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1'));
+  const [currentPage, setCurrentPage] = useState(initialListState.currentPage);
   const [totalPages, setTotalPages] = useState(1);
   const [totalLeads, setTotalLeads] = useState(0);
   const [pageSize] = useState(50);
@@ -866,17 +893,12 @@ export default function LeadsPage() {
     source: 'all',
     campaign: 'all',
     assigned_to: 'all',
+    scope: 'all',
   });
-  const [filters, setFilters] = useState({
-    ...DEFAULT_LEAD_FILTERS,
-    status: searchParams.get('status') || 'all',
-    source: searchParams.get('source') || 'all',
-    campaign: searchParams.get('campaign') || 'all',
-    assigned_to: searchParams.get('assigned_to') || 'all',
-    search: searchParams.get('search') || '',
-  });
+  const [filters, setFilters] = useState(initialListState.filters);
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
-  const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(null);
+  const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(initialListState.activeSavedFilterId);
+  const skipFilterPageReset = useRef(true);
   const [saveFilterDialogOpen, setSaveFilterDialogOpen] = useState(false);
   const [saveFilterName, setSaveFilterName] = useState('');
   const [savingFilter, setSavingFilter] = useState(false);
@@ -892,22 +914,19 @@ export default function LeadsPage() {
   const isManager = user?.role === 'manager';
   const canBulkDelete = isAdmin || isManager;
 
-  // Sync filters to URL when they change
+  // Sync filters to URL + session so Back from a lead detail keeps the same list.
   useEffect(() => {
-    const params = new URLSearchParams();
-    
-    if (showUncontactedOnly) {
-      params.set('filter', 'uncontacted');
-    } else if (showOverdueOnly) {
-      params.set('filter', 'overdue');
-    } else if (showUpcomingOnly) {
-      params.set('filter', 'upcoming');
-    } else {
-      leadFiltersToQueryParams(filters).forEach((value, key) => params.set(key, value));
-    }
-    
-    if (currentPage > 1) params.set('page', currentPage.toString());
-    
+    const listState = {
+      filters,
+      showUncontactedOnly,
+      showOverdueOnly,
+      showUpcomingOnly,
+      currentPage,
+      activeSavedFilterId,
+    };
+    persistLeadListState(listState);
+
+    const params = leadListStateToSearchParams(listState);
     const newSearch = params.toString();
     const currentSearch = searchParams.toString();
     
@@ -915,7 +934,7 @@ export default function LeadsPage() {
     if (newSearch !== currentSearch) {
       setSearchParams(params, { replace: true });
     }
-  }, [filters, showUncontactedOnly, showOverdueOnly, showUpcomingOnly, currentPage]);
+  }, [filters, showUncontactedOnly, showOverdueOnly, showUpcomingOnly, currentPage, activeSavedFilterId]);
 
   useEffect(() => {
     fetchLeads();
@@ -927,8 +946,12 @@ export default function LeadsPage() {
     fetchSavedFilters();
   }, []);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters change, but not on the first mount (Back should keep page).
   useEffect(() => {
+    if (skipFilterPageReset.current) {
+      skipFilterPageReset.current = false;
+      return;
+    }
     setCurrentPage(1);
   }, [filters, showUncontactedOnly, showOverdueOnly, showUpcomingOnly]);
 
@@ -1138,7 +1161,7 @@ export default function LeadsPage() {
   };
 
   const handleLeadClick = (lead) => {
-    navigate(`/leads/${lead.id}`);
+    navigate(`/leads/${lead.id}`, { state: leadDetailLocationState(location.search) });
   };
 
   const handleAssign = async (leadId, userId) => {
@@ -1254,10 +1277,14 @@ export default function LeadsPage() {
   const handleExport = async () => {
     try {
       const params = new URLSearchParams();
+      const exportAll = isAdmin && exportFilters.scope === 'all';
+      params.append('scope', exportAll ? 'all' : 'mine');
       if (exportFilters.status && exportFilters.status !== 'all') params.append('status', exportFilters.status);
       if (exportFilters.source && exportFilters.source !== 'all') params.append('source', exportFilters.source);
       if (exportFilters.campaign && exportFilters.campaign !== 'all') params.append('campaign', exportFilters.campaign);
-      if (exportFilters.assigned_to && exportFilters.assigned_to !== 'all') params.append('assigned_to', exportFilters.assigned_to);
+      if (exportAll && exportFilters.assigned_to && exportFilters.assigned_to !== 'all') {
+        params.append('assigned_to', exportFilters.assigned_to);
+      }
       params.append('format', 'csv');
 
       const response = await api.get(`/leads/export?${params.toString()}`, {
@@ -1368,10 +1395,39 @@ export default function LeadsPage() {
           <DialogHeader>
             <DialogTitle>Export Leads</DialogTitle>
             <DialogDescription>
-              Choose filters to export specific leads or export all
+              {isAdmin
+                ? 'Choose whether to export all leads or only yours, then apply optional filters'
+                : 'Export only leads assigned to you. Apply optional filters below.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {isAdmin ? (
+              <div className="space-y-2">
+                <Label>Who to export</Label>
+                <Select
+                  value={exportFilters.scope}
+                  onValueChange={(value) =>
+                    setExportFilters({
+                      ...exportFilters,
+                      scope: value,
+                      assigned_to: value === 'mine' ? 'all' : exportFilters.assigned_to,
+                    })
+                  }
+                >
+                  <SelectTrigger data-testid="export-scope-filter">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All leads</SelectItem>
+                    <SelectItem value="mine">Only my leads</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground" data-testid="export-scope-mine-note">
+                Your role can only export leads assigned to you.
+              </p>
+            )}
             <div className="space-y-2">
               <Label>Status</Label>
               <Select value={exportFilters.status} onValueChange={(value) => setExportFilters({ ...exportFilters, status: value })}>
@@ -1420,6 +1476,7 @@ export default function LeadsPage() {
                 </SelectContent>
               </Select>
             </div>
+            {isAdmin && exportFilters.scope === 'all' && (
             <div className="space-y-2">
               <Label>Assigned To</Label>
               <Select value={exportFilters.assigned_to} onValueChange={(value) => setExportFilters({ ...exportFilters, assigned_to: value })}>
@@ -1436,6 +1493,7 @@ export default function LeadsPage() {
                 </SelectContent>
               </Select>
             </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
@@ -1905,32 +1963,32 @@ export default function LeadsPage() {
                     />
                   </TableCell>
                   <TableCell>
-                    <Link to={`/leads/${lead.id}`} className="flex items-center gap-2 no-underline text-inherit">
+                    <LeadDetailLink leadId={lead.id} className="flex items-center gap-2 no-underline text-inherit">
                       {lead.is_overdue && (
                         <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                       )}
                       <span className="font-medium">{lead.name}</span>
-                    </Link>
+                    </LeadDetailLink>
                   </TableCell>
                   <TableCell>
-                    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
+                    <LeadDetailLink leadId={lead.id} className="block no-underline text-inherit">
                     <span className="text-sm">{lead.phone || '-'}</span>
-                    </Link>
+                    </LeadDetailLink>
                   </TableCell>
                   <TableCell>
-                    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
+                    <LeadDetailLink leadId={lead.id} className="block no-underline text-inherit">
                     <span className="text-sm text-muted-foreground">{lead.email || '-'}</span>
-                    </Link>
+                    </LeadDetailLink>
                   </TableCell>
                   <TableCell>
-                    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
+                    <LeadDetailLink leadId={lead.id} className="block no-underline text-inherit">
                     <span className="text-sm">{lead.campaign || '-'}</span>
-                    </Link>
+                    </LeadDetailLink>
                   </TableCell>
                   <TableCell>
-                    <Link to={`/leads/${lead.id}`} className="block no-underline text-inherit">
+                    <LeadDetailLink leadId={lead.id} className="block no-underline text-inherit">
                     <span className="text-sm">{lead.source || '-'}</span>
-                    </Link>
+                    </LeadDetailLink>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -1961,9 +2019,9 @@ export default function LeadsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link to={`/leads/${lead.id}`} className="no-underline text-inherit">
+                          <LeadDetailLink leadId={lead.id} className="no-underline text-inherit">
                             View Details
-                          </Link>
+                          </LeadDetailLink>
                         </DropdownMenuItem>
                         {isTeamLead && (
                           <>

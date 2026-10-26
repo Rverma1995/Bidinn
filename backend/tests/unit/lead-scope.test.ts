@@ -2,10 +2,13 @@ import assert from "assert";
 import {
   applyLeadListFilters,
   applySalesRepLeadScope,
+  applyExportLeadScope,
   canAccessLead,
+  canExportAllLeads,
   csvEscape,
   isSalesRep,
   parseMultiParam,
+  wantsAllLeadsExport,
   startOfCalendarMonth,
   startOfNextCalendarMonth,
 } from "../../src/utils/lead-scope";
@@ -110,6 +113,51 @@ test("startOfNextCalendarMonth rolls December into January", () => {
   assert.strictEqual(jan.getFullYear(), 2027);
   assert.strictEqual(jan.getMonth(), 0);
   assert.strictEqual(jan.getDate(), 1);
+});
+
+test("applyExportLeadScope: non-admin always scoped to self", () => {
+  for (const role of ["manager", "team_lead", "sales_rep"] as const) {
+    const clauses: Array<{ sql: string; params?: unknown }> = [];
+    const qb = {
+      andWhere(sql: string, params?: unknown) {
+        clauses.push({ sql, params });
+        return qb;
+      },
+    };
+    applyExportLeadScope(qb as any, { id: "u-1", role } as any, { scope: "all" });
+    assert.strictEqual(clauses.length, 1, role);
+    assert.ok(clauses[0].sql.includes("assigned_to = :exportScopeUserId"));
+    assert.deepStrictEqual(clauses[0].params, { exportScopeUserId: "u-1" });
+  }
+});
+
+test("applyExportLeadScope: admin all vs mine", () => {
+  const admin = { id: "admin-1", role: "admin" } as any;
+  const none: Array<{ sql: string }> = [];
+  const allQb = {
+    andWhere(sql: string) {
+      none.push({ sql });
+      return allQb;
+    },
+  };
+  applyExportLeadScope(allQb as any, admin, {});
+  applyExportLeadScope(allQb as any, admin, { scope: "all" });
+  assert.strictEqual(none.length, 0);
+  assert.strictEqual(wantsAllLeadsExport(admin, {}), true);
+  assert.strictEqual(wantsAllLeadsExport(admin, { scope: "mine" }), false);
+  assert.strictEqual(canExportAllLeads(admin), true);
+  assert.strictEqual(canExportAllLeads({ id: "m", role: "manager" } as any), false);
+
+  const mine: Array<{ sql: string; params?: unknown }> = [];
+  const mineQb = {
+    andWhere(sql: string, params?: unknown) {
+      mine.push({ sql, params });
+      return mineQb;
+    },
+  };
+  applyExportLeadScope(mineQb as any, admin, { scope: "mine" });
+  assert.strictEqual(mine.length, 1);
+  assert.deepStrictEqual(mine[0].params, { exportScopeUserId: "admin-1" });
 });
 
 test("applySalesRepLeadScope adds assigned_to only for sales_rep", () => {
