@@ -20,6 +20,34 @@ export function applySalesRepLeadScope<T extends ObjectLiteral>(
   return queryBuilder;
 }
 
+/** Admin may export all leads (`scope=all`); every other role is limited to assigned leads. */
+export function canExportAllLeads(user?: AuthUser | null): boolean {
+  return user?.role === "admin";
+}
+
+export function wantsAllLeadsExport(
+  user: AuthUser,
+  query: Record<string, unknown> = {}
+): boolean {
+  if (!canExportAllLeads(user)) return false;
+  const scope = typeof query.scope === "string" ? query.scope.trim().toLowerCase() : "all";
+  return scope !== "mine";
+}
+
+export function applyExportLeadScope<T extends ObjectLiteral>(
+  queryBuilder: SelectQueryBuilder<T>,
+  user: AuthUser,
+  query: Record<string, unknown> = {},
+  alias = "lead"
+): SelectQueryBuilder<T> {
+  if (!wantsAllLeadsExport(user, query)) {
+    queryBuilder.andWhere(`${alias}.assigned_to = :exportScopeUserId`, {
+      exportScopeUserId: user.id,
+    });
+  }
+  return queryBuilder;
+}
+
 export function canAccessLead(lead: { assigned_to?: string | null }, user: AuthUser): boolean {
   if (!isSalesRep(user)) return true;
   return lead.assigned_to === user.id;

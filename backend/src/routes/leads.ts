@@ -15,6 +15,8 @@ import * as XLSX from "xlsx";
 import {
   applySalesRepLeadScope,
   applyLeadListFilters,
+  applyExportLeadScope,
+  wantsAllLeadsExport,
   canAccessLead,
   csvEscape,
   normalizePhone,
@@ -246,9 +248,14 @@ const EXPORT_HEADERS = [
 async function exportLeadsCsv(req: AuthRequest, res: Response) {
   try {
     const user = req.user!;
+    const query = req.query as Record<string, unknown>;
     const queryBuilder = leadRepository().createQueryBuilder("lead");
-    applySalesRepLeadScope(queryBuilder, user);
-    applyLeadListFilters(queryBuilder, req.query as Record<string, unknown>);
+    applyExportLeadScope(queryBuilder, user, query);
+    const filters = { ...query };
+    if (!wantsAllLeadsExport(user, query)) {
+      delete filters.assigned_to;
+    }
+    applyLeadListFilters(queryBuilder, filters);
     queryBuilder.orderBy("lead.created_at", "DESC");
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");

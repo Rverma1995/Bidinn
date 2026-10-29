@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -45,6 +45,7 @@ import {
   STATUSES_REQUIRING_ASSIGNMENT,
   isTransitionAllowed,
 } from '../lib/utils';
+import { leadsListPathFromDetailState } from '../lib/lead-filters';
 import {
   ArrowLeft,
   Phone,
@@ -455,6 +456,7 @@ function LogCallDialog({ open, onOpenChange, leadId, currentStatus, isAssigned, 
 export default function LeadDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { api, user, isTeamLead } = useAuth();
   const [lead, setLead] = useState<Lead | null>(null);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
@@ -486,7 +488,7 @@ export default function LeadDetailPage() {
       setEditData(response.data);
     } catch (error) {
       toast.error('Failed to fetch lead');
-      navigate('/leads');
+      navigate(leadsListPathFromDetailState(location.state));
     } finally {
       setLoading(false);
     }
